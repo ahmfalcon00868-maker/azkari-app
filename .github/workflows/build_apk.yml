@@ -7,124 +7,79 @@ on:
 
 jobs:
   build-android-apk:
-    name: بناء ملف APK لتطبيق أذكاري v2.0
+    name: Build Azkari v2.0 APK
     runs-on: ubuntu-latest
     steps:
-      - name: سحب الكود المصدري
+      - name: Checkout code
         uses: actions/checkout@v4
 
-      - name: إعداد Java 17
+      - name: Setup Java 17
         uses: actions/setup-java@v4
         with:
           distribution: 'temurin'
           java-version: '17'
 
-      - name: إعداد Flutter SDK
+      - name: Setup Flutter
         uses: subosito/flutter-action@v2
         with:
           channel: 'stable'
 
-      - name: إنشاء ملفات أندرويد القياسية
+      - name: Create Android platform files
         run: flutter create --org com.azkari --project-name azkari --platforms=android .
 
-      - name: تحميل الاعتماديات
+      - name: Get dependencies
         run: flutter pub get
 
-      - name: إعداد الأصول والصوتيات وأيقونة الإشعار وتحديث Gradle و Manifest
+      - name: Configure Android assets, permissions, and Gradle
         run: |
-          python3 - << 'PY'
+          python3 -c '
           import os, re, shutil
-
-          # 1. نسخ الصوتيات وأيقونة الإشعار إلى مجلدات أندرويد الأصلية
           if os.path.exists("assets/audio/splash_ayah.mp3"):
               os.makedirs("android/app/src/main/res/raw", exist_ok=True)
               shutil.copy("assets/audio/splash_ayah.mp3", "android/app/src/main/res/raw/splash_ayah.mp3")
-
           if os.path.exists("assets/images/ic_notification.png"):
               os.makedirs("android/app/src/main/res/drawable", exist_ok=True)
               shutil.copy("assets/images/ic_notification.png", "android/app/src/main/res/drawable/ic_notification.png")
-
-          # 2. تحديث AndroidManifest.xml بالاسم العربي والصلاحيات
-          manifest_path = "android/app/src/main/AndroidManifest.xml"
-          with open(manifest_path, "r", encoding="utf-8") as f:
-              manifest = f.read()
-
-          manifest = re.sub(r'android:label="[^"]*"', 'android:label="أذكاري"', manifest, count=1)
-
-          perms = '''
-    <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED"/>
-    <uses-permission android:name="android.permission.VIBRATE"/>
-    <uses-permission android:name="android.permission.POST_NOTIFICATIONS"/>
-    <uses-permission android:name="android.permission.SCHEDULE_EXACT_ALARM"/>
-    <uses-permission android:name="android.permission.USE_EXACT_ALARM"/>
-    <uses-permission android:name="android.permission.SYSTEM_ALERT_WINDOW"/>
-'''
-          if "SYSTEM_ALERT_WINDOW" not in manifest:
-              manifest = manifest.replace("<application", perms + "
-    <application", 1)
-
-          services = '''
-        <service android:name="flutter.overlay.window.flutter_overlay_window.OverlayService" android:exported="false" />
-        <receiver android:exported="false" android:name="com.dexterous.flutterlocalnotifications.ScheduledNotificationReceiver" />
-        <receiver android:exported="false" android:name="com.dexterous.flutterlocalnotifications.ScheduledNotificationBootReceiver">
-            <intent-filter>
-                <action android:name="android.intent.action.BOOT_COMPLETED"/>
-                <action android:name="android.intent.action.MY_PACKAGE_REPLACED"/>
-            </intent-filter>
-        </receiver>
-'''
-          if "OverlayService" not in manifest:
-              manifest = manifest.replace("</application>", services + "
-    </application>", 1)
-
-          with open(manifest_path, "w", encoding="utf-8") as f:
-              f.write(manifest)
-
-          # 3. تفعيل Desugaring في build.gradle.kts أو build.gradle
-          kts_path = "android/app/build.gradle.kts"
-          groovy_path = "android/app/build.gradle"
-          if os.path.exists(kts_path):
-              with open(kts_path, "r", encoding="utf-8") as f:
-                  g = f.read()
+          mp = "android/app/src/main/AndroidManifest.xml"
+          m = open(mp, encoding="utf-8").read()
+          m = re.sub("android:label=\"[^\"]*\"", "android:label=\"أذكاري\"", m, count=1)
+          perms = "\n    <uses-permission android:name=\"android.permission.RECEIVE_BOOT_COMPLETED\"/>\n    <uses-permission android:name=\"android.permission.VIBRATE\"/>\n    <uses-permission android:name=\"android.permission.POST_NOTIFICATIONS\"/>\n    <uses-permission android:name=\"android.permission.SCHEDULE_EXACT_ALARM\"/>\n    <uses-permission android:name=\"android.permission.USE_EXACT_ALARM\"/>\n    <uses-permission android:name=\"android.permission.SYSTEM_ALERT_WINDOW\"/>\n"
+          if "SYSTEM_ALERT_WINDOW" not in m:
+              m = m.replace("<application", perms + "<application", 1)
+          svcs = "\n        <service android:name=\"flutter.overlay.window.flutter_overlay_window.OverlayService\" android:exported=\"false\" />\n        <receiver android:exported=\"false\" android:name=\"com.dexterous.flutterlocalnotifications.ScheduledNotificationReceiver\" />\n        <receiver android:exported=\"false\" android:name=\"com.dexterous.flutterlocalnotifications.ScheduledNotificationBootReceiver\"><intent-filter><action android:name=\"android.intent.action.BOOT_COMPLETED\"/><action android:name=\"android.intent.action.MY_PACKAGE_REPLACED\"/></intent-filter></receiver>\n"
+          if "OverlayService" not in m:
+              m = m.replace("</application>", svcs + "</application>", 1)
+          open(mp, "w", encoding="utf-8").write(m)
+          kts = "android/app/build.gradle.kts"
+          grv = "android/app/build.gradle"
+          if os.path.exists(kts):
+              g = open(kts, encoding="utf-8").read()
               if "isCoreLibraryDesugaringEnabled" not in g:
-                  g = g.replace("compileOptions {", "compileOptions {
-        isCoreLibraryDesugaringEnabled = true", 1)
-              g = re.sub(r'minSdk\s*=\s*flutter\.minSdkVersion', 'minSdk = 23', g)
+                  g = g.replace("compileOptions {", "compileOptions {\n        isCoreLibraryDesugaringEnabled = true", 1)
+              g = re.sub(r"minSdk\s*=\s*flutter\.minSdkVersion", "minSdk = 23", g)
               if "desugar_jdk_libs" not in g:
-                  g += '
-dependencies {
-    coreLibraryDesugaring("com.android.tools:desugar_jdk_libs:2.0.4")
-}
-'
-              with open(kts_path, "w", encoding="utf-8") as f:
-                  f.write(g)
-          elif os.path.exists(groovy_path):
-              with open(groovy_path, "r", encoding="utf-8") as f:
-                  g = f.read()
+                  g += "\ndependencies {\n    coreLibraryDesugaring(\"com.android.tools:desugar_jdk_libs:2.0.4\")\n}\n"
+              open(kts, "w", encoding="utf-8").write(g)
+          elif os.path.exists(grv):
+              g = open(grv, encoding="utf-8").read()
               if "coreLibraryDesugaringEnabled" not in g:
-                  g = g.replace("compileOptions {", "compileOptions {
-        coreLibraryDesugaringEnabled true", 1)
-              g = re.sub(r'minSdkVersion\s+flutter\.minSdkVersion', 'minSdkVersion 23', g)
+                  g = g.replace("compileOptions {", "compileOptions {\n        coreLibraryDesugaringEnabled true", 1)
+              g = re.sub(r"minSdkVersion\s+flutter\.minSdkVersion", "minSdkVersion 23", g)
               if "desugar_jdk_libs" not in g:
-                  g += '
-dependencies {
-    coreLibraryDesugaring "com.android.tools:desugar_jdk_libs:2.0.4"
-}
-'
-              with open(groovy_path, "w", encoding="utf-8") as f:
-                  f.write(g)
-          PY
+                  g += "\ndependencies {\n    coreLibraryDesugaring \"com.android.tools:desugar_jdk_libs:2.0.4\"\n}\n"
+              open(grv, "w", encoding="utf-8").write(g)
+          '
 
-      - name: توليد أيقونة التطبيق من app_icon.png
+      - name: Generate Launcher Icon
         run: |
           if [ -f "assets/images/app_icon.png" ]; then
             dart run flutter_launcher_icons
           fi
 
-      - name: بناء ملف الـ APK النهائي (Release APK)
+      - name: Build Release APK
         run: flutter build apk --release
 
-      - name: رفع ملف APK جاهز للتحميل
+      - name: Upload APK Artifact
         uses: actions/upload-artifact@v4
         with:
           name: Azkari-v2-Release-APK
