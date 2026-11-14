@@ -70,6 +70,37 @@ jobs:
               open(grv, "w", encoding="utf-8").write(g)
           '
 
+      - name: Configure Release Signing
+        env:
+          KEYSTORE_BASE64: ${{ secrets.KEYSTORE_BASE64 }}
+          KEYSTORE_PASSWORD: ${{ secrets.KEYSTORE_PASSWORD }}
+          KEY_ALIAS: ${{ secrets.KEY_ALIAS }}
+          KEY_PASSWORD: ${{ secrets.KEY_PASSWORD }}
+        run: |
+          echo "$KEYSTORE_BASE64" | base64 --decode > android/app/azkari-release.jks
+          printf "storePassword=%s\nkeyPassword=%s\nkeyAlias=%s\nstoreFile=azkari-release.jks\n" "$KEYSTORE_PASSWORD" "$KEY_PASSWORD" "$KEY_ALIAS" > android/key.properties
+          python3 -c '
+          import os
+          kts = "android/app/build.gradle.kts"
+          grv = "android/app/build.gradle"
+          if os.path.exists(kts):
+              txt = open(kts, encoding="utf-8").read()
+              props = "val keystoreProperties = java.util.Properties().apply {\n    val f = rootProject.file(\"key.properties\")\n    if (f.exists()) load(java.io.FileInputStream(f))\n}\n\nandroid {"
+              txt = txt.replace("android {", props, 1)
+              sc = "signingConfigs {\n        create(\"release\") {\n            keyAlias = keystoreProperties.getProperty(\"keyAlias\")\n            keyPassword = keystoreProperties.getProperty(\"keyPassword\")\n            storeFile = file(keystoreProperties.getProperty(\"storeFile\"))\n            storePassword = keystoreProperties.getProperty(\"storePassword\")\n        }\n    }\n    buildTypes {"
+              txt = txt.replace("buildTypes {", sc, 1)
+              txt = txt.replace("signingConfig = signingConfigs.getByName(\"debug\")", "signingConfig = signingConfigs.getByName(\"release\")")
+              open(kts, "w", encoding="utf-8").write(txt)
+          elif os.path.exists(grv):
+              txt = open(grv, encoding="utf-8").read()
+              props = "def keystoreProperties = new Properties()\ndef keystorePropertiesFile = rootProject.file(\"key.properties\")\nif (keystorePropertiesFile.exists()) {\n    keystoreProperties.load(new FileInputStream(keystorePropertiesFile))\n}\n\nandroid {"
+              txt = txt.replace("android {", props, 1)
+              sc = "signingConfigs {\n        release {\n            keyAlias keystoreProperties[\"keyAlias\"]\n            keyPassword keystoreProperties[\"keyPassword\"]\n            storeFile file(keystoreProperties[\"storeFile\"])\n            storePassword keystoreProperties[\"storePassword\"]\n        }\n    }\n    buildTypes {"
+              txt = txt.replace("buildTypes {", sc, 1)
+              txt = txt.replace("signingConfig signingConfigs.debug", "signingConfig signingConfigs.release")
+              open(grv, "w", encoding="utf-8").write(txt)
+          '
+
       - name: Generate Launcher Icon
         run: |
           if [ -f "assets/images/app_icon.png" ]; then
