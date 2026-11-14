@@ -85,8 +85,9 @@ jobs:
           grv = "android/app/build.gradle"
           if os.path.exists(kts):
               txt = open(kts, encoding="utf-8").read()
-              props = "val keystoreProperties = java.util.Properties().apply {\n    val f = rootProject.file(\"key.properties\")\n    if (f.exists()) load(java.io.FileInputStream(f))\n}\n\nandroid {"
-              txt = txt.replace("android {", props, 1)
+              imports = "import java.util.Properties\nimport java.io.FileInputStream\n\n"
+              props = "val keystoreProperties = Properties().apply {\n    val f = rootProject.file(\"key.properties\")\n    if (f.exists()) load(FileInputStream(f))\n}\n\nandroid {"
+              txt = imports + txt.replace("android {", props, 1)
               sc = "signingConfigs {\n        create(\"release\") {\n            keyAlias = keystoreProperties.getProperty(\"keyAlias\")\n            keyPassword = keystoreProperties.getProperty(\"keyPassword\")\n            storeFile = file(keystoreProperties.getProperty(\"storeFile\"))\n            storePassword = keystoreProperties.getProperty(\"storePassword\")\n        }\n    }\n    buildTypes {"
               txt = txt.replace("buildTypes {", sc, 1)
               txt = txt.replace("signingConfig = signingConfigs.getByName(\"debug\")", "signingConfig = signingConfigs.getByName(\"release\")")
