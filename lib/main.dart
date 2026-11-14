@@ -7,19 +7,30 @@ import 'dart:ui' as ui;
 import 'package:flutter/material.dart';
 import 'package:flutter/rendering.dart';
 import 'package:flutter/services.dart';
+import 'package:flutter_facebook_auth/flutter_facebook_auth.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:flutter_overlay_window/flutter_overlay_window.dart';
 import 'package:just_audio/just_audio.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:share_plus/share_plus.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:url_launcher/url_launcher.dart';
 
 import 'data/azkar_data.dart';
 import 'services/notification_service.dart';
+import 'services/update_service.dart';
 import 'widgets/google_play_icon.dart';
 
 const String kAppDownloadLink =
-    'https://play.google.com/store/apps/details?id=com.azkari.app';
+    'https://github.com/ahmfalcon00868-maker/azkari-app/releases/latest';
+
+const List<String> kSplashVerses = [
+  '﴿وَاذْكُرْ رَبَّكَ إِذَا نَسِيتَ﴾',
+  '﴿أَلَا بِذِكْرِ اللَّهِ تَطْمَئِنُّ الْقُلُوبُ﴾',
+  '﴿فَاذْكُرُونِي أَذْكُرْكُمْ وَاشْكُرُوا لِي وَلَا تَكْفُرُونِ﴾',
+  '﴿وَسَبِّحْ بِحَمْدِ رَبِّكَ قَبْلَ طُلُوعِ الشَّمْسِ وَقَبْلَ غُرُوبِهَا﴾',
+  '﴿وَالذَّاكِرِينَ اللَّهَ كَثِيرًا وَالذَّاكِرَاتِ أَعَدَّ اللَّهُ لَهُمْ مَغْفِرَةً وَأَجْرًا عَظِيمًا﴾',
+];
 
 // ============================================================================
 // نقطة دخول النافذة العائمة (Overlay) للأذكار العشوائية (5 ثوانٍ + سحب + ضغطة للإخفاء)
@@ -57,7 +68,6 @@ class _FloatingZikrOverlayWidgetState
         setState(() => _zikr = event);
       }
     });
-    // تظهر لمدة 5 ثوانٍ فقط ثم تختفي تلقائيًا
     _autoHideTimer = Timer(const Duration(seconds: 5), () async {
       await FlutterOverlayWindow.closeOverlay();
     });
@@ -143,7 +153,7 @@ class _FloatingZikrOverlayWidgetState
 }
 
 // ============================================================================
-// الهوية البصرية الجديدة: الأزرق الملكي واللبني السماوي
+// الهوية البصرية: الأزرق الملكي واللبني السماوي
 // ============================================================================
 class AppColors {
   static const Color primaryBlue = Color(0xFF0D47A1);
@@ -171,7 +181,9 @@ Future<void> main() async {
   ]);
   final prefs = await SharedPreferences.getInstance();
   runApp(AzkariApp(prefs: prefs));
-  try { await NotificationService.instance.init(); } catch (_) {}
+  try {
+    await NotificationService.instance.init();
+  } catch (_) {}
 }
 
 class AzkariApp extends StatefulWidget {
@@ -184,6 +196,9 @@ class AzkariApp extends StatefulWidget {
 
 class _AzkariAppState extends State<AzkariApp> {
   late bool isDarkMode;
+  late bool isEnglish;
+  late bool buttonSoundEnabled;
+  late bool hapticEnabled;
   late double fontScale;
   late bool autoNext;
   late bool showProgress;
@@ -197,14 +212,40 @@ class _AzkariAppState extends State<AzkariApp> {
   late int tasbihCount;
   late int tasbihLifetime;
   late String tasbihPhrase;
+  late int currentStreak;
+  late int bestStreak;
+  late int totalAzkarCompleted;
+  late String lastActiveDate;
+  late String firstInstallDate;
+  late bool hasRatedPromptShown;
+  late bool taskMorningDone;
+  late bool taskEveningDone;
+  late bool taskSleepDone;
+  late bool taskMulkDone;
+  late bool taskKahfDone;
+  late String tasksDate;
+  late String fbUserName;
+  late String fbUserPhoto;
   late List<ZikrItem> azkarList;
   Timer? _floatingTimer;
+
+  String tr(String ar, String en) => isEnglish ? en : ar;
+
+  void playTapFeedback() {
+    if (hapticEnabled) HapticFeedback.lightImpact();
+    if (buttonSoundEnabled) SystemSound.play(SystemSoundType.click);
+  }
 
   @override
   void initState() {
     super.initState();
     final p = widget.prefs;
-    isDarkMode = p.getBool('darkMode') ?? false;
+    final today = DateTime.now().toIso8601String().split('T').first;
+
+    isDarkMode = p.getBool('darkMode') ?? true;
+    isEnglish = p.getBool('isEnglish') ?? false;
+    buttonSoundEnabled = p.getBool('buttonSoundEnabled') ?? true;
+    hapticEnabled = p.getBool('hapticEnabled') ?? true;
     fontScale = p.getDouble('fontScale') ?? 1.0;
     autoNext = p.getBool('autoNext') ?? true;
     showProgress = p.getBool('showProgress') ?? true;
@@ -217,7 +258,39 @@ class _AzkariAppState extends State<AzkariApp> {
     floatingIntervalMinutes = p.getInt('floatingIntervalMinutes') ?? 15;
     tasbihCount = p.getInt('tasbihCount') ?? 0;
     tasbihLifetime = p.getInt('tasbihLifetime') ?? 0;
-    tasbihPhrase = p.getString('tasbihPhrase') ?? 'سُبْحَانَ اللَّهِ وَبِحَمْدِهِ';
+    tasbihPhrase =
+        p.getString('tasbihPhrase') ?? 'سُبْحَانَ اللَّهِ وَبِحَمْدِهِ';
+
+    currentStreak = p.getInt('currentStreak') ?? 0;
+    bestStreak = p.getInt('bestStreak') ?? 0;
+    totalAzkarCompleted = p.getInt('totalAzkarCompleted') ?? 0;
+    lastActiveDate = p.getString('lastActiveDate') ?? '';
+    firstInstallDate = p.getString('firstInstallDate') ?? today;
+    if (p.getString('firstInstallDate') == null) {
+      p.setString('firstInstallDate', today);
+    }
+    hasRatedPromptShown = p.getBool('hasRatedPromptShown') ?? false;
+
+    tasksDate = p.getString('tasksDate') ?? today;
+    if (tasksDate != today) {
+      taskMorningDone = false;
+      taskEveningDone = false;
+      taskSleepDone = false;
+      taskMulkDone = false;
+      taskKahfDone = false;
+      tasksDate = today;
+      p.setString('tasksDate', today);
+    } else {
+      taskMorningDone = p.getBool('taskMorningDone') ?? false;
+      taskEveningDone = p.getBool('taskEveningDone') ?? false;
+      taskSleepDone = p.getBool('taskSleepDone') ?? false;
+      taskMulkDone = p.getBool('taskMulkDone') ?? false;
+      taskKahfDone = p.getBool('taskKahfDone') ?? false;
+    }
+
+    fbUserName = p.getString('fbUserName') ?? '';
+    fbUserPhoto = p.getString('fbUserPhoto') ?? '';
+
     azkarList = getInitialAzkarList();
     _restoreAzkarState();
     _syncReminders();
@@ -240,41 +313,125 @@ class _AzkariAppState extends State<AzkariApp> {
     }
   }
 
+  void recordDailyActivity({String? completedCategory}) {
+    final now = DateTime.now();
+    final today = now.toIso8601String().split('T').first;
+    final yesterday =
+        now.subtract(const Duration(days: 1)).toIso8601String().split('T').first;
+
+    if (lastActiveDate != today) {
+      if (lastActiveDate == yesterday) {
+        currentStreak += 1;
+      } else {
+        currentStreak = 1;
+      }
+      if (currentStreak > bestStreak) bestStreak = currentStreak;
+      lastActiveDate = today;
+    }
+
+    if (completedCategory == 'morning') taskMorningDone = true;
+    if (completedCategory == 'evening') taskEveningDone = true;
+    if (completedCategory == 'sleep') taskSleepDone = true;
+    saveAllState();
+  }
+
+  bool isSecondDayOrLater() {
+    final install = DateTime.tryParse(firstInstallDate);
+    if (install == null) return false;
+    return DateTime.now().difference(install).inHours >= 24;
+  }
+
+  Future<void> loginWithFacebook(BuildContext context) async {
+    try {
+      final result = await FacebookAuth.instance.login(
+        permissions: ['public_profile'],
+      );
+      if (result.status == LoginStatus.success) {
+        final userData = await FacebookAuth.instance.getUserData(
+          fields: 'name,picture.width(200)',
+        );
+        fbUserName = (userData['name'] ?? '').toString();
+        fbUserPhoto =
+            ((userData['picture']?['data']?['url']) ?? '').toString();
+        saveAllState();
+        if (context.mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text(tr(
+                'تم تسجيل الدخول بنجاح: $fbUserName',
+                'Signed in as $fbUserName',
+              )),
+            ),
+          );
+        }
+      } else if (context.mounted && result.status != LoginStatus.cancelled) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(tr(
+              'تعذر تسجيل الدخول بفيسبوك',
+              'Facebook login failed',
+            )),
+          ),
+        );
+      }
+    } catch (_) {
+      if (context.mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(tr(
+              'تحقق من الاتصال بالإنترنت وإعدادات فيسبوك',
+              'Check internet connection and Facebook setup',
+            )),
+          ),
+        );
+      }
+    }
+  }
+
+  Future<void> logoutFacebook() async {
+    try {
+      await FacebookAuth.instance.logOut();
+    } catch (_) {}
+    fbUserName = '';
+    fbUserPhoto = '';
+    saveAllState();
+  }
+
   Future<void> _syncReminders() async {
     try {
-    if (morningReminder) {
-      await NotificationService.instance.scheduleDaily(
-        id: 101,
-        title: 'أذكاري • أذكار الصباح',
-        body: '﴿وَاذْكُرْ رَبَّكَ إِذَا نَسِيتَ﴾ حان وقت أذكار الصباح',
-        hour: 6,
-        minute: 0,
-      );
-    } else {
-      await NotificationService.instance.cancel(101);
-    }
-    if (eveningReminder) {
-      await NotificationService.instance.scheduleDaily(
-        id: 102,
-        title: 'أذكاري • أذكار المساء',
-        body: '﴿وَاذْكُرْ رَبَّكَ إِذَا نَسِيتَ﴾ حان وقت أذكار المساء',
-        hour: 17,
-        minute: 0,
-      );
-    } else {
-      await NotificationService.instance.cancel(102);
-    }
-    if (sleepReminder) {
-      await NotificationService.instance.scheduleDaily(
-        id: 103,
-        title: 'أذكاري • أذكار النوم',
-        body: 'اختم يومك بأذكار النوم في سكينة وطمأنينة',
-        hour: 22,
-        minute: 30,
-      );
-    } else {
-      await NotificationService.instance.cancel(103);
-    }
+      if (morningReminder) {
+        await NotificationService.instance.scheduleDaily(
+          id: 101,
+          title: 'أذكاري • أذكار الصباح',
+          body: '﴿وَاذْكُرْ رَبَّكَ إِذَا نَسِيتَ﴾ حان وقت أذكار الصباح',
+          hour: 6,
+          minute: 0,
+        );
+      } else {
+        await NotificationService.instance.cancel(101);
+      }
+      if (eveningReminder) {
+        await NotificationService.instance.scheduleDaily(
+          id: 102,
+          title: 'أذكاري • أذكار المساء',
+          body: '﴿وَاذْكُرْ رَبَّكَ إِذَا نَسِيتَ﴾ حان وقت أذكار المساء',
+          hour: 17,
+          minute: 0,
+        );
+      } else {
+        await NotificationService.instance.cancel(102);
+      }
+      if (sleepReminder) {
+        await NotificationService.instance.scheduleDaily(
+          id: 103,
+          title: 'أذكاري • أذكار النوم',
+          body: 'اختم يومك بأذكار النوم في سكينة وطمأنينة',
+          hour: 22,
+          minute: 30,
+        );
+      } else {
+        await NotificationService.instance.cancel(103);
+      }
     } catch (_) {}
   }
 
@@ -313,6 +470,9 @@ class _AzkariAppState extends State<AzkariApp> {
   void saveAllState() {
     final p = widget.prefs;
     p.setBool('darkMode', isDarkMode);
+    p.setBool('isEnglish', isEnglish);
+    p.setBool('buttonSoundEnabled', buttonSoundEnabled);
+    p.setBool('hapticEnabled', hapticEnabled);
     p.setDouble('fontScale', fontScale);
     p.setBool('autoNext', autoNext);
     p.setBool('showProgress', showProgress);
@@ -326,6 +486,19 @@ class _AzkariAppState extends State<AzkariApp> {
     p.setInt('tasbihCount', tasbihCount);
     p.setInt('tasbihLifetime', tasbihLifetime);
     p.setString('tasbihPhrase', tasbihPhrase);
+    p.setInt('currentStreak', currentStreak);
+    p.setInt('bestStreak', bestStreak);
+    p.setInt('totalAzkarCompleted', totalAzkarCompleted);
+    p.setString('lastActiveDate', lastActiveDate);
+    p.setBool('hasRatedPromptShown', hasRatedPromptShown);
+    p.setBool('taskMorningDone', taskMorningDone);
+    p.setBool('taskEveningDone', taskEveningDone);
+    p.setBool('taskSleepDone', taskSleepDone);
+    p.setBool('taskMulkDone', taskMulkDone);
+    p.setBool('taskKahfDone', taskKahfDone);
+    p.setString('tasksDate', tasksDate);
+    p.setString('fbUserName', fbUserName);
+    p.setString('fbUserPhoto', fbUserPhoto);
     p.setString(
       'azkarState',
       jsonEncode(azkarList.map((e) => e.toJson()).toList()),
@@ -361,10 +534,10 @@ class _AzkariAppState extends State<AzkariApp> {
         isDarkMode ? AppColors.textPrimaryDark : AppColors.textPrimaryLight;
 
     return MaterialApp(
-      title: 'أذكاري',
+      title: isEnglish ? 'Azkari' : 'أذكاري',
       debugShowCheckedModeBanner: false,
-      locale: const Locale('ar'),
-      supportedLocales: const [Locale('ar')],
+      locale: Locale(isEnglish ? 'en' : 'ar'),
+      supportedLocales: const [Locale('ar'), Locale('en')],
       localizationsDelegates: const [
         GlobalMaterialLocalizations.delegate,
         GlobalWidgetsLocalizations.delegate,
@@ -394,7 +567,7 @@ class _AzkariAppState extends State<AzkariApp> {
 }
 
 // ============================================================================
-// 1. شاشة البداية باللون الأزرق + تشغيل الصوت مرة يومياً
+// 1. شاشة البداية باللون الأزرق + آية قرآنية + تشغيل الصوت مرة يومياً
 // ============================================================================
 class SplashWrapperScreen extends StatefulWidget {
   final _AzkariAppState appState;
@@ -409,12 +582,14 @@ class _SplashWrapperScreenState extends State<SplashWrapperScreen>
   late AnimationController _controller;
   late Animation<double> _fadeAnimation;
   late Animation<Offset> _slideAnimation;
+  late String _verse;
   final AudioPlayer _audioPlayer = AudioPlayer();
   bool _showSplash = true;
 
   @override
   void initState() {
     super.initState();
+    _verse = kSplashVerses[Random().nextInt(kSplashVerses.length)];
     _controller = AnimationController(
       vsync: this,
       duration: const Duration(milliseconds: 1200),
@@ -451,6 +626,7 @@ class _SplashWrapperScreenState extends State<SplashWrapperScreen>
 
   @override
   Widget build(BuildContext context) {
+    final s = widget.appState;
     return AnimatedSwitcher(
       duration: const Duration(milliseconds: 450),
       child: _showSplash
@@ -499,20 +675,21 @@ class _SplashWrapperScreenState extends State<SplashWrapperScreen>
                                 ),
                               ),
                               const SizedBox(height: 24),
-                              const Text(
-                                'أذكاري',
-                                style: TextStyle(
+                              Text(
+                                s.tr('أذكاري', 'Azkari'),
+                                style: const TextStyle(
                                   fontSize: 34,
                                   fontWeight: FontWeight.bold,
                                   color: Colors.white,
                                 ),
                               ),
                               const SizedBox(height: 12),
-                              const Text(
-                                '﴿وَاذْكُرْ رَبَّكَ إِذَا نَسِيتَ﴾',
+                              Text(
+                                _verse,
                                 textAlign: TextAlign.center,
-                                style: TextStyle(
-                                  fontSize: 22,
+                                textDirection: TextDirection.rtl,
+                                style: const TextStyle(
+                                  fontSize: 20,
                                   fontWeight: FontWeight.w600,
                                   color: Color(0xFFBAE6FD),
                                 ),
@@ -535,7 +712,7 @@ class _SplashWrapperScreenState extends State<SplashWrapperScreen>
 }
 
 // ============================================================================
-// الهيكل الرئيسي والتنقل السفلي
+// الهيكل الرئيسي + القائمة الجانبية + التحديث التلقائي + المهام اليومية
 // ============================================================================
 class MainShellScreen extends StatefulWidget {
   final _AzkariAppState appState;
@@ -546,11 +723,24 @@ class MainShellScreen extends StatefulWidget {
 }
 
 class _MainShellScreenState extends State<MainShellScreen> {
+  final GlobalKey<ScaffoldState> _scaffoldKey = GlobalKey<ScaffoldState>();
   int _currentIndex = 0;
   String _searchQuery = '';
   bool _showSearch = false;
 
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      UpdateService.checkForUpdate(
+        context,
+        isEnglish: widget.appState.isEnglish,
+      );
+    });
+  }
+
   void _openCategoryReader(String category, {int initialIndex = 0}) {
+    widget.appState.playTapFeedback();
     Navigator.of(context).push(
       MaterialPageRoute(
         builder: (_) => AzkarReaderScreen(
@@ -558,6 +748,31 @@ class _MainShellScreenState extends State<MainShellScreen> {
           category: category,
           initialIndex: initialIndex,
         ),
+      ),
+    );
+  }
+
+  void _shareAppWithFriend() {
+    final s = widget.appState;
+    Share.share(
+      s.tr(
+        'حمّل تطبيق «أذكاري» للأذكار اليومية والسبحة الإلكترونية بدون إنترنت:\n$kAppDownloadLink\nشارك تؤجر 💙',
+        'Download Azkari app for daily Azkar & offline Tasbih:\n$kAppDownloadLink',
+      ),
+    );
+  }
+
+  Future<void> _rateApp() async {
+    final uri = Uri.parse(kAppDownloadLink);
+    if (await canLaunchUrl(uri)) {
+      await launchUrl(uri, mode: LaunchMode.externalApplication);
+    }
+  }
+
+  void _openAchievementsScreen() {
+    Navigator.of(context).push(
+      MaterialPageRoute(
+        builder: (_) => AchievementsScreen(appState: widget.appState),
       ),
     );
   }
@@ -579,21 +794,185 @@ class _MainShellScreenState extends State<MainShellScreen> {
       _buildSettingsTab(context, cardColor, borderColor, primary, textSecondary),
     ];
 
+    final drawerContent = _buildLeftDrawer(context, cardColor, primary);
+
     return Scaffold(
+      key: _scaffoldKey,
+      // وضع القائمة على أقصى اليسار في العربي والإنجليزي
+      endDrawer: s.isEnglish ? null : drawerContent,
+      drawer: s.isEnglish ? drawerContent : null,
       body: SafeArea(child: pages[_currentIndex]),
       bottomNavigationBar: NavigationBar(
         selectedIndex: _currentIndex,
-        onDestinationSelected: (idx) => setState(() => _currentIndex = idx),
+        onDestinationSelected: (idx) {
+          s.playTapFeedback();
+          setState(() => _currentIndex = idx);
+        },
         backgroundColor: cardColor,
         indicatorColor: primary.withOpacity(0.16),
-        destinations: const [
-          NavigationDestination(icon: Icon(Icons.home_rounded), label: 'الرئيسية'),
+        destinations: [
           NavigationDestination(
-              icon: Icon(Icons.scatter_plot_rounded), label: 'السبحة'),
-          NavigationDestination(icon: Icon(Icons.star_rounded), label: 'المفضلة'),
+            icon: const Icon(Icons.home_rounded),
+            label: s.tr('الرئيسية', 'Home'),
+          ),
           NavigationDestination(
-              icon: Icon(Icons.settings_rounded), label: 'الإعدادات'),
+            icon: const Icon(Icons.scatter_plot_rounded),
+            label: s.tr('السبحة', 'Tasbih'),
+          ),
+          NavigationDestination(
+            icon: const Icon(Icons.star_rounded),
+            label: s.tr('المفضلة', 'Favorites'),
+          ),
+          NavigationDestination(
+            icon: const Icon(Icons.settings_rounded),
+            label: s.tr('الإعدادات', 'Settings'),
+          ),
         ],
+      ),
+    );
+  }
+
+  Widget _buildLeftDrawer(BuildContext context, Color cardColor, Color primary) {
+    final s = widget.appState;
+    return Drawer(
+      backgroundColor: cardColor,
+      child: SafeArea(
+        child: ListView(
+          padding: const EdgeInsets.all(16),
+          children: [
+            Container(
+              padding: const EdgeInsets.all(16),
+              decoration: BoxDecoration(
+                gradient: const LinearGradient(
+                  colors: [Color(0xFF0D47A1), Color(0xFF0288D1)],
+                ),
+                borderRadius: BorderRadius.circular(20),
+              ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(
+                    children: [
+                      CircleAvatar(
+                        radius: 26,
+                        backgroundColor: Colors.white24,
+                        backgroundImage: s.fbUserPhoto.isNotEmpty
+                            ? NetworkImage(s.fbUserPhoto)
+                            : null,
+                        child: s.fbUserPhoto.isEmpty
+                            ? const Icon(Icons.person_rounded,
+                                color: Colors.white, size: 28)
+                            : null,
+                      ),
+                      const SizedBox(width: 12),
+                      Expanded(
+                        child: Text(
+                          s.fbUserName.isNotEmpty
+                              ? s.fbUserName
+                              : s.tr('ضيف أذكاري', 'Azkari Guest'),
+                          style: const TextStyle(
+                            color: Colors.white,
+                            fontSize: 16,
+                            fontWeight: FontWeight.bold,
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 12),
+                  SizedBox(
+                    width: double.infinity,
+                    child: ElevatedButton.icon(
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: Colors.white,
+                        foregroundColor: const Color(0xFF0D47A1),
+                      ),
+                      onPressed: () {
+                        Navigator.pop(context);
+                        if (s.fbUserName.isEmpty) {
+                          s.loginWithFacebook(context);
+                        } else {
+                          s.logoutFacebook();
+                        }
+                      },
+                      icon: const Icon(Icons.facebook_rounded),
+                      label: Text(
+                        s.fbUserName.isEmpty
+                            ? s.tr('تسجيل الدخول بفيسبوك', 'Login with Facebook')
+                            : s.tr('تسجيل الخروج', 'Sign Out'),
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            const SizedBox(height: 16),
+            ListTile(
+              leading: Icon(Icons.emoji_events_rounded, color: primary),
+              title: Text(s.tr('الإنجازات والمهام اليومية', 'Achievements & Tasks')),
+              subtitle: Text(
+                s.tr('المواظبة الحالية: ${s.currentStreak} يوم',
+                    'Current streak: ${s.currentStreak} days'),
+              ),
+              onTap: () {
+                Navigator.pop(context);
+                _openAchievementsScreen();
+              },
+            ),
+            ListTile(
+              leading: Icon(Icons.language_rounded, color: primary),
+              title: Text(s.tr('اللغة: العربية / English', 'Language: EN / AR')),
+              trailing: Switch(
+                value: s.isEnglish,
+                onChanged: (v) {
+                  s.isEnglish = v;
+                  s.saveAllState();
+                },
+              ),
+            ),
+            ListTile(
+              leading: Icon(
+                s.buttonSoundEnabled
+                    ? Icons.volume_up_rounded
+                    : Icons.volume_off_rounded,
+                color: primary,
+              ),
+              title: Text(s.tr('صوت الأزرار', 'Button Sound')),
+              trailing: Switch(
+                value: s.buttonSoundEnabled,
+                onChanged: (v) {
+                  s.buttonSoundEnabled = v;
+                  s.saveAllState();
+                },
+              ),
+            ),
+            const Divider(),
+            ListTile(
+              leading: Icon(Icons.share_rounded, color: primary),
+              title: Text(s.tr('مشاركة التطبيق مع صديق', 'Share with a Friend')),
+              onTap: () {
+                Navigator.pop(context);
+                _shareAppWithFriend();
+              },
+            ),
+            ListTile(
+              leading: Icon(Icons.star_rate_rounded, color: primary),
+              title: Text(s.tr('قيّم التطبيق', 'Rate App')),
+              onTap: () {
+                Navigator.pop(context);
+                _rateApp();
+              },
+            ),
+            ListTile(
+              leading: Icon(Icons.system_update_rounded, color: primary),
+              title: Text(s.tr('التحقق من التحديثات', 'Check for Updates')),
+              onTap: () {
+                Navigator.pop(context);
+                UpdateService.checkForUpdate(context, isEnglish: s.isEnglish);
+              },
+            ),
+          ],
+        ),
       ),
     );
   }
@@ -609,15 +988,16 @@ class _MainShellScreenState extends State<MainShellScreen> {
     final activeDone = activeItems.where((z) => z.count >= z.target).length;
     final progress =
         activeItems.isEmpty ? 0.0 : activeDone / activeItems.length;
+    final isFriday = DateTime.now().weekday == DateTime.friday;
 
     final categories = [
-      ('morning', '🌅', 'أذكار الصباح'),
-      ('evening', '🌙', 'أذكار المساء'),
-      ('sleep', '🛌', 'أذكار النوم'),
-      ('wakeup', '☀️', 'أذكار الاستيقاظ'),
-      ('prayer', '🕌', 'بعد الصلاة'),
-      ('daily', '🏠', 'المنزل والسفر'),
-      ('supplications', '🤲', 'الأدعية الجامعة'),
+      ('morning', '🌅', s.tr('أذكار الصباح', 'Morning Azkar')),
+      ('evening', '🌙', s.tr('أذكار المساء', 'Evening Azkar')),
+      ('sleep', '🛌', s.tr('أذكار النوم', 'Sleep Azkar')),
+      ('wakeup', '☀️', s.tr('أذكار الاستيقاظ', 'Wake-up Azkar')),
+      ('prayer', '🕌', s.tr('بعد الصلاة', 'After Prayer')),
+      ('daily', '🏠', s.tr('المنزل والسفر', 'Home & Travel')),
+      ('supplications', '🤲', s.tr('الأدعية الجامعة', 'Supplications')),
     ];
 
     return ListView(
@@ -626,26 +1006,52 @@ class _MainShellScreenState extends State<MainShellScreen> {
         Row(
           mainAxisAlignment: MainAxisAlignment.spaceBetween,
           children: [
-            Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    isMorning
+                        ? s.tr('🌅 صباح السكينة والطمأنينة',
+                            '🌅 Peaceful Morning')
+                        : s.tr('🌙 مساء السكينة والذكر الحكيم',
+                            '🌙 Peaceful Evening'),
+                    style: TextStyle(fontSize: 13, color: textSecondary),
+                  ),
+                  const SizedBox(height: 4),
+                  Text(
+                    isMorning
+                        ? s.tr('طاب صباحك بذكر الله', 'Blessed Morning')
+                        : s.tr('طاب مساؤك بذكر الله', 'Blessed Evening'),
+                    style: const TextStyle(
+                        fontSize: 22, fontWeight: FontWeight.bold),
+                  ),
+                ],
+              ),
+            ),
+            Row(
               children: [
-                Text(
-                  isMorning
-                      ? '🌅 صباح السكينة والطمأنينة'
-                      : '🌙 مساء السكينة والذكر الحكيم',
-                  style: TextStyle(fontSize: 13, color: textSecondary),
+                IconButton.filledTonal(
+                  onPressed: () {
+                    s.playTapFeedback();
+                    setState(() => _showSearch = !_showSearch);
+                  },
+                  icon: const Icon(Icons.search_rounded),
                 ),
-                const SizedBox(height: 4),
-                Text(
-                  isMorning ? 'طاب صباحك بذكر الله' : 'طاب مساؤك بذكر الله',
-                  style: const TextStyle(
-                      fontSize: 22, fontWeight: FontWeight.bold),
+                const SizedBox(width: 6),
+                // أيقونة الثلاث شرط على أقصى اليسار
+                IconButton.filledTonal(
+                  onPressed: () {
+                    s.playTapFeedback();
+                    if (s.isEnglish) {
+                      _scaffoldKey.currentState?.openDrawer();
+                    } else {
+                      _scaffoldKey.currentState?.openEndDrawer();
+                    }
+                  },
+                  icon: const Icon(Icons.menu_rounded),
                 ),
               ],
-            ),
-            IconButton.filledTonal(
-              onPressed: () => setState(() => _showSearch = !_showSearch),
-              icon: const Icon(Icons.search_rounded),
             ),
           ],
         ),
@@ -654,7 +1060,8 @@ class _MainShellScreenState extends State<MainShellScreen> {
           TextField(
             onChanged: (v) => setState(() => _searchQuery = v),
             decoration: InputDecoration(
-              hintText: 'ابحث في الأذكار أو الأدعية أو المصدر...',
+              hintText: s.tr('ابحث في الأذكار أو الأدعية أو المصدر...',
+                  'Search Azkar or source...'),
               prefixIcon: const Icon(Icons.search),
               filled: true,
               fillColor: cardColor,
@@ -712,32 +1119,36 @@ class _MainShellScreenState extends State<MainShellScreen> {
                       color: Colors.white.withOpacity(0.18),
                       borderRadius: BorderRadius.circular(20),
                     ),
-                    child: const Text(
-                      'موصى به الآن',
-                      style: TextStyle(
+                    child: Text(
+                      s.tr('موصى به الآن', 'Recommended Now'),
+                      style: const TextStyle(
                           color: Colors.white,
                           fontSize: 12,
                           fontWeight: FontWeight.bold),
                     ),
                   ),
                   Text(
-                    '$activeDone من ${activeItems.length} مكتمل',
+                    s.tr('$activeDone من ${activeItems.length} مكتمل',
+                        '$activeDone / ${activeItems.length} done'),
                     style: const TextStyle(color: Colors.white70, fontSize: 12),
                   ),
                 ],
               ),
               const SizedBox(height: 12),
               Text(
-                isMorning ? 'أذكار الصباح' : 'أذكار المساء',
+                isMorning
+                    ? s.tr('أذكار الصباح', 'Morning Azkar')
+                    : s.tr('أذكار المساء', 'Evening Azkar'),
                 style: const TextStyle(
                     color: Colors.white,
                     fontSize: 22,
                     fontWeight: FontWeight.bold),
               ),
               const SizedBox(height: 6),
-              const Text(
-                'حصن يومك بالذكر؛ قراءة هادئة ومصادر صحيحة موثقة.',
-                style: TextStyle(color: Colors.white70, fontSize: 13),
+              Text(
+                s.tr('حصن يومك بالذكر؛ قراءة هادئة ومصادر صحيحة موثقة.',
+                    'Fortify your day with authentic daily remembrance.'),
+                style: const TextStyle(color: Colors.white70, fontSize: 13),
               ),
               const SizedBox(height: 16),
               Row(
@@ -751,8 +1162,8 @@ class _MainShellScreenState extends State<MainShellScreen> {
                       ),
                     ),
                     onPressed: () => _openCategoryReader(activeCategory),
-                    child: const Text('ابدأ الآن ←',
-                        style: TextStyle(fontWeight: FontWeight.bold)),
+                    child: Text(s.tr('ابدأ الآن ←', 'Start Now →'),
+                        style: const TextStyle(fontWeight: FontWeight.bold)),
                   ),
                   const SizedBox(width: 14),
                   Expanded(
@@ -772,9 +1183,92 @@ class _MainShellScreenState extends State<MainShellScreen> {
             ],
           ),
         ),
-        const SizedBox(height: 20),
-        const Text('أقسام الأذكار والأدعية',
-            style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
+        const SizedBox(height: 16),
+        // بطاقة المهام اليومية السريعة
+        Container(
+          padding: const EdgeInsets.all(14),
+          decoration: BoxDecoration(
+            color: cardColor,
+            borderRadius: BorderRadius.circular(20),
+            border: Border.all(color: borderColor),
+          ),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  Text(
+                    s.tr('المهام اليومية ✅', 'Daily Tasks ✅'),
+                    style: const TextStyle(
+                        fontSize: 15, fontWeight: FontWeight.bold),
+                  ),
+                  TextButton(
+                    onPressed: _openAchievementsScreen,
+                    child: Text(s.tr('الإنجازات 🏆', 'Achievements 🏆')),
+                  ),
+                ],
+              ),
+              CheckboxListTile(
+                dense: true,
+                contentPadding: EdgeInsets.zero,
+                title: Text(s.tr('أذكار الصباح', 'Morning Azkar')),
+                value: s.taskMorningDone,
+                onChanged: (v) {
+                  s.taskMorningDone = v ?? false;
+                  s.saveAllState();
+                },
+              ),
+              CheckboxListTile(
+                dense: true,
+                contentPadding: EdgeInsets.zero,
+                title: Text(s.tr('أذكار المساء', 'Evening Azkar')),
+                value: s.taskEveningDone,
+                onChanged: (v) {
+                  s.taskEveningDone = v ?? false;
+                  s.saveAllState();
+                },
+              ),
+              CheckboxListTile(
+                dense: true,
+                contentPadding: EdgeInsets.zero,
+                title: Text(s.tr('أذكار النوم', 'Sleep Azkar')),
+                value: s.taskSleepDone,
+                onChanged: (v) {
+                  s.taskSleepDone = v ?? false;
+                  s.saveAllState();
+                },
+              ),
+              CheckboxListTile(
+                dense: true,
+                contentPadding: EdgeInsets.zero,
+                title: Text(s.tr('قراءة سورة الملك يومياً', 'Read Surah Al-Mulk')),
+                value: s.taskMulkDone,
+                onChanged: (v) {
+                  s.taskMulkDone = v ?? false;
+                  s.saveAllState();
+                },
+              ),
+              if (isFriday)
+                CheckboxListTile(
+                  dense: true,
+                  contentPadding: EdgeInsets.zero,
+                  title: Text(
+                      s.tr('قراءة سورة الكهف (يوم الجمعة)', 'Surah Al-Kahf (Friday)')),
+                  value: s.taskKahfDone,
+                  onChanged: (v) {
+                    s.taskKahfDone = v ?? false;
+                    s.saveAllState();
+                  },
+                ),
+            ],
+          ),
+        ),
+        const SizedBox(height: 18),
+        Text(
+          s.tr('أقسام الأذكار والأدعية', 'Categories'),
+          style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+        ),
         const SizedBox(height: 12),
         GridView.builder(
           itemCount: categories.length,
@@ -812,7 +1306,9 @@ class _MainShellScreenState extends State<MainShellScreen> {
                         Text(label,
                             style: const TextStyle(
                                 fontWeight: FontWeight.bold, fontSize: 14)),
-                        Text('$done/${items.length} مكتمل',
+                        Text(
+                            s.tr('$done/${items.length} مكتمل',
+                                '$done/${items.length} done'),
                             style: TextStyle(fontSize: 12, color: textSecondary)),
                       ],
                     ),
@@ -837,16 +1333,17 @@ class _MainShellScreenState extends State<MainShellScreen> {
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
-              const Text('السبحة الإلكترونية',
-                  style: TextStyle(fontSize: 22, fontWeight: FontWeight.bold)),
+              Text(s.tr('السبحة الإلكترونية', 'Electronic Tasbih'),
+                  style: const TextStyle(
+                      fontSize: 22, fontWeight: FontWeight.bold)),
               TextButton.icon(
                 onPressed: () {
-                  HapticFeedback.mediumImpact();
+                  s.playTapFeedback();
                   s.tasbihCount = 0;
                   s.saveAllState();
                 },
                 icon: const Icon(Icons.refresh_rounded),
-                label: const Text('تصفير'),
+                label: Text(s.tr('تصفير', 'Reset')),
               ),
             ],
           ),
@@ -897,7 +1394,10 @@ class _MainShellScreenState extends State<MainShellScreen> {
                         fontSize: 64, fontWeight: FontWeight.w900)),
                 const SizedBox(height: 8),
                 Text(
-                  'الدورة الحالية (33): ${s.tasbihCount % 33 == 0 && s.tasbihCount > 0 ? 33 : s.tasbihCount % 33} / 33  •  الإجمالي: ${s.tasbihLifetime}',
+                  s.tr(
+                    'الدورة الحالية (33): ${s.tasbihCount % 33 == 0 && s.tasbihCount > 0 ? 33 : s.tasbihCount % 33} / 33  •  الإجمالي: ${s.tasbihLifetime}',
+                    'Cycle (33): ${s.tasbihCount % 33 == 0 && s.tasbihCount > 0 ? 33 : s.tasbihCount % 33} / 33  •  Total: ${s.tasbihLifetime}',
+                  ),
                   style: TextStyle(fontSize: 13, color: textSecondary),
                 ),
               ],
@@ -905,10 +1405,10 @@ class _MainShellScreenState extends State<MainShellScreen> {
           ),
           GestureDetector(
             onTap: () {
-              HapticFeedback.lightImpact();
+              s.playTapFeedback();
               s.tasbihCount += 1;
               s.tasbihLifetime += 1;
-              s.saveAllState();
+              s.recordDailyActivity();
             },
             child: Container(
               width: 180,
@@ -929,13 +1429,13 @@ class _MainShellScreenState extends State<MainShellScreen> {
                   ),
                 ],
               ),
-              child: const Column(
+              child: Column(
                 mainAxisAlignment: MainAxisAlignment.center,
                 children: [
-                  Text('📿', style: TextStyle(fontSize: 34)),
-                  SizedBox(height: 6),
-                  Text('سبّح',
-                      style: TextStyle(
+                  const Text('📿', style: TextStyle(fontSize: 34)),
+                  const SizedBox(height: 6),
+                  Text(s.tr('سبّح', 'Tap'),
+                      style: const TextStyle(
                           color: Colors.white,
                           fontSize: 22,
                           fontWeight: FontWeight.bold)),
@@ -956,8 +1456,8 @@ class _MainShellScreenState extends State<MainShellScreen> {
     return ListView(
       padding: const EdgeInsets.all(16),
       children: [
-        const Text('المفضلة ⭐',
-            style: TextStyle(fontSize: 22, fontWeight: FontWeight.bold)),
+        Text(s.tr('المفضلة ⭐', 'Favorites ⭐'),
+            style: const TextStyle(fontSize: 22, fontWeight: FontWeight.bold)),
         const SizedBox(height: 12),
         if (favs.isEmpty)
           Container(
@@ -967,12 +1467,13 @@ class _MainShellScreenState extends State<MainShellScreen> {
               borderRadius: BorderRadius.circular(24),
               border: Border.all(color: borderColor),
             ),
-            child: const Column(
+            child: Column(
               children: [
-                Text('⭐', style: TextStyle(fontSize: 40)),
-                SizedBox(height: 12),
-                Text('لا توجد أذكار مفضلة بعد',
-                    style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
+                const Text('⭐', style: TextStyle(fontSize: 40)),
+                const SizedBox(height: 12),
+                Text(s.tr('لا توجد أذكار مفضلة بعد', 'No favorites yet'),
+                    style: const TextStyle(
+                        fontWeight: FontWeight.bold, fontSize: 16)),
               ],
             ),
           )
@@ -1027,8 +1528,8 @@ class _MainShellScreenState extends State<MainShellScreen> {
     return ListView(
       padding: const EdgeInsets.all(16),
       children: [
-        const Text('الإعدادات ⚙️',
-            style: TextStyle(fontSize: 22, fontWeight: FontWeight.bold)),
+        Text(s.tr('الإعدادات ⚙️', 'Settings ⚙️'),
+            style: const TextStyle(fontSize: 22, fontWeight: FontWeight.bold)),
         const SizedBox(height: 16),
         Container(
           decoration: BoxDecoration(
@@ -1039,8 +1540,9 @@ class _MainShellScreenState extends State<MainShellScreen> {
           child: Column(
             children: [
               SwitchListTile(
-                title: const Text('الوضع الليلي الهادئ'),
-                subtitle: const Text('كحلي داكن مع لبني مريح للعين'),
+                title: Text(s.tr('الوضع الليلي الهادئ', 'Dark Navy Mode')),
+                subtitle: Text(s.tr('كحلي داكن مع لبني مريح للعين',
+                    'Eye-friendly dark navy & sky blue')),
                 value: s.isDarkMode,
                 onChanged: (v) {
                   s.isDarkMode = v;
@@ -1048,13 +1550,39 @@ class _MainShellScreenState extends State<MainShellScreen> {
                 },
               ),
               const Divider(height: 1),
+              SwitchListTile(
+                title: Text(s.tr('اللغة الإنجليزية (English)', 'English Language')),
+                value: s.isEnglish,
+                onChanged: (v) {
+                  s.isEnglish = v;
+                  s.saveAllState();
+                },
+              ),
+              const Divider(height: 1),
+              SwitchListTile(
+                title: Text(s.tr('صوت الأزرار عند الضغط', 'Button Click Sound')),
+                value: s.buttonSoundEnabled,
+                onChanged: (v) {
+                  s.buttonSoundEnabled = v;
+                  s.saveAllState();
+                },
+              ),
+              SwitchListTile(
+                title: Text(s.tr('الاهتزاز (Haptic Feedback)', 'Haptic Feedback')),
+                value: s.hapticEnabled,
+                onChanged: (v) {
+                  s.hapticEnabled = v;
+                  s.saveAllState();
+                },
+              ),
+              const Divider(height: 1),
               ListTile(
-                title: const Text('حجم خط الأذكار'),
+                title: Text(s.tr('حجم خط الأذكار', 'Azkar Font Size')),
                 subtitle: Slider(
                   value: s.fontScale,
                   min: 0.85,
-                  max: 1.40,
-                  divisions: 4,
+                  max: 1.50,
+                  divisions: 6,
                   label: '${(s.fontScale * 100).round()}%',
                   onChanged: (v) {
                     s.fontScale = v;
@@ -1064,17 +1592,35 @@ class _MainShellScreenState extends State<MainShellScreen> {
               ),
               const Divider(height: 1),
               SwitchListTile(
-                title: const Text('الانتقال التلقائي للذكر التالي'),
+                title: Text(s.tr('الانتقال التلقائي للذكر التالي',
+                    'Auto-advance on completion')),
                 value: s.autoNext,
                 onChanged: (v) {
                   s.autoNext = v;
                   s.saveAllState();
                 },
               ),
+              SwitchListTile(
+                title: Text(s.tr('إظهار شريط التقدم', 'Show Progress Bar')),
+                value: s.showProgress,
+                onChanged: (v) {
+                  s.showProgress = v;
+                  s.saveAllState();
+                },
+              ),
+              SwitchListTile(
+                title: Text(s.tr('إظهار مصدر الذكر', 'Show Hadith/Quran Source')),
+                value: s.showSource,
+                onChanged: (v) {
+                  s.showSource = v;
+                  s.saveAllState();
+                },
+              ),
               const Divider(height: 1),
               SwitchListTile(
-                title: const Text('تشغيل الصوت اليومي في البداية'),
-                subtitle: const Text('﴿وَاذْكُرْ رَبَّكَ إِذَا نَسِيتَ﴾ مرة يوميًا'),
+                title: Text(s.tr('تشغيل الصوت اليومي في البداية',
+                    'Daily Startup Ayah Audio')),
+                subtitle: const Text('﴿وَاذْكُرْ رَبَّكَ إِذَا نَسِيتَ﴾'),
                 value: s.dailyAudio,
                 onChanged: (v) {
                   s.dailyAudio = v;
@@ -1083,25 +1629,24 @@ class _MainShellScreenState extends State<MainShellScreen> {
               ),
               const Divider(height: 1),
               SwitchListTile(
-                title: const Text('الذكر العشوائي في الخلفية (5 ثوانٍ)'),
-                subtitle: const Text('يظهر فوق الشاشة ويمكن سحبه أو إخفاؤه بضغطة'),
+                title: Text(s.tr('الذكر العشوائي في الخلفية (5 ثوانٍ)',
+                    'Floating Zikr Overlay')),
                 value: s.floatingEnabled,
                 onChanged: (v) async {
-                  if (v) {
-                    await s.showFloatingZikrNow();
-                  }
+                  if (v) await s.showFloatingZikrNow();
                   s.floatingEnabled = v;
                   s.saveAllState();
                 },
               ),
               ListTile(
-                title: const Text('تجربة الذكر العائم الآن'),
+                title: Text(s.tr('تجربة الذكر العائم الآن', 'Test Floating Zikr')),
                 trailing: const Icon(Icons.open_in_new_rounded),
                 onTap: () => s.showFloatingZikrNow(),
               ),
               const Divider(height: 1),
               SwitchListTile(
-                title: const Text('تذكير أذكار الصباح (06:00 ص)'),
+                title: Text(s.tr('تذكير أذكار الصباح (06:00 ص)',
+                    'Morning Reminder (6:00 AM)')),
                 value: s.morningReminder,
                 onChanged: (v) async {
                   await NotificationService.instance.requestPermissions();
@@ -1110,7 +1655,8 @@ class _MainShellScreenState extends State<MainShellScreen> {
                 },
               ),
               SwitchListTile(
-                title: const Text('تذكير أذكار المساء (05:00 م)'),
+                title: Text(s.tr('تذكير أذكار المساء (05:00 م)',
+                    'Evening Reminder (5:00 PM)')),
                 value: s.eveningReminder,
                 onChanged: (v) async {
                   await NotificationService.instance.requestPermissions();
@@ -1119,7 +1665,8 @@ class _MainShellScreenState extends State<MainShellScreen> {
                 },
               ),
               SwitchListTile(
-                title: const Text('تذكير أذكار النوم (10:30 م)'),
+                title: Text(s.tr('تذكير أذكار النوم (10:30 م)',
+                    'Sleep Reminder (10:30 PM)')),
                 value: s.sleepReminder,
                 onChanged: (v) async {
                   await NotificationService.instance.requestPermissions();
@@ -1136,7 +1683,127 @@ class _MainShellScreenState extends State<MainShellScreen> {
 }
 
 // ============================================================================
-// شاشة قراءة الأذكار + المشاركة النصية والمصورة (مع اللوجو و Google Play و شارك تؤجر)
+// شاشة الإنجازات والمواظبة (7 أيام / 30 يوم / إجمالي الأذكار)
+// ============================================================================
+class AchievementsScreen extends StatelessWidget {
+  final _AzkariAppState appState;
+  const AchievementsScreen({super.key, required this.appState});
+
+  @override
+  Widget build(BuildContext context) {
+    final s = appState;
+    final isDark = s.isDarkMode;
+    final cardColor = isDark ? AppColors.surfaceDark : AppColors.surfaceLight;
+    final borderColor = isDark ? AppColors.borderDark : AppColors.borderLight;
+
+    final badges = [
+      (
+        '🌱',
+        s.tr('بداية مباركة', 'Blessed Start'),
+        s.tr('إتمام 10 أذكار', 'Complete 10 Azkar'),
+        s.totalAzkarCompleted >= 10,
+      ),
+      (
+        '🔥',
+        s.tr('مواظب 7 أيام متواصلة', '7-Day Streak'),
+        s.tr('الذكر لمدة 7 أيام بدون انقطاع', '7 consecutive days of Dhikr'),
+        s.bestStreak >= 7,
+      ),
+      (
+        '👑',
+        s.tr('بطل الشهر (30 يوماً)', '30-Day Champion'),
+        s.tr('مواظبة 30 يوماً متواصلة بدون توقف', '30 consecutive days without stopping'),
+        s.bestStreak >= 30,
+      ),
+      (
+        '💎',
+        s.tr('ذاكر الله كثيراً', '1,000+ Dhikr'),
+        s.tr('إجمالي الأذكار والتسبيح 1000+', '1,000+ total Azkar & Tasbih'),
+        (s.totalAzkarCompleted + s.tasbihLifetime) >= 1000,
+      ),
+    ];
+
+    return Scaffold(
+      appBar: AppBar(title: Text(s.tr('الإنجازات والمواظبة 🏆', 'Achievements 🏆'))),
+      body: ListView(
+        padding: const EdgeInsets.all(16),
+        children: [
+          Container(
+            padding: const EdgeInsets.all(20),
+            decoration: BoxDecoration(
+              gradient: const LinearGradient(
+                colors: [Color(0xFF0D47A1), Color(0xFF0288D1)],
+              ),
+              borderRadius: BorderRadius.circular(22),
+            ),
+            child: Row(
+              mainAxisAlignment: MainAxisAlignment.spaceAround,
+              children: [
+                _statCol(s.tr('السلسلة الحالية', 'Streak'), '${s.currentStreak}'),
+                _statCol(s.tr('أطول سلسلة', 'Best'), '${s.bestStreak}'),
+                _statCol(
+                    s.tr('الأذكار المكتملة', 'Completed'), '${s.totalAzkarCompleted}'),
+              ],
+            ),
+          ),
+          const SizedBox(height: 16),
+          ...badges.map(
+            (b) => Container(
+              margin: const EdgeInsets.only(bottom: 12),
+              padding: const EdgeInsets.all(16),
+              decoration: BoxDecoration(
+                color: cardColor,
+                borderRadius: BorderRadius.circular(18),
+                border: Border.all(
+                  color: b.$4 ? AppColors.skyBlue : borderColor,
+                  width: b.$4 ? 1.5 : 1,
+                ),
+              ),
+              child: Row(
+                children: [
+                  Text(b.$1, style: const TextStyle(fontSize: 30)),
+                  const SizedBox(width: 14),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(b.$2,
+                            style: const TextStyle(
+                                fontWeight: FontWeight.bold, fontSize: 15)),
+                        Text(b.$3,
+                            style: const TextStyle(
+                                fontSize: 12, color: Colors.grey)),
+                      ],
+                    ),
+                  ),
+                  Icon(
+                    b.$4 ? Icons.verified_rounded : Icons.lock_outline_rounded,
+                    color: b.$4 ? AppColors.skyBlue : Colors.grey,
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _statCol(String label, String val) {
+    return Column(
+      children: [
+        Text(val,
+            style: const TextStyle(
+                color: Colors.white, fontSize: 24, fontWeight: FontWeight.bold)),
+        Text(label,
+            style: const TextStyle(color: Colors.white70, fontSize: 12)),
+      ],
+    );
+  }
+}
+
+// ============================================================================
+// شاشة قراءة الأذكار + تكبير الخط + تذكير الأصدقاء + رسالة التقييم
 // ============================================================================
 class AzkarReaderScreen extends StatefulWidget {
   final _AzkariAppState appState;
@@ -1158,6 +1825,7 @@ class _AzkarReaderScreenState extends State<AzkarReaderScreen> {
   late int _currentIndex;
   final GlobalKey _shareCardKey = GlobalKey();
   bool _isSharingImage = false;
+  bool _promptedFriendsThisSession = false;
 
   @override
   void initState() {
@@ -1199,7 +1867,83 @@ $kAppDownloadLink
     }
   }
 
+  void _showRemindFriendsDialog(String categoryLabel) {
+    final s = widget.appState;
+    if (_promptedFriendsThisSession) return;
+    _promptedFriendsThisSession = true;
+    showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: Text(s.tr('شارك الأجر 💙', 'Share the Reward 💙')),
+        content: Text(
+          s.tr(
+            'هل تريد تذكير أصدقائك بـ $categoryLabel الآن؟',
+            'Would you like to remind your friends about $categoryLabel now?',
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () {
+              Navigator.pop(ctx);
+              _maybeShowRateDialog();
+            },
+            child: Text(s.tr('لاحقاً', 'Later')),
+          ),
+          ElevatedButton.icon(
+            onPressed: () {
+              Navigator.pop(ctx);
+              Share.share(
+                s.tr(
+                  'تذكير: لا تنسَ $categoryLabel اليوم 🌿\nحمّل تطبيق أذكاري:\n$kAppDownloadLink',
+                  'Reminder: Don\'t forget $categoryLabel today 🌿\n$kAppDownloadLink',
+                ),
+              );
+            },
+            icon: const Icon(Icons.share_rounded),
+            label: Text(s.tr('تذكير الأصدقاء', 'Remind Friends')),
+          ),
+        ],
+      ),
+    );
+  }
+
+  void _maybeShowRateDialog() {
+    final s = widget.appState;
+    if (s.hasRatedPromptShown || !s.isSecondDayOrLater() || !mounted) return;
+    s.hasRatedPromptShown = true;
+    s.saveAllState();
+    showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: Text(s.tr('ما رأيك في تطبيق أذكاري؟ ⭐', 'Enjoying Azkari? ⭐')),
+        content: Text(
+          s.tr(
+            'يسعدنا تقييمك للتطبيق ومشاركته لنشر الخير.',
+            'Your rating helps us improve and reach more people.',
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx),
+            child: Text(s.tr('ليس الآن', 'Not Now')),
+          ),
+          ElevatedButton(
+            onPressed: () async {
+              Navigator.pop(ctx);
+              final uri = Uri.parse(kAppDownloadLink);
+              if (await canLaunchUrl(uri)) {
+                await launchUrl(uri, mode: LaunchMode.externalApplication);
+              }
+            },
+            child: Text(s.tr('قيّم الآن ⭐', 'Rate Now ⭐')),
+          ),
+        ],
+      ),
+    );
+  }
+
   void _showShareMenu(ZikrItem item) {
+    final s = widget.appState;
     showModalBottomSheet(
       context: context,
       shape: const RoundedRectangleBorder(
@@ -1211,21 +1955,25 @@ $kAppDownloadLink
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
-              const Text('مشاركة الذكر',
-                  style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
+              Text(s.tr('مشاركة الذكر', 'Share Zikr'),
+                  style: const TextStyle(
+                      fontSize: 18, fontWeight: FontWeight.bold)),
               const SizedBox(height: 16),
               ListTile(
-                leading: const Icon(Icons.image_rounded, color: AppColors.primaryBlue),
-                title: const Text('مشاركة كصورة لحالة واتساب والمنصات'),
-                subtitle: const Text('تصميم أزرق أنيق مع شعار التطبيق وعبارة شارك تؤجر'),
+                leading:
+                    const Icon(Icons.image_rounded, color: AppColors.primaryBlue),
+                title: Text(s.tr('مشاركة كصورة لحالة واتساب والمنصات',
+                    'Share as Image Card')),
                 onTap: () {
                   Navigator.pop(ctx);
                   _shareAsImage(item);
                 },
               ),
               ListTile(
-                leading: const Icon(Icons.text_fields_rounded, color: AppColors.midBlue),
-                title: const Text('مشاركة كنص مع رابط التطبيق'),
+                leading: const Icon(Icons.text_fields_rounded,
+                    color: AppColors.midBlue),
+                title: Text(
+                    s.tr('مشاركة كنص مع رابط التطبيق', 'Share as Text')),
                 onTap: () {
                   Navigator.pop(ctx);
                   _shareAsText(item);
@@ -1257,12 +2005,30 @@ $kAppDownloadLink
         title: Text(current.categoryLabel),
         actions: [
           IconButton(
-            tooltip: 'مشاركة الذكر',
+            tooltip: s.tr('تصغير الخط', 'Decrease Font'),
+            onPressed: () {
+              s.fontScale = (s.fontScale - 0.1).clamp(0.85, 1.50);
+              s.saveAllState();
+              setState(() {});
+            },
+            icon: const Icon(Icons.text_decrease_rounded),
+          ),
+          IconButton(
+            tooltip: s.tr('تكبير الخط', 'Increase Font'),
+            onPressed: () {
+              s.fontScale = (s.fontScale + 0.1).clamp(0.85, 1.50);
+              s.saveAllState();
+              setState(() {});
+            },
+            icon: const Icon(Icons.text_increase_rounded),
+          ),
+          IconButton(
+            tooltip: s.tr('مشاركة الذكر', 'Share'),
             onPressed: () => _showShareMenu(current),
             icon: const Icon(Icons.share_rounded),
           ),
           IconButton(
-            tooltip: 'تصفير عداد القسم',
+            tooltip: s.tr('تصفير عداد القسم', 'Reset'),
             onPressed: () {
               for (final z in items) {
                 z.count = 0;
@@ -1276,7 +2042,6 @@ $kAppDownloadLink
       ),
       body: Stack(
         children: [
-          // بطاقة مخفية عالية الدقة تُحوَّل لصورة عند مشاركة الحالة
           Positioned(
             left: -2000,
             top: 0,
@@ -1338,7 +2103,6 @@ $kAppDownloadLink
                       ),
                     ),
                     const SizedBox(height: 20),
-                    // الشريط السفلي: اللوجو الصغير + أذكاري + أيقونة Google Play + شارك تؤجر
                     Row(
                       textDirection: TextDirection.rtl,
                       mainAxisAlignment: MainAxisAlignment.spaceBetween,
@@ -1392,8 +2156,6 @@ $kAppDownloadLink
               ),
             ),
           ),
-
-          // واجهة القراءة الفعلية
           SafeArea(
             child: Padding(
               padding: const EdgeInsets.all(16.0),
@@ -1403,8 +2165,10 @@ $kAppDownloadLink
                     Row(
                       mainAxisAlignment: MainAxisAlignment.spaceBetween,
                       children: [
-                        Text('الذكر ${_currentIndex + 1} من ${items.length}'),
-                        Text('${(progress * 100).round()}% مكتمل'),
+                        Text(s.tr('الذكر ${_currentIndex + 1} من ${items.length}',
+                            '${_currentIndex + 1} / ${items.length}')),
+                        Text(s.tr('${(progress * 100).round()}% مكتمل',
+                            '${(progress * 100).round()}% done')),
                       ],
                     ),
                     const SizedBox(height: 8),
@@ -1441,8 +2205,9 @@ $kAppDownloadLink
                                 ),
                                 child: Text(
                                   current.target == 1
-                                      ? 'مرة واحدة'
-                                      : 'التكرار: ${current.target} مرات',
+                                      ? s.tr('مرة واحدة', 'Once')
+                                      : s.tr('التكرار: ${current.target} مرات',
+                                          'Repeat: ${current.target}x'),
                                   style: TextStyle(
                                       color: primary,
                                       fontWeight: FontWeight.bold),
@@ -1491,7 +2256,7 @@ $kAppDownloadLink
                             Padding(
                               padding: const EdgeInsets.only(top: 12.0),
                               child: Text(
-                                '📜 المصدر: ${current.source}',
+                                '📜 ${current.source}',
                                 style: const TextStyle(
                                     fontSize: 13, color: Colors.grey),
                               ),
@@ -1513,10 +2278,23 @@ $kAppDownloadLink
                         ),
                       ),
                       onPressed: () {
-                        HapticFeedback.lightImpact();
+                        s.playTapFeedback();
                         if (current.count < current.target) {
                           current.count += 1;
-                          s.saveAllState();
+                          if (current.count == current.target) {
+                            s.totalAzkarCompleted += 1;
+                            final allDone = items.every((z) => z.count >= z.target);
+                            s.recordDailyActivity(
+                              completedCategory: allDone ? widget.category : null,
+                            );
+                            if (allDone) {
+                              _showRemindFriendsDialog(current.categoryLabel);
+                            } else {
+                              _maybeShowRateDialog();
+                            }
+                          } else {
+                            s.saveAllState();
+                          }
                           setState(() {});
                           if (current.count >= current.target &&
                               s.autoNext &&
@@ -1537,8 +2315,9 @@ $kAppDownloadLink
                         children: [
                           Text(
                             current.count >= current.target
-                                ? 'اكتمل الذكر ✓ (اضغط للتالي)'
-                                : 'تم الذكر (اضغط للعد)',
+                                ? s.tr('اكتمل الذكر ✓ (اضغط للتالي)',
+                                    'Completed ✓ (Next)')
+                                : s.tr('تم الذكر (اضغط للعد)', 'Count Dhikr'),
                             style: const TextStyle(
                                 fontSize: 17, fontWeight: FontWeight.bold),
                           ),
@@ -1567,7 +2346,7 @@ $kAppDownloadLink
                           onPressed: _currentIndex > 0
                               ? () => setState(() => _currentIndex -= 1)
                               : null,
-                          child: const Text('→ الذكر السابق'),
+                          child: Text(s.tr('→ الذكر السابق', '← Previous')),
                         ),
                       ),
                       const SizedBox(width: 12),
@@ -1576,7 +2355,7 @@ $kAppDownloadLink
                           onPressed: _currentIndex < items.length - 1
                               ? () => setState(() => _currentIndex += 1)
                               : null,
-                          child: const Text('الذكر التالي ←'),
+                          child: Text(s.tr('الذكر التالي ←', 'Next →')),
                         ),
                       ),
                     ],

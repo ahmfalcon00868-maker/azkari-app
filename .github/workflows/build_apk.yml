@@ -70,6 +70,24 @@ jobs:
               open(grv, "w", encoding="utf-8").write(g)
           '
 
+      - name: Configure Facebook SDK & Internet Permission
+        env:
+          FB_APP_ID: ${{ secrets.FB_APP_ID }}
+          FB_CLIENT_TOKEN: ${{ secrets.FB_CLIENT_TOKEN }}
+        run: |
+          mkdir -p android/app/src/main/res/values
+          printf '<?xml version="1.0" encoding="utf-8"?>\n<resources>\n    <string name="app_name">أذكاري</string>\n    <string name="facebook_app_id">%s</string>\n    <string name="fb_login_protocol_scheme">fb%s</string>\n    <string name="facebook_client_token">%s</string>\n</resources>\n' "$FB_APP_ID" "$FB_APP_ID" "$FB_CLIENT_TOKEN" > android/app/src/main/res/values/strings.xml
+          python3 -c '
+          mp = "android/app/src/main/AndroidManifest.xml"
+          m = open(mp, encoding="utf-8").read()
+          if "android.permission.INTERNET" not in m:
+              m = m.replace("<application", "    <uses-permission android:name=\"android.permission.INTERNET\"/>\n<application", 1)
+          fb_meta = "\n        <meta-data android:name=\"com.facebook.sdk.ApplicationId\" android:value=\"@string/facebook_app_id\"/>\n        <meta-data android:name=\"com.facebook.sdk.ClientToken\" android:value=\"@string/facebook_client_token\"/>\n"
+          if "com.facebook.sdk.ApplicationId" not in m:
+              m = m.replace("</application>", fb_meta + "</application>", 1)
+          open(mp, "w", encoding="utf-8").write(m)
+          '
+
       - name: Configure Release Signing
         env:
           KEYSTORE_BASE64: ${{ secrets.KEYSTORE_BASE64 }}
