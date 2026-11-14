@@ -1190,8 +1190,7 @@ $kAppDownloadLink
       await file.writeAsBytes(byteData.buffer.asUint8List());
       await Share.shareXFiles(
         [XFile(file.path)],
-        text: 'شارك تؤجر 💙 حمّل تطبيق أذكاري:
-$kAppDownloadLink',
+        text: 'شارك تؤجر 💙 حمّل تطبيق أذكاري:\n$kAppDownloadLink',
       );
     } finally {
       if (mounted) setState(() => _isSharingImage = false);
