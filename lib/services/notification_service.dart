@@ -10,9 +10,11 @@ class NotificationService {
   NotificationService._();
 
   Future<void> init() async {
+    try {
     tz.initializeTimeZones();
     const androidInit = AndroidInitializationSettings('ic_notification');
     await _plugin.initialize(const InitializationSettings(android: androidInit));
+    } catch (_) {}
   }
 
   Future<void> requestPermissions() async {
@@ -47,7 +49,7 @@ class NotificationService {
       playSound: true,
     );
 
-    await _plugin.zonedSchedule(
+    try { await _plugin.zonedSchedule(
       id,
       title,
       body,
@@ -56,8 +58,7 @@ class NotificationService {
       androidScheduleMode: AndroidScheduleMode.exactAllowWhileIdle,
       uiLocalNotificationDateInterpretation:
           UILocalNotificationDateInterpretation.absoluteTime,
-      matchDateTimeComponents: DateTimeComponents.time,
-    );
+      matchDateTimeComponents: DateTimeComponents.time, ); } catch (_) {}
   }
 
   Future<void> cancel(int id) async => _plugin.cancel(id);

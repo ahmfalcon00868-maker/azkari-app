@@ -170,8 +170,8 @@ Future<void> main() async {
     DeviceOrientation.portraitDown,
   ]);
   final prefs = await SharedPreferences.getInstance();
-  await NotificationService.instance.init();
   runApp(AzkariApp(prefs: prefs));
+  try { await NotificationService.instance.init(); } catch (_) {}
 }
 
 class AzkariApp extends StatefulWidget {
@@ -241,6 +241,7 @@ class _AzkariAppState extends State<AzkariApp> {
   }
 
   Future<void> _syncReminders() async {
+    try {
     if (morningReminder) {
       await NotificationService.instance.scheduleDaily(
         id: 101,
@@ -274,6 +275,7 @@ class _AzkariAppState extends State<AzkariApp> {
     } else {
       await NotificationService.instance.cancel(103);
     }
+    } catch (_) {}
   }
 
   void _syncFloatingTimer() {
