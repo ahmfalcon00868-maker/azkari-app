@@ -1,7 +1,7 @@
 name: azkari
 description: تطبيق أذكاري - أذكار وأدعية وسبحة إلكترونية يعمل بدون إنترنت (Offline First)
 publish_to: 'none'
-version: 2.0.0+2
+version: 2.1.0+3
 
 environment:
   sdk: '>=3.2.0 <4.0.0'
@@ -13,15 +13,16 @@ dependencies:
     sdk: flutter
   shared_preferences: ^2.2.3
   just_audio: ^0.9.38
+  just_audio_background: ^0.0.1-beta.17
   share_plus: ^10.0.2
   path_provider: ^2.1.4
   flutter_local_notifications: ^17.2.1+2
   timezone: ^0.9.4
   flutter_overlay_window: ^0.4.5
-
   http: ^1.2.2
   package_info_plus: ^8.3.1
   url_launcher: ^6.3.0
+  open_filex: ^4.7.0
   flutter_facebook_auth: ^7.3.1
 
 dev_dependencies:
