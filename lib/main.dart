@@ -5,13 +5,13 @@ import 'dart:math';
 import 'dart:typed_data';
 import 'dart:ui' as ui;
 
+import 'package:audioplayers/audioplayers.dart' as ap;
 import 'package:flutter/material.dart';
 import 'package:flutter/rendering.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_facebook_auth/flutter_facebook_auth.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:flutter_overlay_window/flutter_overlay_window.dart';
-import 'package:just_audio/just_audio.dart';
 import 'package:just_audio_background/just_audio_background.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:share_plus/share_plus.dart';
@@ -25,6 +25,7 @@ import 'screens/tools_screen.dart';
 import 'services/notification_service.dart';
 import 'services/update_service.dart';
 import 'widgets/google_play_icon.dart';
+import 'widgets/rounded_square_counter.dart';
 
 const String kAppDownloadLink =
     'https://github.com/ahmfalcon00868-maker/azkari-app/releases/latest';
@@ -37,59 +38,54 @@ const List<String> kSplashVerses = [
   '﴿وَالذَّاكِرِينَ اللَّهَ كَثِيرًا وَالذَّاكِرَاتِ أَعَدَّ اللَّهُ لَهُمْ مَغْفِرَةً وَأَجْرًا عَظِيمًا﴾',
 ];
 
-// ============================================================================
-// خدمة توليد وتشغيل أصوات النقرات اللطيفة وصوت مضاعفات الـ 33 (أوفلاين 100%)
-// ============================================================================
 class SoundEffectsService {
   static final SoundEffectsService instance = SoundEffectsService._();
   SoundEffectsService._();
 
-  final AudioPlayer _tapPlayer = AudioPlayer();
-  final AudioPlayer _chimePlayer = AudioPlayer();
+  final ap.AudioPlayer _tapPlayer =
+      ap.AudioPlayer(mode: ap.PlayerMode.lowLatency);
+  final ap.AudioPlayer _chimePlayer =
+      ap.AudioPlayer(mode: ap.PlayerMode.lowLatency);
   String? _tapPath;
   String? _chimePath;
 
   Future<void> init() async {
     try {
       final dir = await getTemporaryDirectory();
-      _tapPath = '${dir.path}/azkari_soft_tap.wav';
-      _chimePath = '${dir.path}/azkari_chime_33.wav';
+      _tapPath = '${dir.path}/azkari_soft_tap_v2.wav';
+      _chimePath = '${dir.path}/azkari_chime_33_v2.wav';
 
       if (!await File(_tapPath!).exists()) {
         await File(_tapPath!).writeAsBytes(_buildToneWav(
-          freqHz: 520,
-          durationMs: 40,
-          volume: 0.35,
-          decay: 18.0,
+          freqHz: 480,
+          durationMs: 32,
+          volume: 0.18,
+          decay: 22.0,
         ));
       }
       if (!await File(_chimePath!).exists()) {
         await File(_chimePath!).writeAsBytes(_buildToneWav(
-          freqHz: 784,
-          durationMs: 320,
-          volume: 0.55,
-          decay: 5.5,
-          secondHarmonic: 1174,
+          freqHz: 740,
+          durationMs: 280,
+          volume: 0.35,
+          decay: 6.0,
+          secondHarmonic: 1110,
         ));
       }
-      await _tapPlayer.setFilePath(_tapPath!);
-      await _chimePlayer.setFilePath(_chimePath!);
     } catch (_) {}
   }
 
   Future<void> playTap() async {
     try {
       if (_tapPath == null) await init();
-      await _tapPlayer.seek(Duration.zero);
-      await _tapPlayer.play();
+      await _tapPlayer.play(ap.DeviceFileSource(_tapPath!), volume: 0.18);
     } catch (_) {}
   }
 
   Future<void> playChime33() async {
     try {
       if (_chimePath == null) await init();
-      await _chimePlayer.seek(Duration.zero);
-      await _chimePlayer.play();
+      await _chimePlayer.play(ap.DeviceFileSource(_chimePath!), volume: 0.35);
     } catch (_) {}
   }
 
@@ -140,7 +136,6 @@ class SoundEffectsService {
 }
 
 String lightTashkeel(String text) {
-  // الإبقاء على الشدة والتنوين المهمين فقط وتقليل الحركات الزائدة
   return text.replaceAll(RegExp(r'[\u064E\u064F\u0650\u0652]'), '');
 }
 
@@ -294,9 +289,6 @@ class _FloatingZikrOverlayWidgetState
   }
 }
 
-// ============================================================================
-// الألوان النقية: أسود خالص للوضع الداكن وأبيض خالص للوضع الفاتح
-// ============================================================================
 class AppColors {
   static const Color primaryBlue = Color(0xFF0D47A1);
   static const Color skyBlue = Color(0xFF38BDF8);
@@ -383,20 +375,24 @@ class _AzkariAppState extends State<AzkariApp> {
   late List<ZikrItem> azkarList;
   late List<Map<String, dynamic>> customAzkar;
   Timer? _floatingTimer;
-  final AudioPlayer _splashAudioPlayer = AudioPlayer();
+  final ap.AudioPlayer _splashAudioPlayer = ap.AudioPlayer();
 
   String tr(String ar, String en) => isEnglish ? en : ar;
 
-  void playTapFeedback({bool lightOnly = false}) {
+  void playTapFeedback({bool stronger = false}) {
     if (hapticEnabled) {
-      if (lightOnly) {
-        HapticFeedback.selectionClick();
+      if (stronger) {
+        HapticFeedback.mediumImpact();
       } else {
-        HapticFeedback.lightImpact();
+        HapticFeedback.selectionClick();
       }
     }
     if (buttonSoundEnabled) {
-      SoundEffectsService.instance.playTap();
+      if (stronger) {
+        SoundEffectsService.instance.playChime33();
+      } else {
+        SoundEffectsService.instance.playTap();
+      }
     }
   }
 
@@ -428,8 +424,7 @@ class _AzkariAppState extends State<AzkariApp> {
   Future<void> _playStartupAyahAudio() async {
     if (!dailyAudio) return;
     try {
-      await _splashAudioPlayer.setAsset('assets/audio/splash_ayah.mp3');
-      await _splashAudioPlayer.play();
+      await _splashAudioPlayer.play(ap.AssetSource('audio/splash_ayah.mp3'));
     } catch (_) {}
   }
 
@@ -1076,7 +1071,7 @@ class _MainShellScreenState extends State<MainShellScreen> {
       bottomNavigationBar: NavigationBar(
         selectedIndex: _currentIndex,
         onDestinationSelected: (idx) {
-          s.playTapFeedback(lightOnly: true);
+          s.playTapFeedback();
           setState(() => _currentIndex = idx);
         },
         backgroundColor: cardColor,
@@ -1946,6 +1941,10 @@ class _MainShellScreenState extends State<MainShellScreen> {
   Widget _buildTasbihTab(BuildContext context, Color cardColor,
       Color borderColor, Color primary, Color textSecondary) {
     final s = widget.appState;
+    final cycleMod = s.tasbihCount % 33;
+    final cycleVal = (cycleMod == 0 && s.tasbihCount > 0) ? 33 : cycleMod;
+    final cycleProgress = cycleVal / 33.0;
+
     return Padding(
       padding: const EdgeInsets.all(16.0),
       child: Column(
@@ -2006,7 +2005,7 @@ class _MainShellScreenState extends State<MainShellScreen> {
           ),
           Container(
             width: double.infinity,
-            padding: const EdgeInsets.symmetric(vertical: 28, horizontal: 16),
+            padding: const EdgeInsets.symmetric(vertical: 20, horizontal: 16),
             decoration: BoxDecoration(
               color: cardColor,
               borderRadius: BorderRadius.circular(28),
@@ -2026,69 +2025,30 @@ class _MainShellScreenState extends State<MainShellScreen> {
                     color: primary,
                   ),
                 ),
-                const SizedBox(height: 12),
-                Text('${s.tasbihCount}',
-                    style: const TextStyle(
-                        fontSize: 64, fontWeight: FontWeight.w900)),
                 const SizedBox(height: 8),
                 Text(
                   s.tr(
-                    'الدورة الحالية (33): ${s.tasbihCount % 33 == 0 && s.tasbihCount > 0 ? 33 : s.tasbihCount % 33} / 33  •  الإجمالي: ${s.tasbihLifetime}',
-                    'Cycle (33): ${s.tasbihCount % 33 == 0 && s.tasbihCount > 0 ? 33 : s.tasbihCount % 33} / 33  •  Total: ${s.tasbihLifetime}',
+                    'الدورة الحالية: $cycleVal / 33  •  الإجمالي: ${s.tasbihLifetime}',
+                    'Cycle: $cycleVal / 33  •  Total: ${s.tasbihLifetime}',
                   ),
                   style: TextStyle(fontSize: 13, color: textSecondary),
                 ),
               ],
             ),
           ),
-          GestureDetector(
+          RoundedSquareCounterButton(
+            progress: cycleProgress,
+            title: '${s.tasbihCount}',
+            subtitle: s.tr('سبّح', 'Tap'),
+            gradientColors: s.sabhaColors,
+            borderGlowColor: AppColors.skyBlue,
+            size: 190,
             onTap: () {
               s.tasbihCount += 1;
               s.tasbihLifetime += 1;
-              if (s.tasbihCount % 33 == 0) {
-                if (s.hapticEnabled) HapticFeedback.heavyImpact();
-                if (s.buttonSoundEnabled) {
-                  SoundEffectsService.instance.playChime33();
-                }
-              } else {
-                s.playTapFeedback(lightOnly: true);
-              }
+              s.playTapFeedback(stronger: s.tasbihCount % 33 == 0);
               s.recordDailyActivity();
             },
-            child: Container(
-              width: 180,
-              height: 180,
-              decoration: BoxDecoration(
-                shape: BoxShape.circle,
-                gradient: LinearGradient(
-                  colors: s.sabhaColors,
-                  begin: Alignment.topLeft,
-                  end: Alignment.bottomRight,
-                ),
-                border: Border.all(color: AppColors.skyBlue, width: 4),
-                boxShadow: [
-                  BoxShadow(
-                    color: s.sabhaColors.first.withOpacity(0.35),
-                    blurRadius: 24,
-                    offset: const Offset(0, 10),
-                  ),
-                ],
-              ),
-              child: Column(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  _assetIcon(
-                      'assets/images/icon_tasbih.png', Icons.fingerprint_rounded,
-                      size: 46),
-                  const SizedBox(height: 6),
-                  Text(s.tr('سبّح', 'Tap'),
-                      style: const TextStyle(
-                          color: Colors.white,
-                          fontSize: 22,
-                          fontWeight: FontWeight.bold)),
-                ],
-              ),
-            ),
           ),
           const SizedBox(height: 8),
         ],
@@ -2583,7 +2543,6 @@ class _AzkarReaderScreenState extends State<AzkarReaderScreen> {
                     s.showSource = v;
                     s.saveAllState();
                     setSheetState(() {});
-                    setState(() {});
                   },
                 ),
               ],
@@ -2826,6 +2785,8 @@ $kAppDownloadLink
 
     final completedCount = items.where((z) => z.count >= z.target).length;
     final progress = items.isEmpty ? 0.0 : completedCount / items.length;
+    final zikrProgress =
+        current.target == 0 ? 1.0 : (current.count / current.target);
     final displayText =
         s.minimalTashkeel ? lightTashkeel(current.text) : current.text;
 
@@ -2996,12 +2957,12 @@ $kAppDownloadLink
                         minHeight: 8,
                       ),
                     ),
-                    const SizedBox(height: 16),
+                    const SizedBox(height: 12),
                   ],
                   Expanded(
                     child: Container(
                       width: double.infinity,
-                      padding: const EdgeInsets.all(22),
+                      padding: const EdgeInsets.all(20),
                       decoration: BoxDecoration(
                         color: cardColor,
                         borderRadius: BorderRadius.circular(28),
@@ -3072,7 +3033,7 @@ $kAppDownloadLink
                           ),
                           if (s.showSource)
                             Padding(
-                              padding: const EdgeInsets.only(top: 12.0),
+                              padding: const EdgeInsets.only(top: 10.0),
                               child: Text(
                                 '📜 ${current.source}',
                                 style: const TextStyle(
@@ -3083,78 +3044,53 @@ $kAppDownloadLink
                       ),
                     ),
                   ),
-                  const SizedBox(height: 16),
-                  SizedBox(
-                    width: double.infinity,
-                    height: 62,
-                    child: ElevatedButton(
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: AppColors.primaryBlue,
-                        foregroundColor: Colors.white,
-                        shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(20),
-                        ),
-                      ),
-                      onPressed: () {
-                        s.playTapFeedback();
-                        if (current.count < current.target) {
-                          current.count += 1;
-                          if (current.count == current.target) {
-                            s.totalAzkarCompleted += 1;
-                            final allDone = items.every((z) => z.count >= z.target);
-                            s.recordDailyActivity(
-                              completedCategory: allDone ? widget.category : null,
-                            );
-                            if (allDone) {
-                              _showCompletionCelebration(current.categoryLabel);
-                            } else {
-                              _maybeShowRateDialog();
-                            }
+                  const SizedBox(height: 12),
+                  RoundedSquareCounterButton(
+                    progress: zikrProgress,
+                    title: '${current.count} / ${current.target}',
+                    subtitle: current.count >= current.target
+                        ? s.tr('اكتمل ✓', 'Done ✓')
+                        : s.tr('اضغط للعد', 'Tap'),
+                    gradientColors: s.sabhaColors,
+                    borderGlowColor: current.count >= current.target
+                        ? Colors.greenAccent
+                        : AppColors.skyBlue,
+                    size: 130,
+                    onTap: () {
+                      if (current.count < current.target) {
+                        current.count += 1;
+                        final justFinished = current.count == current.target;
+                        s.playTapFeedback(stronger: justFinished);
+                        if (justFinished) {
+                          s.totalAzkarCompleted += 1;
+                          final allDone =
+                              items.every((z) => z.count >= z.target);
+                          s.recordDailyActivity(
+                            completedCategory: allDone ? widget.category : null,
+                          );
+                          if (allDone) {
+                            _showCompletionCelebration(current.categoryLabel);
                           } else {
-                            s.saveAllState();
+                            _maybeShowRateDialog();
                           }
-                          setState(() {});
-                          if (current.count >= current.target &&
-                              s.autoNext &&
-                              _currentIndex < items.length - 1) {
-                            Future.delayed(const Duration(milliseconds: 300),
-                                () {
-                              if (mounted) {
-                                setState(() => _currentIndex += 1);
-                              }
-                            });
-                          }
-                        } else if (_currentIndex < items.length - 1) {
-                          setState(() => _currentIndex += 1);
+                        } else {
+                          s.saveAllState();
                         }
-                      },
-                      child: Row(
-                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                        children: [
-                          Text(
-                            current.count >= current.target
-                                ? s.tr('اكتمل الذكر ✓ (اضغط للتالي)',
-                                    'Completed ✓ (Next)')
-                                : s.tr('تم الذكر (اضغط للعد)', 'Count Dhikr'),
-                            style: const TextStyle(
-                                fontSize: 17, fontWeight: FontWeight.bold),
-                          ),
-                          Container(
-                            padding: const EdgeInsets.symmetric(
-                                horizontal: 14, vertical: 6),
-                            decoration: BoxDecoration(
-                              color: Colors.black26,
-                              borderRadius: BorderRadius.circular(14),
-                            ),
-                            child: Text(
-                              '${current.count} / ${current.target}',
-                              style: const TextStyle(
-                                  fontSize: 16, fontWeight: FontWeight.bold),
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
+                        setState(() {});
+                        if (justFinished &&
+                            s.autoNext &&
+                            _currentIndex < items.length - 1) {
+                          Future.delayed(const Duration(milliseconds: 300), () {
+                            if (mounted) {
+                              setState(() => _currentIndex += 1);
+                            }
+                          });
+                        }
+                      } else if (_currentIndex < items.length - 1) {
+                        s.playTapFeedback();
+                        setState(() => _currentIndex += 1);
+                      }
+                    },
                   ),
                   const SizedBox(height: 10),
                   Row(
