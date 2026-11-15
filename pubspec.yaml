@@ -42,3 +42,17 @@ flutter:
   assets:
     - assets/audio/
     - assets/images/
+    - assets/data/
+  fonts:
+    - family: AmiriQuran
+      fonts:
+        - asset: assets/fonts/AmiriQuran.ttf
+    - family: Lateef
+      fonts:
+        - asset: assets/fonts/Lateef.ttf
+    - family: Scheherazade
+      fonts:
+        - asset: assets/fonts/Scheherazade.ttf
+    - family: NotoKufi
+      fonts:
+        - asset: assets/fonts/NotoKufi.ttf

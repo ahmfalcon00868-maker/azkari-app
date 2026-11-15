@@ -4,46 +4,59 @@ import 'dart:io';
 import 'dart:math';
 
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:http/http.dart' as http;
 import 'package:just_audio/just_audio.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:share_plus/share_plus.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
-class QuranSurahMeta {
-  final int number;
-  final String name;
-  final String englishName;
-  final int ayahsCount;
-  const QuranSurahMeta(this.number, this.name, this.englishName, this.ayahsCount);
+class QuranReciter {
+  final String id;
+  final String nameAr;
+  final String nameEn;
+  const QuranReciter(this.id, this.nameAr, this.nameEn);
 }
 
-const List<QuranSurahMeta> kCommonSurahs = [
-  QuranSurahMeta(1, 'الفاتحة', 'Al-Fatihah', 7),
-  QuranSurahMeta(2, 'البقرة', 'Al-Baqarah', 286),
-  QuranSurahMeta(18, 'الكهف', 'Al-Kahf', 110),
-  QuranSurahMeta(36, 'يس', 'Ya-Sin', 83),
-  QuranSurahMeta(55, 'الرحمن', 'Ar-Rahman', 78),
-  QuranSurahMeta(56, 'الواقعة', 'Al-Waqiah', 96),
-  QuranSurahMeta(67, 'الملك', 'Al-Mulk', 30),
-  QuranSurahMeta(78, 'النبأ', 'An-Naba', 40),
-  QuranSurahMeta(87, 'الأعلى', 'Al-Ala', 19),
-  QuranSurahMeta(93, 'الضحى', 'Ad-Duha', 11),
-  QuranSurahMeta(94, 'الشرح', 'Ash-Sharh', 8),
-  QuranSurahMeta(97, 'القدر', 'Al-Qadr', 5),
-  QuranSurahMeta(103, 'العصر', 'Al-Asr', 3),
-  QuranSurahMeta(108, 'الكوثر', 'Al-Kawthar', 3),
-  QuranSurahMeta(109, 'الكافرون', 'Al-Kafirun', 6),
-  QuranSurahMeta(112, 'الإخلاص', 'Al-Ikhlas', 4),
-  QuranSurahMeta(113, 'الفلق', 'Al-Falaq', 5),
-  QuranSurahMeta(114, 'الناس', 'An-Nas', 6),
+const List<QuranReciter> kReciters = [
+  QuranReciter('ar.alafasy', 'مشاري راشد العفاسي', 'Mishary Alafasy'),
+  QuranReciter('ar.husary', 'محمود خليل الحصري', 'Mahmoud Al-Husary'),
+  QuranReciter('ar.abdulbasitmurattal', 'عبد الباسط عبد الصمد', 'Abdul Basit'),
+  QuranReciter('ar.minshawi', 'محمد صديق المنشاوي', 'Al-Minshawi'),
+  QuranReciter('ar.mahermuaiqly', 'ماهر المعيقلي', 'Maher Al-Muaiqly'),
 ];
+
+const List<(String, String)> kQuranFonts = [
+  ('AmiriQuran', 'عثماني (أميري)'),
+  ('Lateef', 'خط لطيف'),
+  ('Scheherazade', 'خط شهرزاد'),
+  ('NotoKufi', 'نوتو كوفي'),
+];
+
+class QuranDataRepository {
+  static List<dynamic>? _surahs;
+  static List<dynamic>? _tafsirSurahs;
+
+  static Future<void> ensureLoaded() async {
+    if (_surahs != null && _tafsirSurahs != null) return;
+    final qStr = await rootBundle.loadString('assets/data/quran_uthmani.json');
+    final tStr = await rootBundle.loadString('assets/data/tafsir_muyassar.json');
+    final qJson = jsonDecode(qStr) as Map<String, dynamic>;
+    final tJson = jsonDecode(tStr) as Map<String, dynamic>;
+    _surahs = qJson['data']['surahs'] as List<dynamic>;
+    _tafsirSurahs = tJson['data']['surahs'] as List<dynamic>;
+  }
+
+  static List<dynamic> get surahs => _surahs ?? [];
+  static List<dynamic> get tafsirSurahs => _tafsirSurahs ?? [];
+}
 
 class QuranHomeScreen extends StatefulWidget {
   final SharedPreferences prefs;
   final bool isDarkMode;
   final bool isEnglish;
   final double fontScale;
+  final VoidCallback? onSurahCompleted;
 
   const QuranHomeScreen({
     super.key,
@@ -51,6 +64,7 @@ class QuranHomeScreen extends StatefulWidget {
     required this.isDarkMode,
     required this.isEnglish,
     required this.fontScale,
+    this.onSurahCompleted,
   });
 
   @override
@@ -58,61 +72,69 @@ class QuranHomeScreen extends StatefulWidget {
 }
 
 class _QuranHomeScreenState extends State<QuranHomeScreen> {
-  List<QuranSurahMeta> _surahs = kCommonSurahs;
+  bool _loading = true;
   String _search = '';
-  bool _loadingList = false;
 
   String tr(String ar, String en) => widget.isEnglish ? en : ar;
 
   @override
   void initState() {
     super.initState();
-    _loadFullSurahList();
+    _initData();
   }
 
-  Future<void> _loadFullSurahList() async {
-    final cached = widget.prefs.getString('quran_surah_list');
-    if (cached != null) {
-      try {
-        final List<dynamic> list = jsonDecode(cached);
-        setState(() {
-          _surahs = list
-              .map((e) => QuranSurahMeta(
-                    e['number'] as int,
-                    e['name'] as String,
-                    e['englishName'] as String,
-                    e['numberOfAyahs'] as int,
-                  ))
-              .toList();
-        });
-        return;
-      } catch (_) {}
+  Future<void> _initData() async {
+    try {
+      await QuranDataRepository.ensureLoaded();
+    } catch (_) {}
+    if (mounted) setState(() => _loading = false);
+  }
+
+  List<Map<String, dynamic>> _buildJuzSummary() {
+    final Map<int, Set<int>> juzSurahs = {};
+    final Map<int, Set<int>> juzHizbs = {};
+    final Map<int, (int, int)> juzFirstAyah = {};
+
+    for (final s in QuranDataRepository.surahs) {
+      final sNum = s['number'] as int;
+      final ayahs = s['ayahs'] as List<dynamic>;
+      for (final a in ayahs) {
+        final juz = a['juz'] as int;
+        final hizbQuarter = a['hizbQuarter'] as int? ?? 1;
+        final hizb = ((hizbQuarter - 1) ~/ 4) + 1;
+        juzSurahs.putIfAbsent(juz, () => {}).add(sNum);
+        juzHizbs.putIfAbsent(juz, () => {}).add(hizb);
+        juzFirstAyah.putIfAbsent(juz, () => (sNum, a['numberInSurah'] as int));
+      }
     }
 
-    setState(() => _loadingList = true);
-    try {
-      final res = await http
-          .get(Uri.parse('https://api.alquran.cloud/v1/surah'))
-          .timeout(const Duration(seconds: 8));
-      if (res.statusCode == 200) {
-        final body = jsonDecode(utf8.decode(res.bodyBytes));
-        final List<dynamic> data = body['data'];
-        await widget.prefs.setString('quran_surah_list', jsonEncode(data));
-        if (mounted) {
-          setState(() {
-            _surahs = data
-                .map((e) => QuranSurahMeta(
-                      e['number'] as int,
-                      e['name'] as String,
-                      e['englishName'] as String,
-                      e['numberOfAyahs'] as int,
-                    ))
-                .toList();
-          });
-        }
-      }
-    } catch (_) {}
-    if (mounted) setState(() => _loadingList = false);
+    return List.generate(30, (i) {
+      final j = i + 1;
+      return {
+        'juz': j,
+        'surahCount': juzSurahs[j]?.length ?? 0,
+        'hizbCount': juzHizbs[j]?.length ?? 2,
+        'firstSurah': juzFirstAyah[j]?.$1 ?? 1,
+        'firstAyah': juzFirstAyah[j]?.$2 ?? 1,
+      };
+    });
+  }
+
+  void _openSurah(int surahNumber, {int? jumpToAyah}) {
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (_) => SurahReaderScreen(
+          initialSurahNumber: surahNumber,
+          prefs: widget.prefs,
+          isDarkMode: widget.isDarkMode,
+          isEnglish: widget.isEnglish,
+          initialFontScale: widget.fontScale,
+          jumpToAyah: jumpToAyah,
+          onSurahCompleted: widget.onSurahCompleted,
+        ),
+      ),
+    ).then((_) => setState(() {}));
   }
 
   @override
@@ -120,161 +142,211 @@ class _QuranHomeScreenState extends State<QuranHomeScreen> {
     final lastSurah = widget.prefs.getInt('lastQuranSurah');
     final lastAyah = widget.prefs.getInt('lastQuranAyah');
     final lastName = widget.prefs.getString('lastQuranSurahName') ?? '';
+    final bookmarkedSurahs =
+        widget.prefs.getStringList('bookmarkedSurahs') ?? [];
 
-    final filtered = _surahs.where((s) {
+    final surahs = QuranDataRepository.surahs.where((s) {
       if (_search.trim().isEmpty) return true;
-      return s.name.contains(_search) ||
-          s.englishName.toLowerCase().contains(_search.toLowerCase()) ||
-          s.number.toString() == _search.trim();
+      final name = (s['name'] ?? '').toString();
+      final en = (s['englishName'] ?? '').toString().toLowerCase();
+      return name.contains(_search) ||
+          en.contains(_search.toLowerCase()) ||
+          s['number'].toString() == _search.trim();
     }).toList();
 
-    return Scaffold(
-      appBar: AppBar(
-        title: Text(tr('القرآن الكريم والتفسير 📖', 'Noble Quran & Tafsir 📖')),
-      ),
-      body: Column(
-        children: [
-          if (lastSurah != null)
-            Padding(
-              padding: const EdgeInsets.fromLTRB(16, 8, 16, 4),
-              child: InkWell(
-                borderRadius: BorderRadius.circular(18),
-                onTap: () {
-                  final meta = _surahs.firstWhere(
-                    (s) => s.number == lastSurah,
-                    orElse: () => QuranSurahMeta(lastSurah, lastName, '', 0),
-                  );
-                  Navigator.push(
-                    context,
-                    MaterialPageRoute(
-                      builder: (_) => SurahReaderScreen(
-                        surah: meta,
-                        prefs: widget.prefs,
-                        isDarkMode: widget.isDarkMode,
-                        isEnglish: widget.isEnglish,
-                        initialFontScale: widget.fontScale,
-                        jumpToAyah: lastAyah,
-                      ),
-                    ),
-                  ).then((_) => setState(() {}));
-                },
-                child: Container(
-                  padding: const EdgeInsets.all(14),
-                  decoration: BoxDecoration(
-                    gradient: const LinearGradient(
-                      colors: [Color(0xFF0D47A1), Color(0xFF0288D1)],
-                    ),
-                    borderRadius: BorderRadius.circular(18),
-                  ),
-                  child: Row(
-                    children: [
-                      const Icon(Icons.bookmark_rounded, color: Colors.white),
-                      const SizedBox(width: 12),
-                      Expanded(
-                        child: Text(
-                          tr(
-                            'متابعة الختمة: $lastName (آية ${lastAyah ?? 1})',
-                            'Resume Khatmah: $lastName (Ayah ${lastAyah ?? 1})',
+    final juzList = _loading ? <Map<String, dynamic>>[] : _buildJuzSummary();
+
+    return DefaultTabController(
+      length: 2,
+      child: Scaffold(
+        appBar: AppBar(
+          title: Text(tr('القرآن الكريم (بدون نت) 📖', 'Noble Quran (Offline) 📖')),
+          bottom: TabBar(
+            tabs: [
+              Tab(text: tr('السور (114)', 'Surahs (114)')),
+              Tab(text: tr('الأجزاء (30)', 'Juz (30)')),
+            ],
+          ),
+        ),
+        body: _loading
+            ? const Center(child: CircularProgressIndicator())
+            : Column(
+                children: [
+                  if (lastSurah != null)
+                    Padding(
+                      padding: const EdgeInsets.fromLTRB(16, 10, 16, 2),
+                      child: InkWell(
+                        borderRadius: BorderRadius.circular(18),
+                        onTap: () =>
+                            _openSurah(lastSurah, jumpToAyah: lastAyah),
+                        child: Container(
+                          padding: const EdgeInsets.all(14),
+                          decoration: BoxDecoration(
+                            gradient: const LinearGradient(
+                              colors: [Color(0xFF0D47A1), Color(0xFF0288D1)],
+                            ),
+                            borderRadius: BorderRadius.circular(18),
                           ),
-                          style: const TextStyle(
-                            color: Colors.white,
-                            fontWeight: FontWeight.bold,
+                          child: Row(
+                            children: [
+                              const Icon(Icons.bookmark_rounded,
+                                  color: Colors.amber),
+                              const SizedBox(width: 12),
+                              Expanded(
+                                child: Text(
+                                  tr(
+                                    'متابعة العلامة المرجعية: $lastName (آية ${lastAyah ?? 1})',
+                                    'Resume Bookmark: $lastName (Ayah ${lastAyah ?? 1})',
+                                  ),
+                                  style: const TextStyle(
+                                    color: Colors.white,
+                                    fontWeight: FontWeight.bold,
+                                  ),
+                                ),
+                              ),
+                              const Icon(Icons.arrow_forward_ios_rounded,
+                                  color: Colors.white70, size: 16),
+                            ],
                           ),
                         ),
                       ),
-                      const Icon(Icons.arrow_forward_ios_rounded,
-                          color: Colors.white70, size: 16),
-                    ],
-                  ),
-                ),
-              ),
-            ),
-          Padding(
-            padding: const EdgeInsets.all(16),
-            child: TextField(
-              onChanged: (v) => setState(() => _search = v),
-              decoration: InputDecoration(
-                hintText: tr('ابحث باسم السورة أو رقمها...', 'Search Surah...'),
-                prefixIcon: const Icon(Icons.search_rounded),
-                border: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(16),
-                ),
-              ),
-            ),
-          ),
-          if (_loadingList)
-            const LinearProgressIndicator(minHeight: 2),
-          Expanded(
-            child: ListView.separated(
-              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
-              itemCount: filtered.length,
-              separatorBuilder: (_, __) => const Divider(height: 1),
-              itemBuilder: (ctx, i) {
-                final surah = filtered[i];
-                final isCached = widget.prefs
-                    .containsKey('surah_cache_${surah.number}');
-                return ListTile(
-                  leading: CircleAvatar(
-                    backgroundColor: const Color(0xFF0D47A1).withOpacity(0.15),
-                    child: Text(
-                      '${surah.number}',
-                      style: const TextStyle(fontWeight: FontWeight.bold),
+                    ),
+                  Expanded(
+                    child: TabBarView(
+                      children: [
+                        // تبويب السور
+                        Column(
+                          children: [
+                            Padding(
+                              padding: const EdgeInsets.all(14),
+                              child: TextField(
+                                onChanged: (v) => setState(() => _search = v),
+                                decoration: InputDecoration(
+                                  hintText: tr('ابحث باسم السورة أو رقمها...',
+                                      'Search Surah...'),
+                                  prefixIcon: const Icon(Icons.search_rounded),
+                                  border: OutlineInputBorder(
+                                    borderRadius: BorderRadius.circular(16),
+                                  ),
+                                ),
+                              ),
+                            ),
+                            Expanded(
+                              child: ListView.separated(
+                                padding:
+                                    const EdgeInsets.symmetric(horizontal: 14),
+                                itemCount: surahs.length,
+                                separatorBuilder: (_, __) =>
+                                    const Divider(height: 1),
+                                itemBuilder: (ctx, i) {
+                                  final s = surahs[i];
+                                  final num = s['number'] as int;
+                                  final ayahs =
+                                      (s['ayahs'] as List<dynamic>).length;
+                                  final revType = s['revelationType'] == 'Meccan'
+                                      ? tr('مكية', 'Meccan')
+                                      : tr('مدنية', 'Medinan');
+                                  final isBookmarked = bookmarkedSurahs
+                                      .contains(num.toString());
+                                  return ListTile(
+                                    leading: CircleAvatar(
+                                      backgroundColor: const Color(0xFF0D47A1)
+                                          .withOpacity(0.18),
+                                      child: Text('$num',
+                                          style: const TextStyle(
+                                              fontWeight: FontWeight.bold)),
+                                    ),
+                                    title: Text(
+                                      s['name'] ?? '',
+                                      style: const TextStyle(
+                                        fontFamily: 'AmiriQuran',
+                                        fontWeight: FontWeight.bold,
+                                        fontSize: 19,
+                                      ),
+                                    ),
+                                    subtitle: Text(
+                                      '$revType • $ayahs ${tr("آية", "Ayahs")}',
+                                    ),
+                                    trailing: Icon(
+                                      isBookmarked
+                                          ? Icons.bookmark_rounded
+                                          : Icons.arrow_forward_ios_rounded,
+                                      color: isBookmarked
+                                          ? Colors.amber
+                                          : Colors.grey,
+                                      size: isBookmarked ? 24 : 16,
+                                    ),
+                                    onTap: () => _openSurah(num),
+                                  );
+                                },
+                              ),
+                            ),
+                          ],
+                        ),
+                        // تبويب الأجزاء (1 - 30)
+                        ListView.builder(
+                          padding: const EdgeInsets.all(14),
+                          itemCount: juzList.length,
+                          itemBuilder: (ctx, i) {
+                            final j = juzList[i];
+                            return Card(
+                              margin: const EdgeInsets.only(bottom: 10),
+                              child: ListTile(
+                                leading: CircleAvatar(
+                                  backgroundColor:
+                                      const Color(0xFF0288D1).withOpacity(0.2),
+                                  child: Text('${j['juz']}'),
+                                ),
+                                title: Text(
+                                  tr('الجزء ${j['juz']}', 'Juz ${j['juz']}'),
+                                  style: const TextStyle(
+                                      fontWeight: FontWeight.bold, fontSize: 16),
+                                ),
+                                subtitle: Text(
+                                  tr(
+                                    'عدد السور: ${j['surahCount']} • الأحزاب: ${j['hizbCount']}',
+                                    'Surahs: ${j['surahCount']} • Hizbs: ${j['hizbCount']}',
+                                  ),
+                                ),
+                                trailing: const Icon(
+                                    Icons.arrow_forward_ios_rounded,
+                                    size: 16),
+                                onTap: () => _openSurah(
+                                  j['firstSurah'] as int,
+                                  jumpToAyah: j['firstAyah'] as int,
+                                ),
+                              ),
+                            );
+                          },
+                        ),
+                      ],
                     ),
                   ),
-                  title: Text(
-                    surah.name,
-                    style: const TextStyle(
-                        fontWeight: FontWeight.bold, fontSize: 17),
-                  ),
-                  subtitle: Text(
-                    '${surah.englishName} • ${surah.ayahsCount} ${tr("آية", "Ayahs")}',
-                  ),
-                  trailing: Icon(
-                    isCached
-                        ? Icons.offline_pin_rounded
-                        : Icons.cloud_download_outlined,
-                    color: isCached ? Colors.green : Colors.grey,
-                  ),
-                  onTap: () {
-                    Navigator.push(
-                      context,
-                      MaterialPageRoute(
-                        builder: (_) => SurahReaderScreen(
-                          surah: surah,
-                          prefs: widget.prefs,
-                          isDarkMode: widget.isDarkMode,
-                          isEnglish: widget.isEnglish,
-                          initialFontScale: widget.fontScale,
-                        ),
-                      ),
-                    ).then((_) => setState(() {}));
-                  },
-                );
-              },
-            ),
-          ),
-        ],
+                ],
+              ),
       ),
     );
   }
 }
 
 class SurahReaderScreen extends StatefulWidget {
-  final QuranSurahMeta surah;
+  final int initialSurahNumber;
   final SharedPreferences prefs;
   final bool isDarkMode;
   final bool isEnglish;
   final double initialFontScale;
   final int? jumpToAyah;
+  final VoidCallback? onSurahCompleted;
 
   const SurahReaderScreen({
     super.key,
-    required this.surah,
+    required this.initialSurahNumber,
     required this.prefs,
     required this.isDarkMode,
     required this.isEnglish,
     required this.initialFontScale,
     this.jumpToAyah,
+    this.onSurahCompleted,
   });
 
   @override
@@ -282,21 +354,22 @@ class SurahReaderScreen extends StatefulWidget {
 }
 
 class _SurahReaderScreenState extends State<SurahReaderScreen> {
-  List<Map<String, dynamic>> _ayahs = [];
-  bool _loading = true;
-  String? _error;
+  late int _surahNumber;
   late double _fontScale;
+  late String _fontFamily;
+  late bool _tajweedColors;
+  late String _reciterId;
   bool _focusDimMode = false;
 
   final AudioPlayer _player = AudioPlayer();
   bool _isPlaying = false;
   bool _isDownloadingAudio = false;
   bool _audioOfflineReady = false;
+  bool _repeatSurah = false;
+  bool _autoNextSurah = true;
   double _speed = 1.0;
 
-  // مؤقت التلاوة قبل النوم
   Timer? _sleepTimer;
-  Timer? _fadeTimer;
   int _sleepSecondsRemaining = 0;
   bool _stopAfterSurah = false;
 
@@ -305,82 +378,49 @@ class _SurahReaderScreenState extends State<SurahReaderScreen> {
   @override
   void initState() {
     super.initState();
+    _surahNumber = widget.initialSurahNumber;
     _fontScale = widget.initialFontScale;
-    _loadSurahData();
+    _fontFamily = widget.prefs.getString('quranFontFamily') ?? 'AmiriQuran';
+    _tajweedColors = widget.prefs.getBool('quranTajweedColors') ?? true;
+    _reciterId = widget.prefs.getString('quranReciterId') ?? 'ar.alafasy';
     _checkAudioCache();
-    _player.playerStateStream.listen((state) {
+
+    _player.playerStateStream.listen((state) async {
       if (!mounted) return;
       setState(() => _isPlaying = state.playing);
       if (state.processingState == ProcessingState.completed) {
+        widget.onSurahCompleted?.call();
         if (_stopAfterSurah) {
           _cancelSleepTimer();
+          return;
+        }
+        if (_repeatSurah) {
+          await _player.seek(Duration.zero);
+          await _player.play();
+        } else if (_autoNextSurah && _surahNumber < 114) {
+          setState(() => _surahNumber += 1);
+          await _checkAudioCache();
+          await _playFullSurah();
         }
       }
     });
   }
 
-  Future<void> _loadSurahData() async {
-    final key = 'surah_cache_${widget.surah.number}';
-    final cached = widget.prefs.getString(key);
-    if (cached != null) {
-      try {
-        final List<dynamic> decoded = jsonDecode(cached);
-        setState(() {
-          _ayahs = decoded.cast<Map<String, dynamic>>();
-          _loading = false;
-        });
-        return;
-      } catch (_) {}
-    }
+  Map<String, dynamic> get _currentSurah =>
+      QuranDataRepository.surahs[_surahNumber - 1] as Map<String, dynamic>;
 
-    try {
-      final url =
-          'https://api.alquran.cloud/v1/surah/${widget.surah.number}/editions/quran-uthmani,ar.muyassar';
-      final res =
-          await http.get(Uri.parse(url)).timeout(const Duration(seconds: 12));
-      if (res.statusCode == 200) {
-        final body = jsonDecode(utf8.decode(res.bodyBytes));
-        final List<dynamic> editions = body['data'];
-        final List<dynamic> textAyahs = editions[0]['ayahs'];
-        final List<dynamic> tafsirAyahs = editions[1]['ayahs'];
+  Map<String, dynamic> get _currentTafsirSurah =>
+      QuranDataRepository.tafsirSurahs[_surahNumber - 1] as Map<String, dynamic>;
 
-        final merged = List.generate(textAyahs.length, (i) {
-          return {
-            'numberInSurah': textAyahs[i]['numberInSurah'],
-            'text': textAyahs[i]['text'],
-            'tafsir': i < tafsirAyahs.length ? tafsirAyahs[i]['text'] : '',
-          };
-        });
-
-        await widget.prefs.setString(key, jsonEncode(merged));
-        if (mounted) {
-          setState(() {
-            _ayahs = merged;
-            _loading = false;
-          });
-        }
-      } else {
-        setState(() {
-          _error = tr('تعذر تحميل السورة الآن', 'Failed to load Surah');
-          _loading = false;
-        });
-      }
-    } catch (_) {
-      if (mounted) {
-        setState(() {
-          _error = tr('تأكد من الاتصال بالإنترنت للتحميل لأول مرة',
-              'Internet required for first-time download');
-          _loading = false;
-        });
-      }
-    }
-  }
+  List<dynamic> get _ayahs => _currentSurah['ayahs'] as List<dynamic>;
+  List<dynamic> get _tafsirAyahs =>
+      _currentTafsirSurah['ayahs'] as List<dynamic>;
 
   Future<String> _audioFilePath() async {
     final dir = await getApplicationDocumentsDirectory();
-    final folder = Directory('${dir.path}/quran_audio');
+    final folder = Directory('${dir.path}/quran_audio/$_reciterId');
     if (!await folder.exists()) await folder.create(recursive: true);
-    return '${folder.path}/surah_${widget.surah.number}.mp3';
+    return '${folder.path}/surah_$_surahNumber.mp3';
   }
 
   Future<void> _checkAudioCache() async {
@@ -389,14 +429,10 @@ class _SurahReaderScreenState extends State<SurahReaderScreen> {
     if (mounted) setState(() => _audioOfflineReady = exists);
   }
 
-  String get _audioUrl =>
-      'https://cdn.islamic.network/quran/audio-surah/128/ar.alafasy/${widget.surah.number}.mp3';
+  String get _surahAudioUrl =>
+      'https://cdn.islamic.network/quran/audio-surah/128/$_reciterId/$_surahNumber.mp3';
 
-  Future<void> _toggleAudio() async {
-    if (_isPlaying) {
-      await _player.pause();
-      return;
-    }
+  Future<void> _playFullSurah() async {
     try {
       await _player.setVolume(1.0);
       await _player.setSpeed(_speed);
@@ -404,18 +440,51 @@ class _SurahReaderScreenState extends State<SurahReaderScreen> {
       if (await File(localPath).exists()) {
         await _player.setFilePath(localPath);
       } else {
-        await _player.setUrl(_audioUrl);
+        await _player.setUrl(_surahAudioUrl);
       }
       await _player.play();
     } catch (_) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text(tr('تعذر تشغيل التلاوة، تحقق من الإنترنت',
-                'Could not play audio')),
-          ),
+          SnackBar(content: Text(tr('تعذر تشغيل التلاوة', 'Audio failed'))),
         );
       }
+    }
+  }
+
+  Future<void> _playSingleAyah(int globalAyahNum, {bool repeat = false}) async {
+    try {
+      await _player.setVolume(1.0);
+      await _player.setSpeed(_speed);
+      await _player.setLoopMode(repeat ? LoopMode.one : LoopMode.off);
+      final url =
+          'https://cdn.islamic.network/quran/audio/128/$_reciterId/$globalAyahNum.mp3';
+      await _player.setUrl(url);
+      await _player.play();
+    } catch (_) {}
+  }
+
+  Future<void> _playFromAyah(int startIndex) async {
+    try {
+      await _player.setVolume(1.0);
+      await _player.setSpeed(_speed);
+      await _player.setLoopMode(LoopMode.off);
+      final sources = _ayahs
+          .sublist(startIndex)
+          .map((a) => AudioSource.uri(Uri.parse(
+              'https://cdn.islamic.network/quran/audio/128/$_reciterId/${a['number']}.mp3')))
+          .toList();
+      await _player.setAudioSource(ConcatenatingAudioSource(children: sources));
+      await _player.play();
+    } catch (_) {}
+  }
+
+  Future<void> _toggleAudio() async {
+    if (_isPlaying) {
+      await _player.pause();
+    } else {
+      await _player.setLoopMode(LoopMode.off);
+      await _playFullSurah();
     }
   }
 
@@ -424,7 +493,7 @@ class _SurahReaderScreenState extends State<SurahReaderScreen> {
     setState(() => _isDownloadingAudio = true);
     try {
       final res = await http
-          .get(Uri.parse(_audioUrl))
+          .get(Uri.parse(_surahAudioUrl))
           .timeout(const Duration(seconds: 60));
       if (res.statusCode == 200) {
         final path = await _audioFilePath();
@@ -433,8 +502,8 @@ class _SurahReaderScreenState extends State<SurahReaderScreen> {
           setState(() => _audioOfflineReady = true);
           ScaffoldMessenger.of(context).showSnackBar(
             SnackBar(
-              content: Text(tr('تم حفظ السورة للاستماع بدون إنترنت ✓',
-                  'Surah audio saved for offline playback ✓')),
+              content: Text(tr('تم حفظ السورة للاستماع بدون نت ✓',
+                  'Surah audio saved offline ✓')),
             ),
           );
         }
@@ -442,7 +511,7 @@ class _SurahReaderScreenState extends State<SurahReaderScreen> {
     } catch (_) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text(tr('فشل تحميل الصوت', 'Download failed'))),
+          SnackBar(content: Text(tr('فشل التحميل', 'Download failed'))),
         );
       }
     } finally {
@@ -452,7 +521,6 @@ class _SurahReaderScreenState extends State<SurahReaderScreen> {
 
   void _cancelSleepTimer() {
     _sleepTimer?.cancel();
-    _fadeTimer?.cancel();
     setState(() {
       _sleepSecondsRemaining = 0;
       _stopAfterSurah = false;
@@ -474,13 +542,84 @@ class _SurahReaderScreenState extends State<SurahReaderScreen> {
         if (mounted) setState(() => _sleepSecondsRemaining = 0);
       } else {
         setState(() => _sleepSecondsRemaining -= 1);
-        // خفض الصوت تدريجياً في آخر 30 ثانية
         if (_sleepSecondsRemaining <= 30) {
-          final vol = max(0.05, _sleepSecondsRemaining / 30.0);
-          await _player.setVolume(vol);
+          await _player.setVolume(max(0.05, _sleepSecondsRemaining / 30.0));
         }
       }
     });
+  }
+
+  void _openDisplaySettings() {
+    showModalBottomSheet(
+      context: context,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+      ),
+      builder: (ctx) => StatefulBuilder(
+        builder: (ctx, setSheetState) => SafeArea(
+          child: Padding(
+            padding: const EdgeInsets.all(20),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(tr('إعدادات الخط والقارئ 🎨', 'Font & Reciter Settings 🎨'),
+                    style: const TextStyle(
+                        fontSize: 18, fontWeight: FontWeight.bold)),
+                const SizedBox(height: 12),
+                Wrap(
+                  spacing: 8,
+                  children: kQuranFonts.map((f) {
+                    return ChoiceChip(
+                      label: Text(f.$2),
+                      selected: _fontFamily == f.$1,
+                      onSelected: (_) {
+                        widget.prefs.setString('quranFontFamily', f.$1);
+                        setState(() => _fontFamily = f.$1);
+                        setSheetState(() {});
+                      },
+                    );
+                  }).toList(),
+                ),
+                const SizedBox(height: 12),
+                SwitchListTile(
+                  contentPadding: EdgeInsets.zero,
+                  title: Text(tr('إظهار ألوان التجويد', 'Show Tajweed Colors')),
+                  value: _tajweedColors,
+                  onChanged: (v) {
+                    widget.prefs.setBool('quranTajweedColors', v);
+                    setState(() => _tajweedColors = v);
+                    setSheetState(() {});
+                  },
+                ),
+                DropdownButtonFormField<String>(
+                  value: _reciterId,
+                  decoration: InputDecoration(
+                    labelText: tr('اختر القارئ', 'Reciter'),
+                    border: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(14)),
+                  ),
+                  items: kReciters
+                      .map((r) => DropdownMenuItem(
+                            value: r.id,
+                            child: Text(widget.isEnglish ? r.nameEn : r.nameAr),
+                          ))
+                      .toList(),
+                  onChanged: (v) {
+                    if (v != null) {
+                      widget.prefs.setString('quranReciterId', v);
+                      setState(() => _reciterId = v);
+                      setSheetState(() {});
+                      _checkAudioCache();
+                    }
+                  },
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
   }
 
   void _openSleepTimerDialog() {
@@ -502,13 +641,7 @@ class _SurahReaderScreenState extends State<SurahReaderScreen> {
               tr('مؤقت التلاوة قبل النوم 🌙', 'Bedtime Recitation Timer 🌙'),
               style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
             ),
-            const SizedBox(height: 8),
-            Text(
-              tr('اختر المدة بحرية وسيتم خفض الصوت تدريجياً قبل التوقف:',
-                  'Choose any stop time; volume fades out gently:'),
-              style: const TextStyle(color: Colors.grey, fontSize: 13),
-            ),
-            const SizedBox(height: 14),
+            const SizedBox(height: 10),
             Row(
               children: [
                 Expanded(
@@ -518,8 +651,7 @@ class _SurahReaderScreenState extends State<SurahReaderScreen> {
                     decoration: InputDecoration(
                       labelText: tr('عدد الدقائق (أو أي رقم)', 'Minutes'),
                       border: OutlineInputBorder(
-                        borderRadius: BorderRadius.circular(14),
-                      ),
+                          borderRadius: BorderRadius.circular(14)),
                     ),
                   ),
                 ),
@@ -530,11 +662,10 @@ class _SurahReaderScreenState extends State<SurahReaderScreen> {
                     Navigator.pop(ctx);
                     if (mins > 0) _startSleepTimerSeconds(mins * 60);
                   },
-                  child: Text(tr('تشغيل المؤقت', 'Start')),
+                  child: Text(tr('تشغيل', 'Start')),
                 ),
               ],
             ),
-            const SizedBox(height: 12),
             ListTile(
               leading: const Icon(Icons.access_time_rounded),
               title: Text(tr('تحديد ساعة التوقف بالضبط', 'Pick exact stop time')),
@@ -557,293 +688,390 @@ class _SurahReaderScreenState extends State<SurahReaderScreen> {
             ),
             ListTile(
               leading: const Icon(Icons.stop_circle_outlined),
-              title: Text(
-                  tr('التوقف عند نهاية هذه السورة', 'Stop after this Surah')),
+              title: Text(tr('التوقف عند نهاية السورة', 'Stop at Surah end')),
               onTap: () {
                 Navigator.pop(ctx);
                 _cancelSleepTimer();
                 setState(() => _stopAfterSurah = true);
               },
             ),
-            if (_sleepSecondsRemaining > 0 || _stopAfterSurah)
-              TextButton.icon(
-                onPressed: () {
-                  Navigator.pop(ctx);
-                  _cancelSleepTimer();
-                },
-                icon: const Icon(Icons.close_rounded, color: Colors.red),
-                label: Text(tr('إلغاء المؤقت', 'Cancel Timer'),
-                    style: const TextStyle(color: Colors.red)),
-              ),
           ],
         ),
       ),
     );
   }
 
-  void _showAyahActions(Map<String, dynamic> ayah) {
-    final numInSurah = ayah['numberInSurah'] as int;
-    final text = ayah['text'] as String;
-    final tafsir = (ayah['tafsir'] ?? '').toString();
-
+  void _showAyahSheet(int index) {
+    int idx = index;
     showModalBottomSheet(
       context: context,
       isScrollControlled: true,
       shape: const RoundedRectangleBorder(
         borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
       ),
-      builder: (ctx) => SafeArea(
-        child: Padding(
-          padding: const EdgeInsets.all(20),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(
-                '${widget.surah.name} • ${tr("آية", "Ayah")} $numInSurah',
-                style: const TextStyle(
-                    fontSize: 17, fontWeight: FontWeight.bold),
-              ),
-              const SizedBox(height: 12),
-              if (tafsir.isNotEmpty) ...[
-                Text(
-                  tr('التفسير الميسر:', 'Tafsir Al-Muyassar:'),
-                  style: const TextStyle(
-                      fontWeight: FontWeight.bold, color: Color(0xFF38BDF8)),
-                ),
-                const SizedBox(height: 6),
-                ConstrainedBox(
-                  constraints: const BoxConstraints(maxHeight: 200),
-                  child: SingleChildScrollView(
-                    child: Text(
-                      tafsir,
-                      textDirection: TextDirection.rtl,
-                      style: const TextStyle(fontSize: 15, height: 1.7),
+      builder: (ctx) => StatefulBuilder(
+        builder: (ctx, setSheetState) {
+          final ayah = _ayahs[idx] as Map<String, dynamic>;
+          final numInSurah = ayah['numberInSurah'] as int;
+          final globalNum = ayah['number'] as int;
+          final text = (ayah['text'] ?? '').toString();
+          final tafsir = (_tafsirAyahs[idx]['text'] ?? '').toString();
+          final surahName = (_currentSurah['name'] ?? '').toString();
+
+          return SafeArea(
+            child: Padding(
+              padding: const EdgeInsets.all(20),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      Text('$surahName • ${tr("آية", "Ayah")} $numInSurah',
+                          style: const TextStyle(
+                              fontSize: 17, fontWeight: FontWeight.bold)),
+                      Row(
+                        children: [
+                          IconButton(
+                            tooltip: tr('الآية السابقة', 'Previous'),
+                            onPressed: idx > 0
+                                ? () => setSheetState(() => idx -= 1)
+                                : null,
+                            icon: const Icon(Icons.arrow_back_ios_rounded,
+                                size: 18),
+                          ),
+                          IconButton(
+                            tooltip: tr('الآية التالية', 'Next'),
+                            onPressed: idx < _ayahs.length - 1
+                                ? () => setSheetState(() => idx += 1)
+                                : null,
+                            icon: const Icon(Icons.arrow_forward_ios_rounded,
+                                size: 18),
+                          ),
+                        ],
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 8),
+                  Text(
+                    text,
+                    textDirection: TextDirection.rtl,
+                    style: TextStyle(
+                      fontFamily: _fontFamily,
+                      fontSize: 19,
+                      height: 1.8,
                     ),
                   ),
-                ),
-                const Divider(height: 20),
-              ],
-              ListTile(
-                leading: const Icon(Icons.bookmark_add_rounded,
-                    color: Color(0xFF0288D1)),
-                title: Text(tr('حفظ كعلامة ختمة (آخر موضع)', 'Bookmark Khatmah')),
-                onTap: () async {
-                  await widget.prefs
-                      .setInt('lastQuranSurah', widget.surah.number);
-                  await widget.prefs.setInt('lastQuranAyah', numInSurah);
-                  await widget.prefs
-                      .setString('lastQuranSurahName', widget.surah.name);
-                  if (ctx.mounted) Navigator.pop(ctx);
-                  if (mounted) {
-                    ScaffoldMessenger.of(context).showSnackBar(
-                      SnackBar(
-                          content: Text(tr('تم حفظ موضع القراءة ✓',
-                              'Bookmark saved ✓'))),
-                    );
-                  }
-                },
+                  const Divider(height: 18),
+                  Text(tr('التفسير الميسر:', 'Tafsir:'),
+                      style: const TextStyle(
+                          fontWeight: FontWeight.bold,
+                          color: Color(0xFF38BDF8))),
+                  const SizedBox(height: 6),
+                  ConstrainedBox(
+                    constraints: const BoxConstraints(maxHeight: 160),
+                    child: SingleChildScrollView(
+                      child: Text(tafsir,
+                          textDirection: TextDirection.rtl,
+                          style: const TextStyle(fontSize: 15, height: 1.7)),
+                    ),
+                  ),
+                  const SizedBox(height: 14),
+                  Wrap(
+                    spacing: 8,
+                    runSpacing: 8,
+                    children: [
+                      ActionChip(
+                        avatar: const Icon(Icons.bookmark_rounded,
+                            color: Colors.amber, size: 18),
+                        label: Text(tr('علامة مرجعية', 'Bookmark')),
+                        onPressed: () async {
+                          await widget.prefs
+                              .setInt('lastQuranSurah', _surahNumber);
+                          await widget.prefs.setInt('lastQuranAyah', numInSurah);
+                          await widget.prefs
+                              .setString('lastQuranSurahName', surahName);
+                          final list = widget.prefs
+                                  .getStringList('bookmarkedSurahs') ??
+                              [];
+                          if (!list.contains(_surahNumber.toString())) {
+                            list.add(_surahNumber.toString());
+                            await widget.prefs
+                                .setStringList('bookmarkedSurahs', list);
+                          }
+                          setState(() {});
+                          if (ctx.mounted) Navigator.pop(ctx);
+                        },
+                      ),
+                      ActionChip(
+                        avatar: const Icon(Icons.play_arrow_rounded, size: 18),
+                        label: Text(tr('ابدأ من هنا', 'Play from here')),
+                        onPressed: () {
+                          Navigator.pop(ctx);
+                          _playFromAyah(idx);
+                        },
+                      ),
+                      ActionChip(
+                        avatar: const Icon(Icons.repeat_one_rounded, size: 18),
+                        label: Text(tr('تكرار الآية', 'Repeat Ayah')),
+                        onPressed: () {
+                          Navigator.pop(ctx);
+                          _playSingleAyah(globalNum, repeat: true);
+                        },
+                      ),
+                      ActionChip(
+                        avatar: const Icon(Icons.copy_rounded, size: 18),
+                        label: Text(tr('نسخ', 'Copy')),
+                        onPressed: () {
+                          Clipboard.setData(ClipboardData(text: text));
+                          Navigator.pop(ctx);
+                        },
+                      ),
+                      ActionChip(
+                        avatar: const Icon(Icons.share_rounded, size: 18),
+                        label: Text(tr('مشاركة', 'Share')),
+                        onPressed: () {
+                          Navigator.pop(ctx);
+                          Share.share('$text\n[$surahName: $numInSurah]\n\n$tafsir');
+                        },
+                      ),
+                    ],
+                  ),
+                ],
               ),
-              ListTile(
-                leading: const Icon(Icons.share_rounded),
-                title: Text(tr('مشاركة الآية والتفسير', 'Share Ayah')),
-                onTap: () {
-                  Navigator.pop(ctx);
-                  Share.share(
-                    '$text\n[${widget.surah.name}: $numInSurah]\n\n$tafsir',
-                  );
-                },
-              ),
-            ],
-          ),
-        ),
+            ),
+          );
+        },
       ),
     );
+  }
+
+  TextSpan _buildTajweedSpan(String text, int numInSurah) {
+    if (!_tajweedColors) {
+      return TextSpan(text: '$text  ﴿$numInSurah﴾');
+    }
+    // تلوين لطيف لعلامات التجويد (المدود، الشدّة، والوقف)
+    final spans = <TextSpan>[];
+    for (final rune in text.runes) {
+      final ch = String.fromCharCode(rune);
+      Color? color;
+      if (ch == 'ٓ' || ch == 'ٰ' || ch == 'ٱ') {
+        color = const Color(0xFF38BDF8); // مدود وهمز وصل
+      } else if (ch == 'ّ') {
+        color = const Color(0xFFF59E0B); // شدّة وغنّة
+      } else if (ch == 'ۖ' || ch == 'ۗ' || ch == 'ۚ' || ch == 'ۛ' || ch == 'ۙ') {
+        color = const Color(0xFF10B981); // علامات الوقف
+      }
+      spans.add(TextSpan(text: ch, style: color != null ? TextStyle(color: color) : null));
+    }
+    spans.add(TextSpan(
+      text: '  ﴿$numInSurah﴾',
+      style: const TextStyle(color: Color(0xFF38BDF8)),
+    ));
+    return TextSpan(children: spans);
   }
 
   @override
   void dispose() {
     _sleepTimer?.cancel();
-    _fadeTimer?.cancel();
     _player.dispose();
     super.dispose();
   }
 
   @override
   Widget build(BuildContext context) {
-    final bgOverride = _focusDimMode ? const Color(0xFF060A12) : null;
+    final surahName = (_currentSurah['name'] ?? '').toString();
+    final savedSurah = widget.prefs.getInt('lastQuranSurah');
+    final savedAyah = widget.prefs.getInt('lastQuranAyah');
+
     return Scaffold(
-      backgroundColor: bgOverride,
+      backgroundColor: _focusDimMode ? const Color(0xFF060A12) : null,
       appBar: AppBar(
-        title: Text(widget.surah.name),
+        title: Text(surahName),
         actions: [
           IconButton(
-            tooltip: tr('وضع التركيز الليلي', 'Focus Dim Mode'),
+            tooltip: tr('إعدادات الخط والقارئ', 'Font & Reciter'),
+            onPressed: _openDisplaySettings,
+            icon: const Icon(Icons.font_download_rounded),
+          ),
+          IconButton(
+            tooltip: tr('وضع التركيز الليلي', 'Focus Dim'),
             onPressed: () => setState(() => _focusDimMode = !_focusDimMode),
             icon: Icon(_focusDimMode
                 ? Icons.brightness_low_rounded
                 : Icons.brightness_6_rounded),
           ),
           IconButton(
-            tooltip: tr('تصغير الخط', 'Decrease Font'),
+            tooltip: tr('تصغير', 'A-'),
             onPressed: () =>
                 setState(() => _fontScale = (_fontScale - 0.1).clamp(0.85, 1.6)),
             icon: const Icon(Icons.text_decrease_rounded),
           ),
           IconButton(
-            tooltip: tr('تكبير الخط', 'Increase Font'),
+            tooltip: tr('تكبير', 'A+'),
             onPressed: () =>
                 setState(() => _fontScale = (_fontScale + 0.1).clamp(0.85, 1.6)),
             icon: const Icon(Icons.text_increase_rounded),
           ),
         ],
       ),
-      body: _loading
-          ? const Center(child: CircularProgressIndicator())
-          : _error != null
-              ? Center(
-                  child: Column(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      Text(_error!),
-                      const SizedBox(height: 12),
-                      ElevatedButton(
-                        onPressed: () {
-                          setState(() {
-                            _loading = true;
-                            _error = null;
-                          });
-                          _loadSurahData();
-                        },
-                        child: Text(tr('إعادة المحاولة', 'Retry')),
-                      ),
-                    ],
-                  ),
-                )
-              : Column(
+      body: Column(
+        children: [
+          // شريط المشغل الكامل
+          Container(
+            margin: const EdgeInsets.fromLTRB(12, 6, 12, 6),
+            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+            decoration: BoxDecoration(
+              color: const Color(0xFF0D47A1).withOpacity(0.16),
+              borderRadius: BorderRadius.circular(18),
+            ),
+            child: Column(
+              children: [
+                Row(
                   children: [
-                    // شريط مشغل العفاسي + مؤقت النوم
-                    Container(
-                      margin: const EdgeInsets.fromLTRB(12, 6, 12, 6),
-                      padding: const EdgeInsets.symmetric(
-                          horizontal: 12, vertical: 8),
-                      decoration: BoxDecoration(
-                        color: const Color(0xFF0D47A1).withOpacity(0.15),
-                        borderRadius: BorderRadius.circular(18),
-                      ),
-                      child: Row(
+                    IconButton.filled(
+                      onPressed: _toggleAudio,
+                      icon: Icon(_isPlaying
+                          ? Icons.pause_rounded
+                          : Icons.play_arrow_rounded),
+                    ),
+                    const SizedBox(width: 8),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                          IconButton.filled(
-                            onPressed: _toggleAudio,
-                            icon: Icon(_isPlaying
-                                ? Icons.pause_rounded
-                                : Icons.play_arrow_rounded),
+                          Text(
+                            kReciters
+                                .firstWhere((r) => r.id == _reciterId,
+                                    orElse: () => kReciters.first)
+                                .nameAr,
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: const TextStyle(
+                                fontWeight: FontWeight.bold, fontSize: 13),
                           ),
-                          const SizedBox(width: 8),
-                          Expanded(
-                            child: Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: [
-                                Text(
-                                  tr('مشاري العفاسي', 'Mishary Alafasy'),
-                                  style: const TextStyle(
-                                      fontWeight: FontWeight.bold,
-                                      fontSize: 13),
-                                ),
-                                if (_sleepSecondsRemaining > 0)
-                                  Text(
-                                    '🌙 ${(_sleepSecondsRemaining ~/ 60)}:${(_sleepSecondsRemaining % 60).toString().padLeft(2, '0')}',
-                                    style: const TextStyle(
-                                        fontSize: 11, color: Color(0xFF38BDF8)),
-                                  )
-                                else if (_stopAfterSurah)
-                                  Text(
-                                    tr('🌙 يقف بنهاية السورة', '🌙 Stops at end'),
-                                    style: const TextStyle(
-                                        fontSize: 11, color: Color(0xFF38BDF8)),
-                                  ),
-                              ],
+                          if (_sleepSecondsRemaining > 0)
+                            Text(
+                              '🌙 ${(_sleepSecondsRemaining ~/ 60)}:${(_sleepSecondsRemaining % 60).toString().padLeft(2, '0')}',
+                              style: const TextStyle(
+                                  fontSize: 11, color: Color(0xFF38BDF8)),
                             ),
-                          ),
-                          TextButton(
-                            onPressed: () async {
-                              const speeds = [0.75, 1.0, 1.25, 1.5];
-                              final next = speeds[
-                                  (speeds.indexOf(_speed) + 1) % speeds.length];
-                              setState(() => _speed = next);
-                              await _player.setSpeed(_speed);
-                            },
-                            child: Text('${_speed}x',
-                                style: const TextStyle(
-                                    fontWeight: FontWeight.bold)),
-                          ),
-                          IconButton(
-                            tooltip: tr('مؤقت قبل النوم', 'Sleep Timer'),
-                            onPressed: _openSleepTimerDialog,
-                            icon: const Icon(Icons.bedtime_rounded),
-                          ),
-                          IconButton(
-                            tooltip: tr('تحميل أوفلاين', 'Download Offline'),
-                            onPressed:
-                                _audioOfflineReady ? null : _downloadSurahAudio,
-                            icon: _isDownloadingAudio
-                                ? const SizedBox(
-                                    width: 18,
-                                    height: 18,
-                                    child: CircularProgressIndicator(
-                                        strokeWidth: 2),
-                                  )
-                                : Icon(
-                                    _audioOfflineReady
-                                        ? Icons.offline_pin_rounded
-                                        : Icons.download_rounded,
-                                    color: _audioOfflineReady
-                                        ? Colors.green
-                                        : null,
-                                  ),
-                          ),
                         ],
                       ),
                     ),
-                    Expanded(
-                      child: ListView.builder(
-                        padding: const EdgeInsets.all(16),
-                        itemCount: _ayahs.length,
-                        itemBuilder: (ctx, i) {
-                          final ayah = _ayahs[i];
-                          final numInSurah = ayah['numberInSurah'] as int;
-                          final isBookmarked =
-                              widget.jumpToAyah == numInSurah;
-                          return InkWell(
-                            borderRadius: BorderRadius.circular(14),
-                            onTap: () => _showAyahActions(ayah),
-                            child: Container(
-                              margin: const EdgeInsets.only(bottom: 10),
-                              padding: const EdgeInsets.all(14),
-                              decoration: BoxDecoration(
-                                color: isBookmarked
-                                    ? const Color(0xFF0288D1).withOpacity(0.18)
-                                    : Colors.transparent,
-                                borderRadius: BorderRadius.circular(14),
-                                border: Border.all(
-                                  color: Colors.grey.withOpacity(0.18),
-                                ),
-                              ),
-                              child: Text(
-                                '${ayah['text']}  ﴿$numInSurah﴾',
-                                textDirection: TextDirection.rtl,
-                                style: TextStyle(
-                                  fontSize: 21 * _fontScale,
-                                  height: 2.0,
-                                ),
-                              ),
+                    TextButton(
+                      onPressed: () async {
+                        const speeds = [0.25, 0.5, 0.75, 1.0, 1.25];
+                        final idx = speeds.indexOf(_speed);
+                        final next = speeds[(idx + 1) % speeds.length];
+                        setState(() => _speed = next);
+                        await _player.setSpeed(_speed);
+                      },
+                      child: Text('${_speed}x',
+                          style: const TextStyle(fontWeight: FontWeight.bold)),
+                    ),
+                    IconButton(
+                      tooltip: tr('تكرار السورة', 'Repeat Surah'),
+                      onPressed: () =>
+                          setState(() => _repeatSurah = !_repeatSurah),
+                      icon: Icon(Icons.repeat_rounded,
+                          color: _repeatSurah ? const Color(0xFF38BDF8) : null),
+                    ),
+                    IconButton(
+                      tooltip: tr('تشغيل السورة التالية تلقائياً', 'Auto Next'),
+                      onPressed: () =>
+                          setState(() => _autoNextSurah = !_autoNextSurah),
+                      icon: Icon(Icons.skip_next_rounded,
+                          color: _autoNextSurah ? const Color(0xFF38BDF8) : null),
+                    ),
+                    IconButton(
+                      tooltip: tr('مؤقت قبل النوم', 'Sleep Timer'),
+                      onPressed: _openSleepTimerDialog,
+                      icon: const Icon(Icons.bedtime_rounded),
+                    ),
+                    IconButton(
+                      tooltip: tr('تحميل أوفلاين', 'Download Offline'),
+                      onPressed:
+                          _audioOfflineReady ? null : _downloadSurahAudio,
+                      icon: _isDownloadingAudio
+                          ? const SizedBox(
+                              width: 18,
+                              height: 18,
+                              child: CircularProgressIndicator(strokeWidth: 2))
+                          : Icon(
+                              _audioOfflineReady
+                                  ? Icons.offline_pin_rounded
+                                  : Icons.download_rounded,
+                              color: _audioOfflineReady ? Colors.green : null,
                             ),
-                          );
-                        },
-                      ),
                     ),
                   ],
                 ),
+              ],
+            ),
+          ),
+          Expanded(
+            child: ListView.builder(
+              padding: const EdgeInsets.all(14),
+              itemCount: _ayahs.length,
+              itemBuilder: (ctx, i) {
+                final ayah = _ayahs[i] as Map<String, dynamic>;
+                final numInSurah = ayah['numberInSurah'] as int;
+                final isSavedBookmark = (savedSurah == _surahNumber &&
+                        savedAyah == numInSurah) ||
+                    (widget.jumpToAyah == numInSurah);
+
+                return InkWell(
+                  borderRadius: BorderRadius.circular(14),
+                  onTap: () => _showAyahSheet(i),
+                  child: Container(
+                    margin: const EdgeInsets.only(bottom: 10),
+                    padding: const EdgeInsets.all(14),
+                    decoration: BoxDecoration(
+                      color: isSavedBookmark
+                          ? Colors.amber.withOpacity(0.10)
+                          : Colors.transparent,
+                      borderRadius: BorderRadius.circular(14),
+                      border: Border.all(
+                        color: isSavedBookmark
+                            ? Colors.amber.withOpacity(0.45)
+                            : Colors.grey.withOpacity(0.18),
+                      ),
+                    ),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.stretch,
+                      children: [
+                        if (isSavedBookmark)
+                          const Align(
+                            alignment: Alignment.centerLeft,
+                            child: Icon(Icons.bookmark_rounded,
+                                color: Colors.amber, size: 18),
+                          ),
+                        RichText(
+                          textDirection: TextDirection.rtl,
+                          text: TextSpan(
+                            style: TextStyle(
+                              fontFamily: _fontFamily,
+                              fontSize: 22 * _fontScale,
+                              height: 2.0,
+                              color: Theme.of(context).textTheme.bodyLarge?.color,
+                            ),
+                            children: [
+                              _buildTajweedSpan(
+                                  (ayah['text'] ?? '').toString(), numInSurah),
+                            ],
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                );
+              },
+            ),
+          ),
+        ],
+      ),
     );
   }
 }
