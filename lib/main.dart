@@ -42,15 +42,15 @@ class SoundEffectsService {
   static final SoundEffectsService instance = SoundEffectsService._();
   SoundEffectsService._();
 
-  final ap.AudioPlayer _tapPlayer =
-      ap.AudioPlayer(mode: ap.PlayerMode.lowLatency);
-  final ap.AudioPlayer _chimePlayer =
-      ap.AudioPlayer(mode: ap.PlayerMode.lowLatency);
+  final ap.AudioPlayer _tapPlayer = ap.AudioPlayer();
+  final ap.AudioPlayer _chimePlayer = ap.AudioPlayer();
   String? _tapPath;
   String? _chimePath;
 
   Future<void> init() async {
     try {
+      await _tapPlayer.setPlayerMode(ap.PlayerMode.lowLatency);
+      await _chimePlayer.setPlayerMode(ap.PlayerMode.lowLatency);
       final dir = await getTemporaryDirectory();
       _tapPath = '${dir.path}/azkari_soft_tap_v2.wav';
       _chimePath = '${dir.path}/azkari_chime_33_v2.wav';
