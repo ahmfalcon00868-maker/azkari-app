@@ -40,7 +40,35 @@ class ZikrItem {
     }
   }
 
+  String get categoryLabelTr {
+    switch (category) {
+      case 'morning':
+        return 'Sabah Zikirleri';
+      case 'evening':
+        return 'Akşam Zikirleri';
+      case 'sleep':
+        return 'Uyku Zikirleri';
+      case 'wakeup':
+        return 'Uyanış Zikirleri';
+      case 'prayer':
+        return 'Namaz Sonrası Zikirler';
+      case 'daily':
+        return 'Ev ve Yolculuk';
+      case 'supplications':
+        return 'Kapsamlı Dualar';
+      default:
+        return categoryLabel;
+    }
+  }
+
+  String categoryForLang(String lang) {
+    if (lang == 'en') return categoryLabelEn;
+    if (lang == 'tr') return categoryLabelTr;
+    return categoryLabel;
+  }
+
   String get englishText => kAzkarEnglishById[id] ?? text;
+  String get turkishText => kAzkarTurkishById[id] ?? text;
 
   Map<String, dynamic> toJson() => {
         'id': id,
@@ -953,4 +981,106 @@ const Map<int, String> kAzkarEnglishById = {
   703: 'Ya Muqallibal-qulubi thabbit qalbi ala dinik. (O Turner of hearts, keep my heart firm upon Your religion.)',
   704: 'Allahumma innaka Afuwwun tuhibbul-afwa fa’fu anni. (O Allah, You are Pardoning and love to pardon, so pardon me.)',
   705: 'Allahummaghfir li, warhamni, wahdini, wa’afini, warzuqni.',
+};
+
+
+const Map<int, String> kAzkarTurkishById = {
+  // Sabah Zikirleri (101-129)
+  101: 'Ayetel Kürsi: Allah’tan başka ilah yoktur; O diridir, her şeyin varlığı O’na bağlıdır. Kendisine ne uyku gelir ne de uyuklama...',
+  102: 'İhlas Suresi: De ki: O, Allah birdir. Allah Samed’dir. Doğurmamış ve doğurulmamıştır. Hiçbir şey O’na denk değildir.',
+  103: 'Felak Suresi: De ki: Yarattığı şeylerin şerrinden sabahın Rabbine sığınırım...',
+  104: 'Nas Suresi: De ki: İnsanların Rabbine, insanların Melikine, insanların İlahına sığınırım...',
+  105: 'Sabaha eriştik, mülk de Allah’ın olarak sabahladı. Hamd Allah’a mahsustur. Allah’tan başka ilah yoktur, O tektir, ortağı yoktur.',
+  106: 'Seyyidül İstiğfar: Allah’ım! Sen benim Rabbimsin, Senden başka ilah yoktur. Beni Sen yarattın ve ben Senin kulunum... Beni bağışla, çünkü günahları ancak Sen bağışlarsın.',
+  107: 'Rab olarak Allah’tan, din olarak İslam’dan, peygamber olarak Hz. Muhammed’den (s.a.v.) razı oldum.',
+  108: 'Allah’ım! Sabaha erdim; Seni, Arş’ını taşıyanları, meleklerini ve bütün yarattıklarını şahit tutarım ki Sen Allah’sın, Senden başka ilah yoktur.',
+  109: 'Allah’ım! Benimle veya yarattıklarından herhangi biriyle sabahlayan her nimet yalnız Sendendir, Senin ortağın yoktur. Hamd ve şükür yalnız Sanadır.',
+  110: 'Hasbiyallahu la ilahe illa Hu, aleyhi tevekkeltü ve Huve Rabbül-Arşil-Azim. (Allah bana yeter; O’ndan başka ilah yoktur, yalnız O’na güvendim.)',
+  111: 'Bismillahillezi la yedurru ma’asmihi şey’ün fil-ardı ve la fis-sema’i ve Huves-Semi’ul-Alim. (İsmiyle yerde ve gökte hiçbir şeyin zarar veremeyeceği Allah’ın adıyla.)',
+  112: 'Allah’ım! Senin yardımınla sabahladık, Senin yardımınla akşamladık, Seninle yaşar, Seninle ölürüz ve dönüş yalnız Sanadır.',
+  113: 'İslam fıtratı, ihlas kelimesi, Peygamberimiz Muhammed’in (s.a.v.) dini ve atamız İbrahim’in hanif milleti üzere sabahladık.',
+  114: 'Subhanallahi ve bihamdihi: yarattıkları sayısınca, rızasınca, Arş’ının ağırlığınca ve kelimelerinin adedince.',
+  115: 'Allah’ım! Bedenime afiyet ver, kulağıma afiyet ver, gözüme afiyet ver. Senden başka ilah yoktur.',
+  116: 'Allah’ım! Küfürden ve fakirlikten Sana sığınırım; kabir azabından da Sana sığınırım. Senden başka ilah yoktur.',
+  117: 'Allah’ım! Dünyada ve ahirette Senden af ve afiyet dilerim. Ayıplarımı ört, korkularımı güvene çevir, beni önümden, arkamdan, sağımdan, solumdan ve üstümden koru.',
+  118: 'Ya Hayyu Ya Kayyum! Rahmetinle yardım istiyorum; bütün işlerimi düzelt ve beni göz açıp kapayıncaya kadar nefsime bırakma.',
+  119: 'Alemlerin Rabbi Allah’a hamdolsun, mülk O’nun olarak sabahladık. Allah’ım! Senden bugünün hayrını, fethini, yardımını, nurunu, bereketini ve hidayetini isterim.',
+  120: 'Gizliyi ve açığı bilen, göklerin ve yerin yaratıcısı Allah’ım! Nefsimin şerrinden ve şeytanın şerrinden Sana sığınırım.',
+  121: 'Yarattıklarının şerrinden Allah’ın eksiksiz kelimelerine sığınırım.',
+  122: 'Allah’ım! Peygamberimiz Muhammed’e salat, selam ve bereket ihsan eyle.',
+  123: 'Allah’ım! Bilerek Sana ortak koşmaktan Sana sığınır, bilmediklerimiz için Senden bağışlanma dileriz.',
+  124: 'Allah’ım! Üzüntü ve kederden, acizlik ve tembellikten, korkaklık ve cimrilikten, borç yükünden ve insanların baskısından Sana sığınırım.',
+  125: 'Kendisinden başka ilah olmayan, diri ve kayyum olan Yüce Allah’tan bağışlanma diler ve O’na tövbe ederim.',
+  126: 'Rabbim! Yüzünün celaline ve saltanatının azametine yakışır şekilde Sana hamdolsun.',
+  127: 'Allah’tan başka ilah yoktur, O tektir, ortağı yoktur. Mülk O’nundur, hamd O’nadır ve O her şeye kadirdir.',
+  128: 'Allah’ım! Sen benim Rabbimsin, Senden başka ilah yoktur. Sana tevekkül ettim, Sen Yüce Arş’ın Rabbisin. Allah’ın dilediği olur...',
+  129: 'Subhanallahi ve bihamdih. (Allah’ı hamd ile tesbih ederim.)',
+
+  // Akşam Zikirleri (201-230)
+  201: 'Ayetel Kürsi: Allah’tan başka ilah yoktur; O diridir, her şeyin varlığı O’na bağlıdır...',
+  202: 'Amenerrasulü (Bakara 285-286): Peygamber, Rabbinden kendisine indirilene iman etti, müminler de...',
+  203: 'İhlas Suresi: De ki: O, Allah birdir...',
+  204: 'Felak Suresi: De ki: Sabahın Rabbine sığınırım...',
+  205: 'Nas Suresi: De ki: İnsanların Rabbine sığınırım...',
+  206: 'Akşama eriştik, mülk de Allah’ın olarak akşamladı. Hamd Allah’a mahsustur...',
+  207: 'Seyyidül İstiğfar: Allah’ım! Sen benim Rabbimsin, Senden başka ilah yoktur... Beni bağışla.',
+  208: 'Rab olarak Allah’tan, din olarak İslam’dan, peygamber olarak Hz. Muhammed’den razı oldum.',
+  209: 'Allah’ım! Akşama erdim; Seni, Arş’ını taşıyanları ve meleklerini şahit tutarım ki Sen Allah’sın...',
+  210: 'Allah’ım! Benimle veya yarattıklarından biriyle akşamlayan her nimet yalnız Sendendir...',
+  211: 'Hasbiyallahu la ilahe illa Hu, aleyhi tevekkeltü ve Huve Rabbül-Arşil-Azim.',
+  212: 'Bismillahillezi la yedurru ma’asmihi şey’ün fil-ardı ve la fis-sema’i ve Huves-Semi’ul-Alim.',
+  213: 'Allah’ım! Senin yardımınla akşamladık, Senin yardımınla sabahladık, Seninle yaşar, Seninle ölürüz ve dönüş Sanadır.',
+  214: 'İslam fıtratı, ihlas kelimesi ve Peygamberimiz Muhammed’in (s.a.v.) dini üzere akşamladık.',
+  215: 'Subhanallahi ve bihamdihi: yarattıkları sayısınca, rızasınca, Arş’ının ağırlığınca ve kelimelerinin adedince.',
+  216: 'Allah’ım! Bedenime, kulağıma ve gözüme afiyet ver. Senden başka ilah yoktur.',
+  217: 'Allah’ım! Küfürden, fakirlikten ve kabir azabından Sana sığınırım.',
+  218: 'Allah’ım! Dünyada ve ahirette af ve afiyet dilerim. Ayıplarımı ört, korkularımı güvene çevir...',
+  219: 'Ya Hayyu Ya Kayyum! Rahmetinle yardım istiyorum; bütün işlerimi düzelt.',
+  220: 'Alemlerin Rabbi Allah’a hamdolsun, mülk O’nun olarak akşamladık. Allah’ım! Bu gecenin hayrını isterim...',
+  221: 'Gizliyi ve açığı bilen Allah’ım! Nefsimin ve şeytanın şerrinden Sana sığınırım.',
+  222: 'Yarattıklarının şerrinden Allah’ın eksiksiz kelimelerine sığınırım.',
+  223: 'Allah’ım! Peygamberimiz Muhammed’e salat, selam ve bereket ihsan eyle.',
+  224: 'Allah’ım! Bilerek ortak koşmaktan Sana sığınır, bilmediklerimiz için bağışlanma dileriz.',
+  225: 'Allah’ım! Üzüntüden, kederden, acizlikten, tembellikten, borç yükünden ve insanların baskısından Sana sığınırım.',
+  226: 'Kendisinden başka ilah olmayan Yüce Allah’tan bağışlanma diler ve O’na tövbe ederim.',
+  227: 'Rabbim! Yüzünün celaline ve saltanatının azametine yakışır şekilde Sana hamdolsun.',
+  228: 'Allah’tan başka ilah yoktur, O tektir, ortağı yoktur. Mülk O’nundur ve O her şeye kadirdir.',
+  229: 'Allah’ım! Sen benim Rabbimsin, sana tevekkül ettim, Sen Yüce Arş’ın Rabbisin...',
+  230: 'Subhanallahi ve bihamdih.',
+
+  // Uyku Zikirleri (301-307)
+  301: 'İki avucunu birleştirip üfleyerek İhlas, Felak ve Nas surelerini oku ve başından başlayarak vücuduna meshet.',
+  302: 'Uyku öncesi Ayetel Kürsi: Allah’tan başka ilah yoktur; O diridir, kayyumdur...',
+  303: 'Rabbim! Senin adınla yanımı yere koydum ve Senin adınla kalkarım.',
+  304: 'Allah’ım! Kullarını dirilteceğin gün beni azabından koru.',
+  305: 'Allah’ım! Senin adınla ölür ve Senin adınla dirilirim.',
+  306: 'Subhanallah (33), Elhamdülillah (33), Allahu Ekber (34).',
+  307: 'Allah’ım! Kendimi Sana teslim ettim, işimi Sana havale ettim, ümit ve korkuyla yüzümü Sana çevirdim...',
+
+  // Uyanış Zikirleri (401-403)
+  401: 'Bizi öldürdükten sonra dirilten Allah’a hamdolsun. Dönüş de O’nadır.',
+  402: 'Bedenime afiyet veren, ruhumu bana geri döndüren ve kendisini zikretmeme izin veren Allah’a hamdolsun.',
+  403: 'Allah’tan başka ilah yoktur... Subhanallah, Elhamdülillah, La ilahe illallah, Allahu Ekber, Rabbim beni bağışla.',
+
+  // Namaz Sonrası (501-505)
+  501: 'Estağfirullah (3 kez). Allah’ım! Selam Sensin, selamet Sendendir. Ey celal ve ikram sahibi, Sen yücesin.',
+  502: 'Allah’tan başka ilah yoktur... Allah’ım! Senin verdiğine engel olacak, vermediğini de verecek kimse yoktur.',
+  503: 'Subhanallah (33) • Elhamdülillah (33) • Allahu Ekber (33).',
+  504: 'Her farz namazın ardından Ayetel Kürsi okumak.',
+  505: 'Allah’ım! Seni zikretmek, Sana şükretmek ve Sana güzelce kulluk etmek için bana yardım et.',
+
+  // Ev ve Yolculuk (601-606)
+  601: 'Evden çıkarken: Allah’ın adıyla, Allah’a tevekkül ettim; güç ve kuvvet yalnız Allah’tandır.',
+  602: 'Eve girerken: Allah’ın adıyla girdik, Allah’ın adıyla çıktık ve Rabbimize tevekkül ettik.',
+  603: 'Yolculuk / Binek duası: Bunu hizmetimize veren Allah noksanlardan münezzehtir, biz buna güç yetiremezdik.',
+  604: 'Tuvalete girerken: Allah’ın adıyla; Allah’ım pisliklerden ve kötü varlıklardan Sana sığınırım.',
+  605: 'Tuvaletten çıkarken: Gufraneke (Allah’ım bağışlamanı dilerim).',
+  606: 'Yemekten sonra: Güç ve kuvvetim olmadan bunu bana yediren ve rızık olarak veren Allah’a hamdolsun.',
+
+  // Kapsamlı Dualar (701-705)
+  701: 'Rabbimiz! Bize dünyada da iyilik ver, ahirette de iyilik ver ve bizi ateş azabından koru.',
+  702: 'Senden başka ilah yoktur, Seni tenzih ederim; gerçekten ben zalimlerden oldum.',
+  703: 'Ey kalpleri evirip çeviren! Kalbimi dinin üzere sabit kıl.',
+  704: 'Allah’ım! Sen affedicisin, affetmeyi seversin; beni de affet.',
+  705: 'Allah’ım! Beni bağışla, bana merhamet et, bana hidayet ver, bana afiyet ver ve beni rızıklandır.',
 };

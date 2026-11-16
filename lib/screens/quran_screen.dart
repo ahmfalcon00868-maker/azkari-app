@@ -219,6 +219,7 @@ class QuranHomeScreen extends StatefulWidget {
     required this.isDarkMode,
     required this.isEnglish,
     this.appLang = 'ar',
+    this.appLang = 'ar',
     required this.fontScale,
     this.onSurahCompleted,
   });
@@ -582,6 +583,7 @@ class SurahReaderScreen extends StatefulWidget {
   final SharedPreferences prefs;
   final bool isDarkMode;
   final bool isEnglish;
+  final String appLang;
   final double initialFontScale;
   final int? jumpToAyah;
   final VoidCallback? onSurahCompleted;
