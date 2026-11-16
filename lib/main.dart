@@ -41,50 +41,66 @@ class SoundEffectsService {
   static final SoundEffectsService instance = SoundEffectsService._();
   SoundEffectsService._();
 
-  final ap.AudioPlayer _tapPlayer = ap.AudioPlayer();
+  final List<ap.AudioPlayer> _tapPool = [
+    ap.AudioPlayer(),
+    ap.AudioPlayer(),
+  ];
+  int _tapIdx = 0;
   final ap.AudioPlayer _chimePlayer = ap.AudioPlayer();
   String? _tapPath;
   String? _chimePath;
+  bool _initialized = false;
 
   Future<void> init() async {
+    if (_initialized && _tapPath != null) return;
     try {
-      await _tapPlayer.setPlayerMode(ap.PlayerMode.lowLatency);
-      await _chimePlayer.setPlayerMode(ap.PlayerMode.lowLatency);
+      for (final p in _tapPool) {
+        await p.setPlayerMode(ap.PlayerMode.mediaPlayer);
+        await p.setReleaseMode(ap.ReleaseMode.stop);
+      }
+      await _chimePlayer.setPlayerMode(ap.PlayerMode.mediaPlayer);
+      await _chimePlayer.setReleaseMode(ap.ReleaseMode.stop);
+
       final dir = await getTemporaryDirectory();
-      _tapPath = '${dir.path}/azkari_soft_tap_v2.wav';
-      _chimePath = '${dir.path}/azkari_chime_33_v2.wav';
+      _tapPath = '${dir.path}/azkari_soft_tap_v3.wav';
+      _chimePath = '${dir.path}/azkari_chime_33_v3.wav';
 
       if (!await File(_tapPath!).exists()) {
         await File(_tapPath!).writeAsBytes(_buildToneWav(
-          freqHz: 480,
-          durationMs: 32,
-          volume: 0.18,
-          decay: 22.0,
+          freqHz: 520,
+          durationMs: 42,
+          volume: 0.95,
+          decay: 20.0,
         ));
       }
       if (!await File(_chimePath!).exists()) {
         await File(_chimePath!).writeAsBytes(_buildToneWav(
           freqHz: 740,
           durationMs: 280,
-          volume: 0.35,
-          decay: 6.0,
+          volume: 0.95,
+          decay: 6.5,
           secondHarmonic: 1110,
         ));
       }
+      _initialized = true;
     } catch (_) {}
   }
 
   Future<void> playTap() async {
     try {
-      if (_tapPath == null) await init();
-      await _tapPlayer.play(ap.DeviceFileSource(_tapPath!), volume: 0.18);
+      if (!_initialized || _tapPath == null) await init();
+      final player = _tapPool[_tapIdx % _tapPool.length];
+      _tapIdx++;
+      await player.stop();
+      await player.play(ap.DeviceFileSource(_tapPath!), volume: 0.25);
     } catch (_) {}
   }
 
   Future<void> playChime33() async {
     try {
-      if (_chimePath == null) await init();
-      await _chimePlayer.play(ap.DeviceFileSource(_chimePath!), volume: 0.35);
+      if (!_initialized || _chimePath == null) await init();
+      await _chimePlayer.stop();
+      await _chimePlayer.play(ap.DeviceFileSource(_chimePath!), volume: 0.45);
     } catch (_) {}
   }
 
@@ -193,91 +209,92 @@ class _FloatingZikrOverlayWidget extends StatefulWidget {
 class _FloatingZikrOverlayWidgetState
     extends State<_FloatingZikrOverlayWidget> {
   String _zikr = kRandomShortAzkar[0];
-  Timer? _autoHideTimer;
 
   @override
   void initState() {
     super.initState();
     _zikr = kRandomShortAzkar[Random().nextInt(kRandomShortAzkar.length)];
     FlutterOverlayWindow.overlayListener.listen((event) {
-      if (event is String && event.isNotEmpty && mounted) {
+      if (event is String && event.trim().isNotEmpty && mounted) {
         setState(() => _zikr = event);
       }
     });
-    _autoHideTimer = Timer(const Duration(seconds: 5), () async {
-      await FlutterOverlayWindow.closeOverlay();
-    });
-  }
-
-  @override
-  void dispose() {
-    _autoHideTimer?.cancel();
-    super.dispose();
   }
 
   @override
   Widget build(BuildContext context) {
     return Material(
       color: Colors.transparent,
-      child: GestureDetector(
-        onTap: () async {
-          _autoHideTimer?.cancel();
-          await FlutterOverlayWindow.closeOverlay();
-        },
+      child: Center(
         child: Container(
-          margin: const EdgeInsets.symmetric(horizontal: 14, vertical: 6),
-          padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 14),
+          margin: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
           decoration: BoxDecoration(
             gradient: const LinearGradient(
-              colors: [Color(0xFF0D47A1), Color(0xFF0288D1)],
+              colors: [Color(0xFF0A192F), Color(0xFF0D47A1)],
               begin: Alignment.topRight,
               end: Alignment.bottomLeft,
             ),
-            borderRadius: BorderRadius.circular(22),
-            border: Border.all(color: const Color(0xFF38BDF8), width: 1.5),
-            boxShadow: const [
+            borderRadius: BorderRadius.circular(28),
+            border: Border.all(
+              color: const Color(0xFF38BDF8).withOpacity(0.55),
+              width: 1.4,
+            ),
+            boxShadow: [
               BoxShadow(
-                color: Colors.black38,
-                blurRadius: 16,
-                offset: Offset(0, 6),
+                color: Colors.black.withOpacity(0.45),
+                blurRadius: 14,
+                offset: const Offset(0, 6),
               ),
             ],
           ),
           child: Row(
-            textDirection: TextDirection.rtl,
             children: [
-              Container(
-                width: 34,
-                height: 34,
-                decoration: BoxDecoration(
-                  color: Colors.white.withOpacity(0.18),
-                  shape: BoxShape.circle,
+              InkWell(
+                onTap: () => FlutterOverlayWindow.closeOverlay(),
+                borderRadius: BorderRadius.circular(20),
+                child: Container(
+                  padding: const EdgeInsets.all(6),
+                  decoration: BoxDecoration(
+                    color: Colors.white.withOpacity(0.14),
+                    shape: BoxShape.circle,
+                  ),
+                  child: const Icon(Icons.close_rounded,
+                      color: Colors.white, size: 18),
                 ),
-                alignment: Alignment.center,
-                child: const Text('💧', style: TextStyle(fontSize: 16)),
               ),
-              const SizedBox(width: 12),
+              const SizedBox(width: 10),
               Expanded(
-                child: Column(
-                  mainAxisSize: MainAxisSize.min,
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      _zikr,
-                      textDirection: TextDirection.rtl,
-                      style: const TextStyle(
-                        color: Colors.white,
-                        fontSize: 15,
-                        fontWeight: FontWeight.bold,
-                      ),
-                    ),
-                    const SizedBox(height: 2),
-                    const Text(
-                      'اسحب للتحريك • اضغط للإخفاء',
-                      textDirection: TextDirection.rtl,
-                      style: TextStyle(color: Colors.white70, fontSize: 10),
-                    ),
-                  ],
+                child: Text(
+                  _zikr,
+                  textAlign: TextAlign.center,
+                  maxLines: 3,
+                  overflow: TextOverflow.ellipsis,
+                  style: const TextStyle(
+                    color: Colors.white,
+                    fontSize: 15,
+                    fontWeight: FontWeight.bold,
+                    height: 1.5,
+                  ),
+                ),
+              ),
+              const SizedBox(width: 10),
+              InkWell(
+                onTap: () {
+                  setState(() {
+                    _zikr = kRandomShortAzkar[
+                        Random().nextInt(kRandomShortAzkar.length)];
+                  });
+                },
+                borderRadius: BorderRadius.circular(20),
+                child: Container(
+                  padding: const EdgeInsets.all(6),
+                  decoration: BoxDecoration(
+                    color: Colors.white.withOpacity(0.14),
+                    shape: BoxShape.circle,
+                  ),
+                  child: const Icon(Icons.refresh_rounded,
+                      color: Color(0xFF38BDF8), size: 18),
                 ),
               ),
             ],
@@ -373,7 +390,15 @@ class _AzkariAppState extends State<AzkariApp> {
   late String fbUserPhoto;
   late List<ZikrItem> azkarList;
   late List<Map<String, dynamic>> customAzkar;
+  late List<String> customTasbihPhrases;
+  late bool onboardingDone;
+  late String reminderMode; // 'notification' or 'overlay'
+  late bool dailyAyahEnabled;
+  late int dailyAyahIndex;
+  late Map<int, Map<String, dynamic>> editedAzkarOverrides;
+  late Set<int> deletedAzkarIds;
   Timer? _floatingTimer;
+  Timer? _saveDebounce;
   final ap.AudioPlayer _splashAudioPlayer = ap.AudioPlayer();
 
   String tr(String ar, String en) => isEnglish ? en : ar;
@@ -381,9 +406,13 @@ class _AzkariAppState extends State<AzkariApp> {
   void playTapFeedback({bool stronger = false}) {
     if (hapticEnabled) {
       if (stronger) {
-        HapticFeedback.mediumImpact();
+        HapticFeedback.vibrate();
+        Future.delayed(
+          const Duration(milliseconds: 65),
+          () => HapticFeedback.heavyImpact(),
+        );
       } else {
-        HapticFeedback.selectionClick();
+        HapticFeedback.lightImpact();
       }
     }
     if (buttonSoundEnabled) {
@@ -412,9 +441,9 @@ class _AzkariAppState extends State<AzkariApp> {
   @override
   void initState() {
     super.initState();
+    SoundEffectsService.instance.init();
     _loadPrefsFromDisk();
-    azkarList = getInitialAzkarList();
-    _restoreAzkarState();
+    _rebuildAzkarList();
     _syncReminders();
     _syncFloatingTimer();
     _playStartupAyahAudio();
@@ -446,7 +475,30 @@ class _AzkariAppState extends State<AzkariApp> {
     eveningReminder = p.getBool('eveningReminder') ?? true;
     sleepReminder = p.getBool('sleepReminder') ?? true;
     floatingEnabled = p.getBool('floatingEnabled') ?? false;
-    floatingIntervalMinutes = p.getInt('floatingIntervalMinutes') ?? 15;
+    floatingIntervalMinutes = p.getInt('floatingIntervalMinutes') ?? 60;
+    onboardingDone = p.getBool('onboardingDone') ?? false;
+    reminderMode = p.getString('reminderMode') ?? 'notification';
+    dailyAyahEnabled = p.getBool('dailyAyahEnabled') ?? true;
+    dailyAyahIndex = p.getInt('dailyAyahIndex') ?? 0;
+    customTasbihPhrases = p.getStringList('customTasbihPhrases') ?? [];
+
+    editedAzkarOverrides = {};
+    final edRaw = p.getString('editedAzkarOverrides');
+    if (edRaw != null) {
+      try {
+        final decoded = jsonDecode(edRaw) as Map<String, dynamic>;
+        decoded.forEach((k, v) {
+          final id = int.tryParse(k);
+          if (id != null && v is Map<String, dynamic>) {
+            editedAzkarOverrides[id] = v;
+          }
+        });
+      } catch (_) {}
+    }
+    deletedAzkarIds = (p.getStringList('deletedAzkarIds') ?? [])
+        .map((e) => int.tryParse(e))
+        .whereType<int>()
+        .toSet();
     tasbihPhrase =
         p.getString('tasbihPhrase') ?? 'سُبْحَانَ اللَّهِ وَبِحَمْدِهِ';
     tasbihLifetime = p.getInt('tasbihLifetime') ?? 0;
@@ -660,6 +712,7 @@ class _AzkariAppState extends State<AzkariApp> {
 
   void _syncFloatingTimer() {
     _floatingTimer?.cancel();
+    _saveDebounce?.cancel();
     if (!floatingEnabled) return;
     _floatingTimer = Timer.periodic(
       Duration(minutes: floatingIntervalMinutes),
@@ -690,7 +743,65 @@ class _AzkariAppState extends State<AzkariApp> {
     } catch (_) {}
   }
 
-  void saveAllState() {
+  void _rebuildAzkarList() {
+    final base = getInitialAzkarList()
+        .where((z) => !deletedAzkarIds.contains(z.id))
+        .map((z) {
+      final ov = editedAzkarOverrides[z.id];
+      if (ov != null) {
+        return ZikrItem(
+          id: z.id,
+          category: z.category,
+          categoryLabel: z.categoryLabel,
+          text: ov['text'] as String? ?? z.text,
+          source: ov['source'] as String? ?? z.source,
+          target: ov['target'] as int? ?? z.target,
+          count: z.count,
+          favorite: z.favorite,
+        );
+      }
+      return z;
+    }).toList();
+    azkarList = base;
+    _restoreAzkarState();
+  }
+
+  void saveLightState() {
+    _saveDebounce?.cancel();
+    _saveDebounce = Timer(const Duration(milliseconds: 450), () {
+      final p = widget.prefs;
+      tasbihCountsByPhrase[tasbihPhrase] = tasbihCount;
+      p.setInt('tasbihCount', tasbihCount);
+      p.setInt('tasbihLifetime', tasbihLifetime);
+      p.setString('tasbihCountsByPhrase', jsonEncode(tasbihCountsByPhrase));
+      p.setInt('totalAzkarCompleted', totalAzkarCompleted);
+      p.setInt('currentStreak', currentStreak);
+      p.setInt('bestStreak', bestStreak);
+      p.setString('lastActiveDate', lastActiveDate);
+      p.setString(
+        'azkarState',
+        jsonEncode(azkarList.map((e) => e.toJson()).toList()),
+      );
+    });
+  }
+
+  void saveAzkarEditsOnly() {
+    final p = widget.prefs;
+    final mapEnc = <String, dynamic>{};
+    editedAzkarOverrides.forEach((k, v) {
+      mapEnc[k.toString()] = v;
+    });
+    p.setString('editedAzkarOverrides', jsonEncode(mapEnc));
+    p.setStringList(
+        'deletedAzkarIds', deletedAzkarIds.map((e) => e.toString()).toList());
+    p.setString('customAzkar', jsonEncode(customAzkar));
+    p.setString(
+      'azkarState',
+      jsonEncode(azkarList.map((e) => e.toJson()).toList()),
+    );
+  }
+
+  void saveAllState({bool resyncTimers = true}) {
     final p = widget.prefs;
     tasbihCountsByPhrase[tasbihPhrase] = tasbihCount;
     p.setBool('darkMode', isDarkMode);
@@ -731,8 +842,22 @@ class _AzkariAppState extends State<AzkariApp> {
       'azkarState',
       jsonEncode(azkarList.map((e) => e.toJson()).toList()),
     );
-    _syncReminders();
-    _syncFloatingTimer();
+    p.setBool('onboardingDone', onboardingDone);
+    p.setString('reminderMode', reminderMode);
+    p.setBool('dailyAyahEnabled', dailyAyahEnabled);
+    p.setInt('dailyAyahIndex', dailyAyahIndex);
+    p.setStringList('customTasbihPhrases', customTasbihPhrases);
+    final mapEnc = <String, dynamic>{};
+    editedAzkarOverrides.forEach((k, v) {
+      mapEnc[k.toString()] = v;
+    });
+    p.setString('editedAzkarOverrides', jsonEncode(mapEnc));
+    p.setStringList(
+        'deletedAzkarIds', deletedAzkarIds.map((e) => e.toString()).toList());
+    if (resyncTimers) {
+      _syncReminders();
+      _syncFloatingTimer();
+    }
     setState(() {});
   }
 
@@ -896,10 +1021,9 @@ class _SplashWrapperScreenState extends State<SplashWrapperScreen>
                 ),
               ),
             )
-          : MainShellScreen(
-              key: const ValueKey('main'),
-              appState: widget.appState,
-            ),
+          : (!widget.appState.onboardingDone
+              ? OnboardingScreen(key: const ValueKey('onboarding'), appState: widget.appState)
+              : MainShellScreen(key: const ValueKey('main'), appState: widget.appState)),
     );
   }
 }
@@ -926,7 +1050,195 @@ class _MainShellScreenState extends State<MainShellScreen> {
         context,
         isEnglish: widget.appState.isEnglish,
       );
+      if (widget.appState.dailyAyahEnabled) {
+        _showDailyAyahDialog();
+      }
     });
+  }
+
+  Future<void> _showDailyAyahDialog() async {
+    final s = widget.appState;
+    try {
+      final qRaw = await rootBundle.loadString('assets/data/quran_uthmani.json');
+      final tRaw = await rootBundle.loadString('assets/data/tafsir_muyassar.json');
+      final qList = jsonDecode(qRaw) as List<dynamic>;
+      final tList = jsonDecode(tRaw) as List<dynamic>;
+
+      final flatAyahs = <Map<String, dynamic>>[];
+      for (int sIdx = 0; sIdx < qList.length; sIdx++) {
+        final surah = qList[sIdx] as Map<String, dynamic>;
+        final tSurah = sIdx < tList.length ? tList[sIdx] as Map<String, dynamic> : null;
+        final ayahs = (surah['verses'] ?? surah['ayahs'] ?? []) as List<dynamic>;
+        final tAyahs = tSurah != null
+            ? ((tSurah['verses'] ?? tSurah['ayahs'] ?? []) as List<dynamic>)
+            : <dynamic>[];
+        for (int aIdx = 0; aIdx < ayahs.length; aIdx++) {
+          final a = ayahs[aIdx] as Map<String, dynamic>;
+          final tText = aIdx < tAyahs.length
+              ? ((tAyahs[aIdx] as Map<String, dynamic>)['text'] ?? '').toString()
+              : '';
+          flatAyahs.add({
+            'surah': surah['name'] ?? '',
+            'num': a['id'] ?? a['numberInSurah'] ?? (aIdx + 1),
+            'text': a['text'] ?? '',
+            'tafsir': tText,
+          });
+        }
+      }
+      if (flatAyahs.isEmpty || !mounted) return;
+
+      int idx = s.dailyAyahIndex % flatAyahs.length;
+      final qFont = s.widget.prefs.getString('quranFontFamily') ?? 'AmiriQuran';
+      final qScale = s.widget.prefs.getDouble('quranFontScale') ?? 1.0;
+
+      await showDialog(
+        context: context,
+        builder: (ctx) => StatefulBuilder(
+          builder: (ctx, setDState) {
+            final item = flatAyahs[idx];
+            return Dialog(
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
+              child: Padding(
+                padding: const EdgeInsets.all(20),
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Text(
+                      '${item['surah']}',
+                      style: const TextStyle(
+                        fontSize: 17,
+                        fontWeight: FontWeight.bold,
+                        color: AppColors.skyBlue,
+                      ),
+                    ),
+                    const SizedBox(height: 14),
+                    ConstrainedBox(
+                      constraints: const BoxConstraints(maxHeight: 220),
+                      child: SingleChildScrollView(
+                        child: Text(
+                          '${item['text']} ﴿${item['num']}﴾',
+                          textAlign: TextAlign.center,
+                          style: TextStyle(
+                            fontFamily: qFont,
+                            fontSize: 22 * qScale,
+                            height: 1.9,
+                          ),
+                        ),
+                      ),
+                    ),
+                    const SizedBox(height: 16),
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: [
+                        TextButton.icon(
+                          onPressed: () {
+                            setDState(() {
+                              idx = (idx + 1) % flatAyahs.length;
+                            });
+                            s.dailyAyahIndex = idx;
+                            s.widget.prefs.setInt('dailyAyahIndex', idx);
+                          },
+                          icon: const Icon(Icons.chevron_left_rounded),
+                          label: Text(s.tr('التالي', 'Next')),
+                        ),
+                        TextButton.icon(
+                          onPressed: () {
+                            setDState(() {
+                              idx = (idx - 1 + flatAyahs.length) % flatAyahs.length;
+                            });
+                            s.dailyAyahIndex = idx;
+                            s.widget.prefs.setInt('dailyAyahIndex', idx);
+                          },
+                          icon: const Icon(Icons.chevron_right_rounded),
+                          label: Text(s.tr('السابق', 'Prev')),
+                        ),
+                      ],
+                    ),
+                    const Divider(),
+                    Wrap(
+                      alignment: WrapAlignment.spaceBetween,
+                      spacing: 8,
+                      children: [
+                        TextButton(
+                          onPressed: () {
+                            showDialog(
+                              context: ctx,
+                              builder: (infoCtx) => AlertDialog(
+                                shape: RoundedRectangleBorder(
+                                    borderRadius: BorderRadius.circular(22)),
+                                title: Text(s.tr('معلومات عن الميزة', 'About Feature')),
+                                content: Text(
+                                  s.tr(
+                                    'هذه الميزة تساعدك على قراءة آية من القرآن بالتسلسل عند بدء تشغيل التطبيق.
+
+يمكنك إيقاف تفعيل الميزة من الإعدادات في وقت لاحق أو من الزر بالأسفل.
+
+ملاحظة: الخط وحجم الخط المستخدمان هنا هما نفس إعدادات صفحة القرآن.',
+                                    'Shows a sequential Quran Ayah on startup using your Quran font settings.',
+                                  ),
+                                ),
+                                actions: [
+                                  TextButton(
+                                    onPressed: () {
+                                      s.dailyAyahEnabled = false;
+                                      s.saveAllState(resyncTimers: false);
+                                      Navigator.pop(infoCtx);
+                                      Navigator.pop(ctx);
+                                    },
+                                    child: Text(s.tr('إيقاف الميزة', 'Disable'),
+                                        style: const TextStyle(color: Colors.redAccent)),
+                                  ),
+                                  FilledButton(
+                                    onPressed: () => Navigator.pop(infoCtx),
+                                    child: Text(s.tr('متابعة', 'Continue')),
+                                  ),
+                                ],
+                              ),
+                            );
+                          },
+                          child: Text(s.tr('معلومات عن الميزة', 'Info')),
+                        ),
+                        TextButton(
+                          onPressed: () {
+                            final tafsir = (item['tafsir'] as String).isNotEmpty
+                                ? item['tafsir'] as String
+                                : s.tr('التفسير غير متوفر لهذه الآية.', 'Tafsir unavailable.');
+                            showDialog(
+                              context: ctx,
+                              builder: (tCtx) => AlertDialog(
+                                shape: RoundedRectangleBorder(
+                                    borderRadius: BorderRadius.circular(22)),
+                                title: Text(s.tr('التفسير الميسر', 'Tafsir')),
+                                content: SingleChildScrollView(child: Text(tafsir)),
+                                actions: [
+                                  FilledButton(
+                                    onPressed: () => Navigator.pop(tCtx),
+                                    child: Text(s.tr('إغلاق', 'Close')),
+                                  ),
+                                ],
+                              ),
+                            );
+                          },
+                          child: Text(s.tr('تفسير الآية', 'Tafsir')),
+                        ),
+                        FilledButton(
+                          onPressed: () {
+                            s.dailyAyahIndex = (idx + 1) % flatAyahs.length;
+                            s.widget.prefs.setInt('dailyAyahIndex', s.dailyAyahIndex);
+                            Navigator.pop(ctx);
+                          },
+                          child: Text(s.tr('تم', 'Done')),
+                        ),
+                      ],
+                    ),
+                  ],
+                ),
+              ),
+            );
+          },
+        ),
+      );
+    } catch (_) {}
   }
 
   void _openCategoryReader(String category, {int initialIndex = 0}) {
@@ -1975,32 +2287,90 @@ class _MainShellScreenState extends State<MainShellScreen> {
               ),
             ],
           ),
-          DropdownButtonFormField<String>(
-            value: kRandomShortAzkar.contains(s.tasbihPhrase)
-                ? s.tasbihPhrase
-                : kRandomShortAzkar.first,
-            isExpanded: true,
-            decoration: InputDecoration(
-              filled: true,
-              fillColor: cardColor,
-              border: OutlineInputBorder(
-                borderRadius: BorderRadius.circular(16),
-                borderSide: BorderSide(color: borderColor),
+          Row(
+            children: [
+              Expanded(
+                child: Builder(builder: (_) {
+                  final allPhrases = [
+                    ...kRandomShortAzkar,
+                    ...s.customTasbihPhrases.where((c) => !kRandomShortAzkar.contains(c)),
+                  ];
+                  final currentVal = allPhrases.contains(s.tasbihPhrase)
+                      ? s.tasbihPhrase
+                      : allPhrases.first;
+                  return DropdownButtonFormField<String>(
+                    value: currentVal,
+                    isExpanded: true,
+                    decoration: InputDecoration(
+                      filled: true,
+                      fillColor: cardColor,
+                      border: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(16),
+                        borderSide: BorderSide(color: borderColor),
+                      ),
+                    ),
+                    items: allPhrases
+                        .map((p) => DropdownMenuItem(
+                            value: p,
+                            child: Text(
+                              s.minimalTashkeel ? lightTashkeel(p) : p,
+                              overflow: TextOverflow.ellipsis,
+                            )))
+                        .toList(),
+                    onChanged: (v) {
+                      if (v != null) {
+                        s.switchTasbihPhrase(v);
+                      }
+                    },
+                  );
+                }),
               ),
-            ),
-            items: kRandomShortAzkar
-                .map((p) => DropdownMenuItem(
-                    value: p,
-                    child: Text(
-                      s.minimalTashkeel ? lightTashkeel(p) : p,
-                      overflow: TextOverflow.ellipsis,
-                    )))
-                .toList(),
-            onChanged: (v) {
-              if (v != null) {
-                s.switchTasbihPhrase(v);
-              }
-            },
+              const SizedBox(width: 8),
+              FilledButton.tonalIcon(
+                onPressed: () {
+                  final ctrl = TextEditingController();
+                  showDialog(
+                    context: context,
+                    builder: (ctx) => AlertDialog(
+                      shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(22)),
+                      title: Text(s.tr('إضافة ذكر للسبحة', 'Add Tasbih Zikr')),
+                      content: TextField(
+                        controller: ctrl,
+                        maxLines: 2,
+                        decoration: InputDecoration(
+                          hintText: s.tr('اكتب الذكر هنا...', 'Enter Zikr...'),
+                          border: OutlineInputBorder(
+                              borderRadius: BorderRadius.circular(14)),
+                        ),
+                      ),
+                      actions: [
+                        TextButton(
+                          onPressed: () => Navigator.pop(ctx),
+                          child: Text(s.tr('إلغاء', 'Cancel')),
+                        ),
+                        FilledButton(
+                          onPressed: () {
+                            final txt = ctrl.text.trim();
+                            if (txt.isNotEmpty) {
+                              if (!s.customTasbihPhrases.contains(txt)) {
+                                s.customTasbihPhrases.add(txt);
+                              }
+                              s.switchTasbihPhrase(txt);
+                              s.saveAllState(resyncTimers: false);
+                            }
+                            Navigator.pop(ctx);
+                          },
+                          child: Text(s.tr('إضافة', 'Add')),
+                        ),
+                      ],
+                    ),
+                  );
+                },
+                icon: const Icon(Icons.add_rounded),
+                label: Text(s.tr('إضافة', 'Add')),
+              ),
+            ],
           ),
           Container(
             width: double.infinity,
@@ -2046,7 +2416,8 @@ class _MainShellScreenState extends State<MainShellScreen> {
               s.tasbihCount += 1;
               s.tasbihLifetime += 1;
               s.playTapFeedback(stronger: s.tasbihCount % 33 == 0);
-              s.recordDailyActivity();
+              s.saveLightState();
+              setState(() {});
             },
           ),
           const SizedBox(height: 8),
@@ -2426,6 +2797,264 @@ class AchievementsScreen extends StatelessWidget {
   }
 }
 
+class OnboardingScreen extends StatefulWidget {
+  final _AzkariAppState appState;
+  const OnboardingScreen({super.key, required this.appState});
+
+  @override
+  State<OnboardingScreen> createState() => _OnboardingScreenState();
+}
+
+class _OnboardingScreenState extends State<OnboardingScreen> {
+  int _step = 0; // 0 = welcome, 1 = reminder mode
+
+  void _showFrequencyDialog(String mode) {
+    final s = widget.appState;
+    final options = <(String, String, int)>[
+      ('أقصى حد', 'كل 15 دقيقة', 15),
+      ('عادي', 'كل ساعة', 60),
+      ('متوسط', 'كل 3 ساعات', 180),
+      ('منخفض', 'كل 6 ساعات', 360),
+      ('منخفض جداً', 'كل 12 ساعة', 720),
+    ];
+
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (ctx) => AlertDialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
+        title: Text(
+          s.tr('معدل تكرار التذكير', 'Reminder Frequency'),
+          textAlign: TextAlign.center,
+        ),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: options.map((opt) {
+            return Padding(
+              padding: const EdgeInsets.only(bottom: 8),
+              child: ListTile(
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(16),
+                  side: BorderSide(color: AppColors.skyBlue.withOpacity(0.35)),
+                ),
+                title: Text(opt.$1,
+                    style: const TextStyle(fontWeight: FontWeight.bold)),
+                subtitle: Text(opt.$2),
+                trailing: const Icon(Icons.arrow_forward_ios_rounded, size: 16),
+                onTap: () {
+                  s.reminderMode = mode;
+                  s.floatingEnabled = mode == 'overlay';
+                  s.floatingIntervalMinutes = opt.$3;
+                  s.onboardingDone = true;
+                  s.saveAllState();
+                  Navigator.pop(ctx);
+                },
+              ),
+            );
+          }).toList(),
+        ),
+      ),
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final s = widget.appState;
+    final isDark = s.isDarkMode;
+    final bg = isDark ? AppColors.backgroundDark : AppColors.backgroundLight;
+    final card = isDark ? AppColors.surfaceDark : AppColors.surfaceLight;
+
+    return Scaffold(
+      backgroundColor: bg,
+      body: SafeArea(
+        child: Padding(
+          padding: const EdgeInsets.all(24),
+          child: _step == 0
+              ? Column(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    Container(
+                      width: 110,
+                      height: 110,
+                      decoration: BoxDecoration(
+                        shape: BoxShape.circle,
+                        gradient: const LinearGradient(
+                          colors: [Color(0xFF0D47A1), Color(0xFF38BDF8)],
+                        ),
+                      ),
+                      child: const Icon(Icons.auto_awesome_rounded,
+                          size: 54, color: Colors.white),
+                    ),
+                    const SizedBox(height: 28),
+                    Text(
+                      s.tr('أهلاً بك في أذكاري 🌿', 'Welcome to Azkari 🌿'),
+                      textAlign: TextAlign.center,
+                      style: const TextStyle(
+                        fontSize: 26,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                    const SizedBox(height: 14),
+                    Text(
+                      s.tr(
+                        'رفيقك اليومي لأذكار الصباح والمساء والقرآن الكريم والسبحة الإلكترونية بدون إعلانات وبأعلى سلاسة.',
+                        'Your daily companion for Azkar, Quran, and Tasbih.',
+                      ),
+                      textAlign: TextAlign.center,
+                      style: TextStyle(
+                        fontSize: 16,
+                        height: 1.7,
+                        color: isDark ? Colors.white70 : Colors.black87,
+                      ),
+                    ),
+                    const SizedBox(height: 36),
+                    SizedBox(
+                      width: double.infinity,
+                      height: 54,
+                      child: FilledButton(
+                        style: FilledButton.styleFrom(
+                          shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(999)),
+                        ),
+                        onPressed: () {
+                          s.playTapFeedback();
+                          setState(() => _step = 1);
+                        },
+                        child: Text(
+                          s.tr('متابعة', 'Continue'),
+                          style: const TextStyle(
+                              fontSize: 17, fontWeight: FontWeight.bold),
+                        ),
+                      ),
+                    ),
+                  ],
+                )
+              : Column(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    Text(
+                      s.tr('كيف تحب أن نذكّرك بالأذكار؟',
+                          'How would you like Azkar reminders?'),
+                      textAlign: TextAlign.center,
+                      style: const TextStyle(
+                          fontSize: 22, fontWeight: FontWeight.bold),
+                    ),
+                    const SizedBox(height: 24),
+                    InkWell(
+                      borderRadius: BorderRadius.circular(22),
+                      onTap: () {
+                        s.playTapFeedback();
+                        _showFrequencyDialog('notification');
+                      },
+                      child: Container(
+                        width: double.infinity,
+                        padding: const EdgeInsets.all(20),
+                        decoration: BoxDecoration(
+                          color: card,
+                          borderRadius: BorderRadius.circular(22),
+                          border: Border.all(
+                              color: AppColors.skyBlue.withOpacity(0.45)),
+                        ),
+                        child: Row(
+                          children: [
+                            const Icon(Icons.notifications_active_rounded,
+                                size: 36, color: AppColors.skyBlue),
+                            const SizedBox(width: 16),
+                            Expanded(
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Text(
+                                    s.tr('إشعار في ستارة الشاشة',
+                                        'Notification Bar'),
+                                    style: const TextStyle(
+                                        fontSize: 17,
+                                        fontWeight: FontWeight.bold),
+                                  ),
+                                  const SizedBox(height: 4),
+                                  Text(
+                                    s.tr('تذكير هادئ في شريط الإشعارات',
+                                        'Quiet notification in status bar'),
+                                    style: TextStyle(
+                                        fontSize: 13,
+                                        color: isDark
+                                            ? Colors.white60
+                                            : Colors.black54),
+                                  ),
+                                ],
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ),
+                    const SizedBox(height: 16),
+                    InkWell(
+                      borderRadius: BorderRadius.circular(22),
+                      onTap: () async {
+                        s.playTapFeedback();
+                        try {
+                          final granted =
+                              await FlutterOverlayWindow.isPermissionGranted();
+                          if (!granted) {
+                            await FlutterOverlayWindow.requestPermission();
+                          }
+                        } catch (_) {}
+                        if (mounted) {
+                          _showFrequencyDialog('overlay');
+                        }
+                      },
+                      child: Container(
+                        width: double.infinity,
+                        padding: const EdgeInsets.all(20),
+                        decoration: BoxDecoration(
+                          color: card,
+                          borderRadius: BorderRadius.circular(22),
+                          border: Border.all(
+                              color: AppColors.skyBlue.withOpacity(0.45)),
+                        ),
+                        child: Row(
+                          children: [
+                            const Icon(Icons.layers_rounded,
+                                size: 36, color: Colors.greenAccent),
+                            const SizedBox(width: 16),
+                            Expanded(
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Text(
+                                    s.tr('رسالة منبثقة فوق التطبيقات الأخرى',
+                                        'Floating Overlay'),
+                                    style: const TextStyle(
+                                        fontSize: 17,
+                                        fontWeight: FontWeight.bold),
+                                  ),
+                                  const SizedBox(height: 4),
+                                  Text(
+                                    s.tr(
+                                        'تظهر لك نافذة ذكر أنيقة فوق الشاشة أثناء استخدام الهاتف',
+                                        'Floating Zikr card over other apps'),
+                                    style: TextStyle(
+                                        fontSize: 13,
+                                        color: isDark
+                                            ? Colors.white60
+                                            : Colors.black54),
+                                  ),
+                                ],
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+        ),
+      ),
+    );
+  }
+}
+
 class AzkarReaderScreen extends StatefulWidget {
   final _AzkariAppState appState;
   final String category;
@@ -2443,27 +3072,43 @@ class AzkarReaderScreen extends StatefulWidget {
 }
 
 class _AzkarReaderScreenState extends State<AzkarReaderScreen> {
-  late int _currentIndex;
-  final GlobalKey _shareCardKey = GlobalKey();
-  bool _isSharingImage = false;
-  bool _promptedFriendsThisSession = false;
-  int _shareCardTheme = 0;
+  bool _isEditMode = false;
+  late DateTime _enteredAt;
+  bool _celebrationShown = false;
 
   @override
   void initState() {
     super.initState();
-    _currentIndex = widget.initialIndex;
+    _enteredAt = DateTime.now();
   }
 
-  List<Color> get _shareGradient {
-    switch (_shareCardTheme) {
-      case 1:
-        return const [Color(0xFF000000), Color(0xFF1E293B)];
-      case 2:
-        return const [Color(0xFF78350F), Color(0xFFD97706)];
-      default:
-        return const [Color(0xFF0D47A1), Color(0xFF0288D1)];
+  String _formatDuration(Duration d) {
+    final s = widget.appState;
+    final mins = d.inMinutes;
+    final secs = d.inSeconds % 60;
+    if (mins == 0) {
+      return s.tr('$secs ثانية', '$secs sec');
     }
+    return s.tr('$mins دقيقة و $secs ثانية', '${mins}m ${secs}s');
+  }
+
+  void _showExitDurationSnackBar(String catLabel) {
+    final spent = DateTime.now().difference(_enteredAt);
+    if (spent.inSeconds < 2) return;
+    final s = widget.appState;
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        behavior: SnackBarBehavior.floating,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        duration: const Duration(seconds: 3),
+        content: Text(
+          s.tr(
+            'استغرقت ${_formatDuration(spent)} في $catLabel 🌿',
+            'Spent ${_formatDuration(spent)} in $catLabel 🌿',
+          ),
+        ),
+      ),
+    );
   }
 
   void _openAzkarPageSettings() {
@@ -2493,7 +3138,7 @@ class _AzkarReaderScreenState extends State<AzkarReaderScreen> {
                       selected: s.azkarFontFamily == f.$1,
                       onSelected: (_) {
                         s.azkarFontFamily = f.$1;
-                        s.saveAllState();
+                        s.saveAllState(resyncTimers: false);
                         setSheetState(() {});
                         setState(() {});
                       },
@@ -2508,7 +3153,7 @@ class _AzkarReaderScreenState extends State<AzkarReaderScreen> {
                   label: '${(s.fontScale * 100).round()}%',
                   onChanged: (v) {
                     s.fontScale = v;
-                    s.saveAllState();
+                    s.saveAllState(resyncTimers: false);
                     setSheetState(() {});
                     setState(() {});
                   },
@@ -2519,29 +3164,20 @@ class _AzkarReaderScreenState extends State<AzkarReaderScreen> {
                   value: s.minimalTashkeel,
                   onChanged: (v) {
                     s.minimalTashkeel = v;
-                    s.saveAllState();
+                    s.saveAllState(resyncTimers: false);
                     setSheetState(() {});
                     setState(() {});
                   },
                 ),
                 SwitchListTile(
                   contentPadding: EdgeInsets.zero,
-                  title: Text(s.tr('الانتقال التلقائي للذكر التالي', 'Auto Next')),
-                  value: s.autoNext,
-                  onChanged: (v) {
-                    s.autoNext = v;
-                    s.saveAllState();
-                    setSheetState(() {});
-                  },
-                ),
-                SwitchListTile(
-                  contentPadding: EdgeInsets.zero,
-                  title: Text(s.tr('إظهار المصدر', 'Show Source')),
+                  title: Text(s.tr('إظهار المصدر والفضل', 'Show Source')),
                   value: s.showSource,
                   onChanged: (v) {
                     s.showSource = v;
-                    s.saveAllState();
+                    s.saveAllState(resyncTimers: false);
                     setSheetState(() {});
+                    setState(() {});
                   },
                 ),
               ],
@@ -2552,222 +3188,236 @@ class _AzkarReaderScreenState extends State<AzkarReaderScreen> {
     );
   }
 
-  Future<void> _shareAsText(ZikrItem item) async {
-    final text = '''${item.text}
-
-📜 المصدر: ${item.source}
-
-📲 حمّل تطبيق «أذكاري» مجانًا بدون إنترنت:
-$kAppDownloadLink
-شارك تؤجر 💙''';
-    await Share.share(text);
-  }
-
-  Future<void> _shareAsImage(ZikrItem item) async {
-    if (_isSharingImage) return;
-    setState(() => _isSharingImage = true);
-    try {
-      await Future.delayed(const Duration(milliseconds: 80));
-      final boundary = _shareCardKey.currentContext?.findRenderObject()
-          as RenderRepaintBoundary?;
-      if (boundary == null) return;
-      final image = await boundary.toImage(pixelRatio: 3.0);
-      final byteData = await image.toByteData(format: ui.ImageByteFormat.png);
-      if (byteData == null) return;
-      final dir = await getTemporaryDirectory();
-      final file = File('${dir.path}/azkari_share_${item.id}.png');
-      await file.writeAsBytes(byteData.buffer.asUint8List());
-      await Share.shareXFiles(
-        [XFile(file.path)],
-        text: 'شارك تؤجر 💙 حمّل تطبيق أذكاري:\n$kAppDownloadLink',
-      );
-    } finally {
-      if (mounted) setState(() => _isSharingImage = false);
-    }
-  }
-
-  void _showCompletionCelebration(String categoryLabel) {
+  void _confirmResetAll(List<ZikrItem> items) {
     final s = widget.appState;
-    if (_promptedFriendsThisSession) return;
-    _promptedFriendsThisSession = true;
+    showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(22)),
+        title: Text(s.tr('تأكيد التصفير', 'Confirm Reset')),
+        content: Text(s.tr(
+          'هل أنت متأكد من تصفير جميع العدادات في هذا القسم؟',
+          'Reset all counters in this category?',
+        )),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx),
+            child: Text(s.tr('إلغاء', 'Cancel')),
+          ),
+          FilledButton(
+            onPressed: () {
+              for (final z in items) {
+                z.count = 0;
+              }
+              _celebrationShown = false;
+              s.saveAzkarEditsOnly();
+              Navigator.pop(ctx);
+              setState(() {});
+            },
+            child: Text(s.tr('تصفير', 'Reset')),
+          ),
+        ],
+      ),
+    );
+  }
+
+  void _showAddOrEditZikrDialog({ZikrItem? existing, required String catLabel}) {
+    final s = widget.appState;
+    String initialPre = '';
+    String initialBody = existing?.text ?? '';
+    if (existing != null && existing.text.contains('
+')) {
+      final parts = existing.text.split('
+');
+      initialPre = parts.first;
+      initialBody = parts.sublist(1).join('
+');
+    }
+
+    final preCtrl = TextEditingController(text: initialPre);
+    final bodyCtrl = TextEditingController(text: initialBody);
+    final noteCtrl = TextEditingController(text: existing?.source ?? '');
+    final targetCtrl =
+        TextEditingController(text: '${existing?.target ?? 1}');
+
     showDialog(
       context: context,
       builder: (ctx) => AlertDialog(
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            const Icon(Icons.check_circle_rounded,
-                color: Colors.greenAccent, size: 68),
-            const SizedBox(height: 12),
-            const Text(
-              'ما شاء الله عليك ربنا يبارك فيك ويحفظك من كل سوء',
-              textAlign: TextAlign.center,
-              style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
-            ),
-            const SizedBox(height: 10),
-            const Text(
-              'قل: اللهم يا مقلب القلوب ثبت قلبي على دينك',
-              textAlign: TextAlign.center,
-              style: TextStyle(
-                  color: Color(0xFF38BDF8),
-                  fontWeight: FontWeight.bold,
-                  fontSize: 15),
-            ),
-            const SizedBox(height: 6),
-            const Text(
-              'حتى رسول الله ﷺ كان يدعو بهذا الدعاء',
-              textAlign: TextAlign.center,
-              style: TextStyle(fontSize: 13, color: Colors.grey),
-            ),
-            const SizedBox(height: 8),
-            const Text(
-              'نسأل الله العفو والعافية لنا جميعاً',
-              textAlign: TextAlign.center,
-              style: TextStyle(fontSize: 14, fontWeight: FontWeight.w600),
-            ),
-            const SizedBox(height: 14),
-            Text(
-              s.tr('هل تريد تذكير أصدقائك بـ $categoryLabel؟',
-                  'Remind friends about $categoryLabel?'),
-              textAlign: TextAlign.center,
-              style: const TextStyle(fontSize: 13),
-            ),
-          ],
+        title: Text(
+          existing == null
+              ? s.tr('إضافة ذكر جديد', 'Add Zikr')
+              : s.tr('تعديل الذكر', 'Edit Zikr'),
+          textAlign: TextAlign.center,
         ),
-        actions: [
-          TextButton(
-            onPressed: () {
-              Navigator.pop(ctx);
-              _maybeShowRateDialog();
-            },
-            child: Text(s.tr('إغلاق', 'Close')),
-          ),
-          ElevatedButton.icon(
-            onPressed: () {
-              Navigator.pop(ctx);
-              Share.share(
-                'تذكير: لا تنسَ $categoryLabel اليوم 🌿\nحمّل تطبيق أذكاري:\n$kAppDownloadLink',
-              );
-            },
-            icon: const Icon(Icons.share_rounded),
-            label: Text(s.tr('تذكير الأصدقاء', 'Remind Friends')),
-          ),
-        ],
-      ),
-    );
-  }
-
-  void _maybeShowRateDialog() {
-    final s = widget.appState;
-    if (s.hasRatedPromptShown || !s.isSecondDayOrLater() || !mounted) return;
-    s.hasRatedPromptShown = true;
-    s.saveAllState();
-    showDialog(
-      context: context,
-      builder: (ctx) => AlertDialog(
-        title: Text(s.tr('ما رأيك في تطبيق أذكاري؟ ⭐', 'Enjoying Azkari? ⭐')),
-        content: Text(
-          s.tr(
-            'يسعدنا تقييمك للتطبيق ومشاركته لنشر الخير.',
-            'Your rating helps us improve and reach more people.',
+        content: SingleChildScrollView(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              TextField(
+                controller: preCtrl,
+                decoration: InputDecoration(
+                  labelText: s.tr('ما قبل الذكر (اختياري)', 'Intro (Optional)'),
+                  border: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(14)),
+                ),
+              ),
+              const SizedBox(height: 12),
+              TextField(
+                controller: bodyCtrl,
+                maxLines: 4,
+                decoration: InputDecoration(
+                  labelText: s.tr('نص الذكر', 'Zikr Text'),
+                  border: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(14)),
+                ),
+              ),
+              const SizedBox(height: 12),
+              TextField(
+                controller: noteCtrl,
+                maxLines: 2,
+                decoration: InputDecoration(
+                  labelText: s.tr('ملاحظة / الفضل (اختياري)', 'Note / Virtue'),
+                  border: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(14)),
+                ),
+              ),
+              const SizedBox(height: 12),
+              TextField(
+                controller: targetCtrl,
+                keyboardType: TextInputType.number,
+                decoration: InputDecoration(
+                  labelText: s.tr('عدد الحبات / التكرار', 'Repeat Count'),
+                  border: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(14)),
+                ),
+              ),
+            ],
           ),
         ),
         actions: [
+          if (existing != null)
+            TextButton(
+              onPressed: () {
+                s.deletedAzkarIds.add(existing.id);
+                s.azkarList.removeWhere((z) => z.id == existing.id);
+                s.saveAzkarEditsOnly();
+                Navigator.pop(ctx);
+                setState(() {});
+              },
+              child: Text(s.tr('حذف', 'Delete'),
+                  style: const TextStyle(color: Colors.redAccent)),
+            ),
           TextButton(
             onPressed: () => Navigator.pop(ctx),
-            child: Text(s.tr('ليس الآن', 'Not Now')),
+            child: Text(s.tr('إلغاء', 'Cancel')),
           ),
-          ElevatedButton(
-            onPressed: () async {
-              Navigator.pop(ctx);
-              final uri = Uri.parse(kAppDownloadLink);
-              if (await canLaunchUrl(uri)) {
-                await launchUrl(uri, mode: LaunchMode.externalApplication);
+          FilledButton(
+            onPressed: () {
+              final body = bodyCtrl.text.trim();
+              if (body.isEmpty) return;
+              final pre = preCtrl.text.trim();
+              final fullText = pre.isNotEmpty ? '$pre
+$body' : body;
+              final target = (int.tryParse(targetCtrl.text.trim()) ?? 1).clamp(1, 9999);
+              final source = noteCtrl.text.trim();
+
+              if (existing != null) {
+                s.editedAzkarOverrides[existing.id] = {
+                  'text': fullText,
+                  'source': source,
+                  'target': target,
+                };
+                final idx = s.azkarList.indexWhere((z) => z.id == existing.id);
+                if (idx != -1) {
+                  s.azkarList[idx] = ZikrItem(
+                    id: existing.id,
+                    category: existing.category,
+                    categoryLabel: existing.categoryLabel,
+                    text: fullText,
+                    source: source,
+                    target: target,
+                    count: existing.count.clamp(0, target),
+                    favorite: existing.favorite,
+                  );
+                }
+              } else {
+                final newId = DateTime.now().millisecondsSinceEpoch;
+                s.azkarList.add(
+                  ZikrItem(
+                    id: newId,
+                    category: widget.category,
+                    categoryLabel: catLabel,
+                    text: fullText,
+                    source: source,
+                    target: target,
+                  ),
+                );
               }
+              s.saveAzkarEditsOnly();
+              Navigator.pop(ctx);
+              setState(() {});
             },
-            child: Text(s.tr('قيّم الآن ⭐', 'Rate Now ⭐')),
+            child: Text(s.tr('تأكيد', 'Save')),
           ),
         ],
       ),
     );
   }
 
-  void _showShareMenu(ZikrItem item) {
+  void _showCompletionCelebration(String categoryLabel) {
+    if (_celebrationShown) return;
+    _celebrationShown = true;
     final s = widget.appState;
-    showModalBottomSheet(
+    showGeneralDialog(
       context: context,
-      shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
-      ),
-      builder: (ctx) => StatefulBuilder(
-        builder: (ctx, setSheetState) => SafeArea(
-          child: Padding(
-            padding: const EdgeInsets.all(20),
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
+      barrierDismissible: true,
+      barrierLabel: 'Done',
+      transitionDuration: const Duration(milliseconds: 350),
+      pageBuilder: (ctx, _, __) => const SizedBox.shrink(),
+      transitionBuilder: (ctx, anim, _, __) {
+        return Transform.scale(
+          scale: Curves.easeOutBack.transform(anim.value),
+          child: Opacity(
+            opacity: anim.value,
+            child: Stack(
               children: [
-                Text(s.tr('استوديو مشاركة الذكر 🎨', 'Share Card Studio 🎨'),
-                    style: const TextStyle(
-                        fontSize: 18, fontWeight: FontWeight.bold)),
-                const SizedBox(height: 12),
-                Row(
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  children: [
-                    ChoiceChip(
-                      label: Text(s.tr('أزرق ملكي', 'Royal Blue')),
-                      selected: _shareCardTheme == 0,
-                      onSelected: (_) {
-                        setState(() => _shareCardTheme = 0);
-                        setSheetState(() {});
-                      },
-                    ),
-                    const SizedBox(width: 8),
-                    ChoiceChip(
-                      label: Text(s.tr('أسود ليلي', 'Night Black')),
-                      selected: _shareCardTheme == 1,
-                      onSelected: (_) {
-                        setState(() => _shareCardTheme = 1);
-                        setSheetState(() {});
-                      },
-                    ),
-                    const SizedBox(width: 8),
-                    ChoiceChip(
-                      label: Text(s.tr('ذهبي هادئ', 'Gold')),
-                      selected: _shareCardTheme == 2,
-                      onSelected: (_) {
-                        setState(() => _shareCardTheme = 2);
-                        setSheetState(() {});
-                      },
-                    ),
-                  ],
+                const Positioned.fill(
+                  child: IgnorePointer(child: _ConfettiBurstWidget()),
                 ),
-                const SizedBox(height: 12),
-                ListTile(
-                  leading: const Icon(Icons.image_rounded,
-                      color: AppColors.primaryBlue),
-                  title: Text(s.tr('مشاركة كصورة لحالة واتساب والمنصات',
-                      'Share as Image Card')),
-                  onTap: () {
-                    Navigator.pop(ctx);
-                    _shareAsImage(item);
-                  },
-                ),
-                ListTile(
-                  leading: const Icon(Icons.text_fields_rounded,
-                      color: AppColors.midBlue),
-                  title:
-                      Text(s.tr('مشاركة كنص مع رابط التطبيق', 'Share as Text')),
-                  onTap: () {
-                    Navigator.pop(ctx);
-                    _shareAsText(item);
-                  },
+                Center(
+                  child: AlertDialog(
+                    shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(28)),
+                    title: Text(
+                      s.tr('🎉 تقبّل الله منك!', '🎉 May Allah accept!'),
+                      textAlign: TextAlign.center,
+                    ),
+                    content: Text(
+                      s.tr(
+                        'أتممت $categoryLabel بحمد الله. بارك الله في وقتك وزادك طمأنينة.',
+                        'You completed $categoryLabel.',
+                      ),
+                      textAlign: TextAlign.center,
+                    ),
+                    actionsAlignment: MainAxisAlignment.center,
+                    actions: [
+                      FilledButton(
+                        style: FilledButton.styleFrom(
+                          shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(999)),
+                        ),
+                        onPressed: () => Navigator.pop(ctx),
+                        child: Text(s.tr('الحمد لله', 'Alhamdulillah')),
+                      ),
+                    ],
+                  ),
                 ),
               ],
             ),
           ),
-        ),
-      ),
+        );
+      },
     );
   }
 
@@ -2776,351 +3426,404 @@ $kAppDownloadLink
     final s = widget.appState;
     final items =
         s.azkarList.where((z) => z.category == widget.category).toList();
-    final current = items[_currentIndex];
     final isDark = s.isDarkMode;
-    final cardColor = isDark ? AppColors.surfaceDark : AppColors.surfaceLight;
-    final borderColor = isDark ? AppColors.borderDark : AppColors.borderLight;
+    final bg = isDark ? AppColors.backgroundDark : AppColors.backgroundLight;
+    final cardColor = isDark ? const Color(0xFF0E0E0E) : Colors.white;
+    final borderColor =
+        isDark ? const Color(0xFF222222) : const Color(0xFFE2E8F0);
     final primary = isDark ? AppColors.primaryDark : AppColors.primaryBlue;
+    final catLabel = items.isNotEmpty
+        ? items.first.categoryLabel
+        : s.tr('الأذكار', 'Azkar');
 
-    final completedCount = items.where((z) => z.count >= z.target).length;
-    final progress = items.isEmpty ? 0.0 : completedCount / items.length;
-    final zikrProgress =
-        current.target == 0 ? 1.0 : (current.count / current.target);
-    final displayText =
-        s.minimalTashkeel ? lightTashkeel(current.text) : current.text;
-
-    return Scaffold(
-      appBar: AppBar(
-        title: Text(current.categoryLabel),
-        actions: [
-          IconButton(
-            tooltip: s.tr('إعدادات الصفحة', 'Page Settings'),
-            onPressed: _openAzkarPageSettings,
-            icon: const Icon(Icons.settings_rounded),
-          ),
-          IconButton(
-            tooltip: s.tr('مشاركة الذكر', 'Share'),
-            onPressed: () => _showShareMenu(current),
-            icon: const Icon(Icons.share_rounded),
-          ),
-          IconButton(
-            tooltip: s.tr('تصفير عداد القسم', 'Reset'),
-            onPressed: () {
-              for (final z in items) {
-                z.count = 0;
-              }
-              setState(() => _currentIndex = 0);
-              s.saveAllState();
-            },
-            icon: const Icon(Icons.refresh_rounded),
-          ),
-        ],
-      ),
-      body: Stack(
-        children: [
-          Positioned(
-            left: -2000,
-            top: 0,
-            child: RepaintBoundary(
-              key: _shareCardKey,
-              child: Container(
-                width: 420,
-                padding: const EdgeInsets.all(28),
-                decoration: BoxDecoration(
-                  gradient: LinearGradient(
-                    colors: _shareGradient,
-                    begin: Alignment.topRight,
-                    end: Alignment.bottomLeft,
-                  ),
-                ),
-                child: Column(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    Text(
-                      current.categoryLabel,
-                      style: const TextStyle(
-                        color: Color(0xFFBAE6FD),
-                        fontSize: 15,
-                        fontWeight: FontWeight.bold,
-                      ),
-                    ),
-                    const SizedBox(height: 18),
-                    Container(
-                      padding: const EdgeInsets.all(20),
-                      decoration: BoxDecoration(
-                        color: Colors.white.withOpacity(0.12),
-                        borderRadius: BorderRadius.circular(22),
-                        border: Border.all(
-                            color: Colors.white.withOpacity(0.25), width: 1),
-                      ),
-                      child: Column(
-                        children: [
-                          Text(
-                            displayText,
-                            textAlign: TextAlign.center,
-                            textDirection: TextDirection.rtl,
-                            style: TextStyle(
-                              fontFamily: s.azkarFontFamily,
-                              color: Colors.white,
-                              fontSize: 21,
-                              height: 1.9,
-                              fontWeight: FontWeight.w600,
-                            ),
-                          ),
-                          const SizedBox(height: 14),
-                          Text(
-                            '📜 ${current.source}',
-                            textDirection: TextDirection.rtl,
-                            style: const TextStyle(
-                              color: Color(0xFFE0F2FE),
-                              fontSize: 13,
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
-                    const SizedBox(height: 20),
-                    Row(
-                      textDirection: TextDirection.rtl,
-                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                      children: [
-                        Row(
-                          textDirection: TextDirection.rtl,
-                          children: [
-                            ClipRRect(
-                              borderRadius: BorderRadius.circular(8),
-                              child: Image.asset(
-                                'assets/images/app_icon.png',
-                                width: 28,
-                                height: 28,
-                                errorBuilder: (_, __, ___) => const Text('💧',
-                                    style: TextStyle(fontSize: 20)),
-                              ),
-                            ),
-                            const SizedBox(width: 8),
-                            const Text(
-                              'أذكاري',
-                              style: TextStyle(
-                                color: Colors.white,
-                                fontSize: 15,
-                                fontWeight: FontWeight.bold,
-                              ),
-                            ),
-                            const SizedBox(width: 8),
-                            const GooglePlayIcon(size: 18),
-                          ],
-                        ),
-                        Container(
-                          padding: const EdgeInsets.symmetric(
-                              horizontal: 10, vertical: 4),
-                          decoration: BoxDecoration(
-                            color: Colors.white.withOpacity(0.18),
-                            borderRadius: BorderRadius.circular(12),
-                          ),
-                          child: const Text(
-                            'شارك تؤجر',
-                            style: TextStyle(
-                              color: Colors.white,
-                              fontSize: 12,
-                              fontWeight: FontWeight.bold,
-                            ),
-                          ),
-                        ),
-                      ],
-                    ),
-                  ],
-                ),
+    return PopScope(
+      onPopInvokedWithResult: (didPop, _) {
+        if (didPop) {
+          _showExitDurationSnackBar(catLabel);
+        }
+      },
+      child: Scaffold(
+        backgroundColor: bg,
+        appBar: AppBar(
+          title: Text(catLabel),
+          actions: [
+            IconButton(
+              tooltip: s.tr('تعديل الأذكار', 'Edit Azkar'),
+              onPressed: () {
+                s.playTapFeedback();
+                setState(() => _isEditMode = !_isEditMode);
+              },
+              icon: Icon(
+                _isEditMode ? Icons.check_rounded : Icons.edit_rounded,
+                color: _isEditMode ? Colors.greenAccent : null,
               ),
             ),
-          ),
-          SafeArea(
-            child: Padding(
-              padding: const EdgeInsets.all(16.0),
-              child: Column(
-                children: [
-                  if (s.showProgress) ...[
-                    Row(
-                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                      children: [
-                        Text(s.tr('الذكر ${_currentIndex + 1} من ${items.length}',
-                            '${_currentIndex + 1} / ${items.length}')),
-                        Text(s.tr('${(progress * 100).round()}% مكتمل',
-                            '${(progress * 100).round()}% done')),
-                      ],
-                    ),
-                    const SizedBox(height: 8),
-                    ClipRRect(
-                      borderRadius: BorderRadius.circular(8),
-                      child: LinearProgressIndicator(
-                        value: progress,
-                        minHeight: 8,
-                      ),
-                    ),
-                    const SizedBox(height: 12),
-                  ],
-                  Expanded(
+            IconButton(
+              tooltip: s.tr('تصفير العدادات', 'Reset All'),
+              onPressed: items.isEmpty ? null : () => _confirmResetAll(items),
+              icon: const Icon(Icons.refresh_rounded),
+            ),
+            IconButton(
+              tooltip: s.tr('إعدادات العرض', 'Display Settings'),
+              onPressed: _openAzkarPageSettings,
+              icon: const Icon(Icons.tune_rounded),
+            ),
+          ],
+        ),
+        floatingActionButton: FloatingActionButton(
+          onPressed: () => _showAddOrEditZikrDialog(catLabel: catLabel),
+          backgroundColor: primary,
+          foregroundColor: Colors.white,
+          shape: const CircleBorder(),
+          child: const Icon(Icons.add_rounded, size: 28),
+        ),
+        body: items.isEmpty
+            ? Center(
+                child: Text(s.tr('لا توجد أذكار في هذا القسم', 'No Azkar here')),
+              )
+            : ListView.builder(
+                padding: const EdgeInsets.fromLTRB(14, 10, 14, 90),
+                itemCount: items.length,
+                itemBuilder: (context, index) {
+                  final item = items[index];
+                  final rawText = s.minimalTashkeel
+                      ? lightTashkeel(item.text)
+                      : item.text;
+                  final parts = rawText.split('
+');
+                  final hasIntro = parts.length > 1;
+                  final intro = hasIntro ? parts.first : null;
+                  final body = hasIntro ? parts.sublist(1).join('
+') : rawText;
+                  final done = item.count >= item.target;
+                  final progress =
+                      item.target > 0 ? (item.count / item.target).clamp(0.0, 1.0) : 1.0;
+
+                  return RepaintBoundary(
                     child: Container(
-                      width: double.infinity,
-                      padding: const EdgeInsets.all(20),
+                      margin: const EdgeInsets.only(bottom: 14),
+                      padding: const EdgeInsets.fromLTRB(16, 14, 16, 14),
                       decoration: BoxDecoration(
                         color: cardColor,
-                        borderRadius: BorderRadius.circular(28),
-                        border: Border.all(color: borderColor),
+                        borderRadius: BorderRadius.circular(24),
+                        border: Border.all(
+                          color: done
+                              ? Colors.green.withOpacity(0.55)
+                              : borderColor,
+                          width: done ? 1.4 : 1.0,
+                        ),
                       ),
                       child: Column(
-                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                        crossAxisAlignment: CrossAxisAlignment.stretch,
                         children: [
                           Row(
                             mainAxisAlignment: MainAxisAlignment.spaceBetween,
                             children: [
-                              Container(
-                                padding: const EdgeInsets.symmetric(
-                                    horizontal: 12, vertical: 6),
-                                decoration: BoxDecoration(
-                                  color: primary.withOpacity(0.12),
-                                  borderRadius: BorderRadius.circular(20),
-                                ),
-                                child: Text(
-                                  current.target == 1
-                                      ? s.tr('مرة واحدة', 'Once')
-                                      : s.tr('التكرار: ${current.target} مرات',
-                                          'Repeat: ${current.target}x'),
-                                  style: TextStyle(
-                                      color: primary,
-                                      fontWeight: FontWeight.bold),
+                              Text(
+                                '${index + 1} / ${items.length}',
+                                style: TextStyle(
+                                  fontSize: 12,
+                                  fontWeight: FontWeight.bold,
+                                  color: isDark ? Colors.white54 : Colors.black45,
                                 ),
                               ),
                               Row(
                                 children: [
+                                  if (_isEditMode)
+                                    IconButton(
+                                      visualDensity: VisualDensity.compact,
+                                      onPressed: () => _showAddOrEditZikrDialog(
+                                        existing: item,
+                                        catLabel: catLabel,
+                                      ),
+                                      icon: const Icon(Icons.edit_rounded,
+                                          size: 20, color: Colors.amber),
+                                    ),
                                   IconButton(
-                                    onPressed: () => _showShareMenu(current),
-                                    icon: Icon(Icons.share_rounded, color: primary),
-                                  ),
-                                  IconButton(
+                                    visualDensity: VisualDensity.compact,
                                     onPressed: () {
-                                      current.favorite = !current.favorite;
-                                      s.saveAllState();
+                                      item.favorite = !item.favorite;
+                                      s.saveLightState();
                                       setState(() {});
                                     },
                                     icon: Icon(
-                                      current.favorite
+                                      item.favorite
                                           ? Icons.star_rounded
                                           : Icons.star_border_rounded,
+                                      size: 22,
                                       color: AppColors.skyBlue,
-                                      size: 28,
                                     ),
                                   ),
                                 ],
                               ),
                             ],
                           ),
-                          Expanded(
-                            child: Center(
-                              child: SingleChildScrollView(
-                                child: Text(
-                                  displayText,
-                                  textAlign: TextAlign.center,
-                                  style: TextStyle(
-                                    fontFamily: s.azkarFontFamily,
-                                    fontSize: 22 * s.fontScale,
-                                    height: 2.0,
-                                    fontWeight: FontWeight.w500,
-                                  ),
-                                ),
+                          if (intro != null) ...[
+                            Text(
+                              intro,
+                              textAlign: TextAlign.center,
+                              style: TextStyle(
+                                fontFamily: s.azkarFontFamily,
+                                fontSize: 15 * s.fontScale,
+                                fontWeight: FontWeight.bold,
+                                color: primary,
                               ),
+                            ),
+                            const SizedBox(height: 8),
+                          ],
+                          Text(
+                            body,
+                            textAlign: TextAlign.center,
+                            style: TextStyle(
+                              fontFamily: s.azkarFontFamily,
+                              fontSize: 19 * s.fontScale,
+                              height: 1.9,
+                              fontWeight: FontWeight.w500,
                             ),
                           ),
-                          if (s.showSource)
-                            Padding(
-                              padding: const EdgeInsets.only(top: 10.0),
-                              child: Text(
-                                '📜 ${current.source}',
-                                style: const TextStyle(
-                                    fontSize: 13, color: Colors.grey),
+                          if (s.showSource && item.source.isNotEmpty) ...[
+                            const SizedBox(height: 10),
+                            Text(
+                              item.source,
+                              textAlign: TextAlign.center,
+                              style: TextStyle(
+                                fontSize: 12.5,
+                                color: isDark ? Colors.white60 : Colors.black54,
                               ),
                             ),
+                          ],
+                          const SizedBox(height: 14),
+                          _PillCounterButton(
+                            count: item.count,
+                            target: item.target,
+                            progress: progress,
+                            done: done,
+                            colors: s.sabhaColors,
+                            onTap: () {
+                              if (item.count < item.target) {
+                                item.count += 1;
+                                final justFinished = item.count == item.target;
+                                s.playTapFeedback(stronger: justFinished);
+                                if (justFinished) {
+                                  s.totalAzkarCompleted += 1;
+                                  final allDone =
+                                      items.every((z) => z.count >= z.target);
+                                  if (allDone) {
+                                    _showCompletionCelebration(catLabel);
+                                  }
+                                }
+                                s.saveLightState();
+                                setState(() {});
+                              }
+                            },
+                          ),
                         ],
                       ),
                     ),
-                  ),
-                  const SizedBox(height: 12),
-                  RoundedSquareCounterButton(
-                    progress: zikrProgress,
-                    title: '${current.count} / ${current.target}',
-                    subtitle: current.count >= current.target
-                        ? s.tr('اكتمل ✓', 'Done ✓')
-                        : s.tr('اضغط للعد', 'Tap'),
-                    gradientColors: s.sabhaColors,
-                    borderGlowColor: current.count >= current.target
-                        ? Colors.greenAccent
-                        : AppColors.skyBlue,
-                    size: 130,
-                    onTap: () {
-                      if (current.count < current.target) {
-                        current.count += 1;
-                        final justFinished = current.count == current.target;
-                        s.playTapFeedback(stronger: justFinished);
-                        if (justFinished) {
-                          s.totalAzkarCompleted += 1;
-                          final allDone =
-                              items.every((z) => z.count >= z.target);
-                          s.recordDailyActivity(
-                            completedCategory: allDone ? widget.category : null,
-                          );
-                          if (allDone) {
-                            _showCompletionCelebration(current.categoryLabel);
-                          } else {
-                            _maybeShowRateDialog();
-                          }
-                        } else {
-                          s.saveAllState();
-                        }
-                        setState(() {});
-                        if (justFinished &&
-                            s.autoNext &&
-                            _currentIndex < items.length - 1) {
-                          Future.delayed(const Duration(milliseconds: 300), () {
-                            if (mounted) {
-                              setState(() => _currentIndex += 1);
-                            }
-                          });
-                        }
-                      } else if (_currentIndex < items.length - 1) {
-                        s.playTapFeedback();
-                        setState(() => _currentIndex += 1);
-                      }
-                    },
-                  ),
-                  const SizedBox(height: 10),
-                  Row(
-                    children: [
-                      Expanded(
-                        child: OutlinedButton(
-                          onPressed: _currentIndex > 0
-                              ? () => setState(() => _currentIndex -= 1)
-                              : null,
-                          child: Text(s.tr('→ الذكر السابق', '← Previous')),
-                        ),
-                      ),
-                      const SizedBox(width: 12),
-                      Expanded(
-                        child: OutlinedButton(
-                          onPressed: _currentIndex < items.length - 1
-                              ? () => setState(() => _currentIndex += 1)
-                              : null,
-                          child: Text(s.tr('الذكر التالي ←', 'Next →')),
-                        ),
-                      ),
-                    ],
-                  ),
-                ],
+                  );
+                },
               ),
-            ),
-          ),
-        ],
       ),
     );
   }
+}
+
+class _PillCounterButton extends StatefulWidget {
+  final int count;
+  final int target;
+  final double progress;
+  final bool done;
+  final List<Color> colors;
+  final VoidCallback onTap;
+
+  const _PillCounterButton({
+    required this.count,
+    required this.target,
+    required this.progress,
+    required this.done,
+    required this.colors,
+    required this.onTap,
+  });
+
+  @override
+  State<_PillCounterButton> createState() => _PillCounterButtonState();
+}
+
+class _PillCounterButtonState extends State<_PillCounterButton> {
+  bool _pressed = false;
+
+  @override
+  Widget build(BuildContext context) {
+    final remaining = (widget.target - widget.count).clamp(0, widget.target);
+    return GestureDetector(
+      onTapDown: (_) => setState(() => _pressed = true),
+      onTapCancel: () => setState(() => _pressed = false),
+      onTapUp: (_) {
+        setState(() => _pressed = false);
+        widget.onTap();
+      },
+      child: AnimatedScale(
+        scale: _pressed ? 0.97 : 1.0,
+        duration: const Duration(milliseconds: 80),
+        child: Container(
+          height: 52,
+          decoration: BoxDecoration(
+            borderRadius: BorderRadius.circular(999),
+            gradient: LinearGradient(
+              colors: widget.done
+                  ? const [Color(0xFF065F46), Color(0xFF10B981)]
+                  : widget.colors,
+            ),
+            boxShadow: _pressed
+                ? [
+                    BoxShadow(
+                      color: Colors.black.withOpacity(0.25),
+                      blurRadius: 4,
+                      offset: const Offset(0, 2),
+                    ),
+                  ]
+                : [
+                    BoxShadow(
+                      color: (widget.done
+                              ? const Color(0xFF047857)
+                              : widget.colors.last)
+                          .withOpacity(0.45),
+                      blurRadius: 0,
+                      offset: const Offset(0, 4),
+                    ),
+                    BoxShadow(
+                      color: Colors.black.withOpacity(0.25),
+                      blurRadius: 10,
+                      offset: const Offset(0, 5),
+                    ),
+                  ],
+          ),
+          clipBehavior: Clip.antiAlias,
+          child: Stack(
+            children: [
+              FractionallySizedBox(
+                widthFactor: widget.progress,
+                heightFactor: 1.0,
+                child: Container(
+                  color: Colors.white.withOpacity(0.18),
+                ),
+              ),
+              Center(
+                child: Text(
+                  widget.done
+                      ? '✓  ${widget.target} / ${widget.target}'
+                      : '$remaining',
+                  style: const TextStyle(
+                    color: Colors.white,
+                    fontSize: 18,
+                    fontWeight: FontWeight.w800,
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _ConfettiBurstWidget extends StatefulWidget {
+  const _ConfettiBurstWidget();
+
+  @override
+  State<_ConfettiBurstWidget> createState() => _ConfettiBurstWidgetState();
+}
+
+class _ConfettiBurstWidgetState extends State<_ConfettiBurstWidget>
+    with SingleTickerProviderStateMixin {
+  late AnimationController _ctrl;
+  late List<_ConfettiPiece> _pieces;
+
+  @override
+  void initState() {
+    super.initState();
+    final rng = Random();
+    const palette = [
+      Color(0xFF38BDF8),
+      Color(0xFF10B981),
+      Color(0xFFF59E0B),
+      Color(0xFFEC4899),
+      Color(0xFFA855F7),
+    ];
+    _pieces = List.generate(42, (_) {
+      return _ConfettiPiece(
+        x: rng.nextDouble(),
+        speed: 0.4 + rng.nextDouble() * 0.7,
+        size: 6 + rng.nextDouble() * 6,
+        color: palette[rng.nextInt(palette.length)],
+        drift: (rng.nextDouble() - 0.5) * 0.25,
+      );
+    });
+    _ctrl = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 2400),
+    )..forward();
+  }
+
+  @override
+  void dispose() {
+    _ctrl.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return AnimatedBuilder(
+      animation: _ctrl,
+      builder: (_, __) => CustomPaint(
+        painter: _ConfettiPainter(_pieces, _ctrl.value),
+      ),
+    );
+  }
+}
+
+class _ConfettiPiece {
+  final double x;
+  final double speed;
+  final double size;
+  final Color color;
+  final double drift;
+  _ConfettiPiece({
+    required this.x,
+    required this.speed,
+    required this.size,
+    required this.color,
+    required this.drift,
+  });
+}
+
+class _ConfettiPainter extends CustomPainter {
+  final List<_ConfettiPiece> pieces;
+  final double t;
+  _ConfettiPainter(this.pieces, this.t);
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final paint = Paint();
+    for (final p in pieces) {
+      final dx = (p.x + p.drift * t) * size.width;
+      final dy = (t * p.speed) * size.height;
+      paint.color = p.color.withOpacity((1.0 - t).clamp(0.0, 1.0));
+      canvas.drawRRect(
+        RRect.fromRectAndRadius(
+          Rect.fromCenter(
+              center: Offset(dx, dy), width: p.size, height: p.size * 0.6),
+          const Radius.circular(2),
+        ),
+        paint,
+      );
+    }
+  }
+
+  @override
+  bool shouldRepaint(covariant _ConfettiPainter oldDelegate) =>
+      oldDelegate.t != t;
 }
 
 class RoundedSquareCounterButton extends StatefulWidget {
@@ -3353,7 +4056,7 @@ class _RoundedSquareProgressPainter extends CustomPainter {
       ..style = PaintingStyle.stroke
       ..strokeWidth = strokeWidth + 4
       ..strokeCap = StrokeCap.round
-      ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 5);
+      ;
     canvas.drawPath(activePath, glowPaint);
 
     final Paint activePaint = Paint()
