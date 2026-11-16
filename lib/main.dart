@@ -1169,11 +1169,7 @@ class _MainShellScreenState extends State<MainShellScreen> {
                                 title: Text(s.tr('معلومات عن الميزة', 'About Feature')),
                                 content: Text(
                                   s.tr(
-                                    'هذه الميزة تساعدك على قراءة آية من القرآن بالتسلسل عند بدء تشغيل التطبيق.
-
-يمكنك إيقاف تفعيل الميزة من الإعدادات في وقت لاحق أو من الزر بالأسفل.
-
-ملاحظة: الخط وحجم الخط المستخدمان هنا هما نفس إعدادات صفحة القرآن.',
+                                    'هذه الميزة تساعدك على قراءة آية من القرآن بالتسلسل عند بدء تشغيل التطبيق.\n\nيمكنك إيقاف تفعيل الميزة من الإعدادات في وقت لاحق أو من الزر بالأسفل.\n\nملاحظة: الخط وحجم الخط المستخدمان هنا هما نفس إعدادات صفحة القرآن.',
                                     'Shows a sequential Quran Ayah on startup using your Quran font settings.',
                                   ),
                                 ),
@@ -3225,13 +3221,10 @@ class _AzkarReaderScreenState extends State<AzkarReaderScreen> {
     final s = widget.appState;
     String initialPre = '';
     String initialBody = existing?.text ?? '';
-    if (existing != null && existing.text.contains('
-')) {
-      final parts = existing.text.split('
-');
+    if (existing != null && existing.text.contains('\n')) {
+      final parts = existing.text.split('\n');
       initialPre = parts.first;
-      initialBody = parts.sublist(1).join('
-');
+      initialBody = parts.sublist(1).join('\n');
     }
 
     final preCtrl = TextEditingController(text: initialPre);
@@ -3317,8 +3310,7 @@ class _AzkarReaderScreenState extends State<AzkarReaderScreen> {
               final body = bodyCtrl.text.trim();
               if (body.isEmpty) return;
               final pre = preCtrl.text.trim();
-              final fullText = pre.isNotEmpty ? '$pre
-$body' : body;
+              final fullText = pre.isNotEmpty ? '$pre\n$body' : body;
               final target = (int.tryParse(targetCtrl.text.trim()) ?? 1).clamp(1, 9999);
               final source = noteCtrl.text.trim();
 
@@ -3489,12 +3481,10 @@ $body' : body;
                   final rawText = s.minimalTashkeel
                       ? lightTashkeel(item.text)
                       : item.text;
-                  final parts = rawText.split('
-');
+                  final parts = rawText.split('\n');
                   final hasIntro = parts.length > 1;
                   final intro = hasIntro ? parts.first : null;
-                  final body = hasIntro ? parts.sublist(1).join('
-') : rawText;
+                  final body = hasIntro ? parts.sublist(1).join('\n') : rawText;
                   final done = item.count >= item.target;
                   final progress =
                       item.target > 0 ? (item.count / item.target).clamp(0.0, 1.0) : 1.0;
