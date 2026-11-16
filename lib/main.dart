@@ -270,26 +270,45 @@ class _FloatingZikrOverlayWidget extends StatefulWidget {
 class _FloatingZikrOverlayWidgetState
     extends State<_FloatingZikrOverlayWidget> {
   String _zikr = kRandomShortAzkar[0];
+  Timer? _autoHideTimer;
 
   @override
   void initState() {
     super.initState();
     _zikr = kRandomShortAzkar[Random().nextInt(kRandomShortAzkar.length)];
+    _resetAutoHide();
     FlutterOverlayWindow.overlayListener.listen((event) {
       if (event is String && event.trim().isNotEmpty && mounted) {
         setState(() => _zikr = event);
+        _resetAutoHide();
       }
     });
+  }
+
+  void _resetAutoHide() {
+    _autoHideTimer?.cancel();
+    _autoHideTimer = Timer(const Duration(seconds: 6), () {
+      FlutterOverlayWindow.closeOverlay();
+    });
+  }
+
+  @override
+  void dispose() {
+    _autoHideTimer?.cancel();
+    super.dispose();
   }
 
   @override
   Widget build(BuildContext context) {
     return Material(
       color: Colors.transparent,
-      child: Center(
-        child: GestureDetector(
-          onTap: () => FlutterOverlayWindow.closeOverlay(),
-          child: Container(
+      child: Padding(
+        padding: const EdgeInsets.only(top: 38, left: 16, right: 16),
+        child: Align(
+          alignment: Alignment.topCenter,
+          child: GestureDetector(
+            onTap: () => FlutterOverlayWindow.closeOverlay(),
+            child: Container(
             padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
             decoration: BoxDecoration(
               gradient: const LinearGradient(
@@ -320,6 +339,7 @@ class _FloatingZikrOverlayWidgetState
           ),
         ),
       ),
+    ),
     );
   }
 }
@@ -374,7 +394,10 @@ class AzkariApp extends StatefulWidget {
 
 class _AzkariAppState extends State<AzkariApp> {
   late bool isDarkMode;
-  late bool isEnglish;
+  late String appLang; // 'ar', 'en', 'tr'
+  bool get isEnglish => appLang == 'en';
+  bool get isTurkish => appLang == 'tr';
+  set isEnglish(bool v) => appLang = v ? 'en' : 'ar';
   late bool buttonSoundEnabled;
   late bool hapticEnabled;
   late double fontScale;
@@ -383,6 +406,7 @@ class _AzkariAppState extends State<AzkariApp> {
   late bool autoNext;
   late bool showProgress;
   late bool showSource;
+  late bool collapseCompletedAzkar;
   late bool dailyAudio;
   late bool morningReminder;
   late bool eveningReminder;
@@ -420,7 +444,51 @@ class _AzkariAppState extends State<AzkariApp> {
   Timer? _saveDebounce;
   final ap.AudioPlayer _splashAudioPlayer = ap.AudioPlayer();
 
-  String tr(String ar, String en) => isEnglish ? en : ar;
+  String tr(String ar, String en, [String? trText]) {
+    if (appLang == 'tr') return trText ?? kEnToTrUi[en] ?? en;
+    if (appLang == 'en') return en;
+    return ar;
+  }
+
+  void showLanguagePicker(BuildContext ctx) {
+    showModalBottomSheet(
+      context: ctx,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+      ),
+      builder: (bCtx) => SafeArea(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const SizedBox(height: 12),
+            Text(
+              tr('اختر اللغة', 'Choose Language', 'Dil Seçin'),
+              style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+            ),
+            const SizedBox(height: 8),
+            for (final item in const [
+              ('ar', 'العربية', 'Arabic'),
+              ('en', 'English', 'İngilizce'),
+              ('tr', 'Türkçe', 'Turkish'),
+            ])
+              ListTile(
+                leading: const Icon(Icons.public_rounded, color: AppColors.skyBlue),
+                title: Text(item.$2, style: const TextStyle(fontWeight: FontWeight.bold)),
+                trailing: appLang == item.$1
+                    ? const Icon(Icons.check_circle_rounded, color: AppColors.skyBlue)
+                    : null,
+                onTap: () {
+                  appLang = item.$1;
+                  saveAllState(resyncTimers: false);
+                  Navigator.pop(bCtx);
+                },
+              ),
+            const SizedBox(height: 12),
+          ],
+        ),
+      ),
+    );
+  }
 
   void playTapFeedback({bool stronger = false, bool silentChime = false}) {
     if (hapticEnabled) {
@@ -480,7 +548,7 @@ class _AzkariAppState extends State<AzkariApp> {
     final today = DateTime.now().toIso8601String().split('T').first;
 
     isDarkMode = p.getBool('darkMode') ?? true;
-    isEnglish = p.getBool('isEnglish') ?? false;
+    appLang = p.getString('appLang') ?? ((p.getBool('isEnglish') ?? false) ? 'en' : 'ar');
     buttonSoundEnabled = p.getBool('buttonSoundEnabled') ?? true;
     hapticEnabled = p.getBool('hapticEnabled') ?? true;
     fontScale = p.getDouble('fontScale') ?? 1.0;
@@ -489,6 +557,7 @@ class _AzkariAppState extends State<AzkariApp> {
     autoNext = p.getBool('autoNext') ?? true;
     showProgress = p.getBool('showProgress') ?? true;
     showSource = p.getBool('showSource') ?? true;
+    collapseCompletedAzkar = p.getBool('collapseCompletedAzkar') ?? false;
     dailyAudio = p.getBool('dailyAudio') ?? true;
     morningReminder = p.getBool('morningReminder') ?? true;
     eveningReminder = p.getBool('eveningReminder') ?? true;
@@ -753,7 +822,7 @@ class _AzkariAppState extends State<AzkariApp> {
           kRandomShortAzkar[Random().nextInt(kRandomShortAzkar.length)];
       await FlutterOverlayWindow.showOverlay(
         enableDrag: true,
-        height: 76,
+        height: 118,
         width: WindowSize.matchParent,
         alignment: OverlayAlignment.topCenter,
         flag: OverlayFlag.defaultFlag,
@@ -824,6 +893,7 @@ class _AzkariAppState extends State<AzkariApp> {
     final p = widget.prefs;
     tasbihCountsByPhrase[tasbihPhrase] = tasbihCount;
     p.setBool('darkMode', isDarkMode);
+    p.setString('appLang', appLang);
     p.setBool('isEnglish', isEnglish);
     p.setBool('buttonSoundEnabled', buttonSoundEnabled);
     p.setBool('hapticEnabled', hapticEnabled);
@@ -833,6 +903,7 @@ class _AzkariAppState extends State<AzkariApp> {
     p.setBool('autoNext', autoNext);
     p.setBool('showProgress', showProgress);
     p.setBool('showSource', showSource);
+    p.setBool('collapseCompletedAzkar', collapseCompletedAzkar);
     p.setBool('dailyAudio', dailyAudio);
     p.setBool('morningReminder', morningReminder);
     p.setBool('eveningReminder', eveningReminder);
@@ -896,10 +967,10 @@ class _AzkariAppState extends State<AzkariApp> {
         isDarkMode ? AppColors.textPrimaryDark : AppColors.textPrimaryLight;
 
     return MaterialApp(
-      title: isEnglish ? 'Azkari' : 'أذكاري',
+      title: tr('أذكاري', 'Azkari', 'Zikirlerim'),
       debugShowCheckedModeBanner: false,
-      locale: Locale(isEnglish ? 'en' : 'ar'),
-      supportedLocales: const [Locale('ar'), Locale('en')],
+      locale: Locale(appLang),
+      supportedLocales: const [Locale('ar'), Locale('en'), Locale('tr')],
       localizationsDelegates: const [
         GlobalMaterialLocalizations.delegate,
         GlobalWidgetsLocalizations.delegate,
@@ -1380,6 +1451,7 @@ class _MainShellScreenState extends State<MainShellScreen> {
         prefs: s.widget.prefs,
         isDarkMode: s.isDarkMode,
         isEnglish: s.isEnglish,
+        appLang: s.appLang,
         fontScale: s.fontScale,
       ),
       _buildAllAzkarTab(context, cardColor, borderColor, primary, textSecondary),
@@ -1393,36 +1465,171 @@ class _MainShellScreenState extends State<MainShellScreen> {
       key: _scaffoldKey,
       endDrawer: s.isEnglish ? null : drawerContent,
       drawer: s.isEnglish ? drawerContent : null,
-      body: SafeArea(child: pages[_currentIndex]),
-      bottomNavigationBar: NavigationBar(
-        selectedIndex: _currentIndex,
-        onDestinationSelected: (idx) {
-                setState(() => _currentIndex = idx);
-        },
-        backgroundColor: cardColor,
-        indicatorColor: primary.withOpacity(0.16),
-        destinations: [
-          NavigationDestination(
-            icon: const Icon(Icons.home_rounded),
-            label: s.tr('الرئيسية', 'Home'),
+      body: SafeArea(
+        child: Column(
+          children: [
+            Expanded(child: pages[_currentIndex]),
+            StreamBuilder(
+              stream: QuranAudioManager.instance.player.playerStateStream,
+              builder: (context, snap) {
+                final mgr = QuranAudioManager.instance;
+                final player = mgr.player;
+                final pState = snap.data;
+                final active = player.audioSource != null &&
+                    mgr.currentSurahNumber != null &&
+                    pState != null &&
+                    pState.processingState.name != 'idle' &&
+                    pState.processingState.name != 'completed';
+                if (!active) return const SizedBox.shrink();
+                return Container(
+                  margin: const EdgeInsets.fromLTRB(16, 4, 16, 6),
+                  padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 6),
+                  decoration: BoxDecoration(
+                    color: (s.isDarkMode ? const Color(0xFF0F172A) : Colors.white)
+                        .withOpacity(0.95),
+                    borderRadius: BorderRadius.circular(999),
+                    border: Border.all(
+                        color: AppColors.skyBlue.withOpacity(0.45), width: 1.2),
+                    boxShadow: [
+                      BoxShadow(
+                        color: Colors.black.withOpacity(0.18),
+                        blurRadius: 10,
+                        offset: const Offset(0, 3),
+                      ),
+                    ],
+                  ),
+                  child: Row(
+                    children: [
+                      const Icon(Icons.graphic_eq_rounded,
+                          color: AppColors.skyBlue, size: 20),
+                      const SizedBox(width: 10),
+                      Expanded(
+                        child: InkWell(
+                          onTap: () {
+                            Navigator.of(context).push(
+                              MaterialPageRoute(
+                                builder: (_) => SurahReaderScreen(
+                                  prefs: s.widget.prefs,
+                                  initialSurahNumber: mgr.currentSurahNumber!,
+                                  isEnglish: s.isEnglish,
+                                  appLang: s.appLang,
+                                  isDarkMode: s.isDarkMode,
+                                  initialFontScale: s.fontScale,
+                                ),
+                              ),
+                            );
+                          },
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              Text(
+                                mgr.currentSurahName,
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                                style: const TextStyle(
+                                    fontWeight: FontWeight.bold, fontSize: 13),
+                              ),
+                              Text(
+                                mgr.currentReciterName,
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                                style: const TextStyle(
+                                    fontSize: 11, color: Colors.grey),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ),
+                      IconButton(
+                        visualDensity: VisualDensity.compact,
+                        onPressed: () async {
+                          if (pState.playing) {
+                            await player.pause();
+                          } else {
+                            await player.play();
+                          }
+                        },
+                        icon: Icon(
+                          pState.playing
+                              ? Icons.pause_rounded
+                              : Icons.play_arrow_rounded,
+                          color: AppColors.skyBlue,
+                        ),
+                      ),
+                      IconButton(
+                        visualDensity: VisualDensity.compact,
+                        onPressed: () async {
+                          await player.stop();
+                        },
+                        icon: const Icon(Icons.close_rounded, size: 19),
+                      ),
+                    ],
+                  ),
+                );
+              },
+            ),
+          ],
+        ),
+      ),
+      extendBody: true,
+      bottomNavigationBar: SafeArea(
+        child: Container(
+          margin: const EdgeInsets.fromLTRB(14, 0, 14, 10),
+          padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 4),
+          decoration: BoxDecoration(
+            color: (s.isDarkMode ? const Color(0xFF0B1220) : Colors.white)
+                .withOpacity(0.90),
+            borderRadius: BorderRadius.circular(999),
+            border: Border.all(
+              color: (s.isDarkMode ? Colors.white : AppColors.primaryBlue)
+                  .withOpacity(0.16),
+              width: 1.2,
+            ),
+            boxShadow: [
+              BoxShadow(
+                color: Colors.black.withOpacity(s.isDarkMode ? 0.50 : 0.12),
+                blurRadius: 16,
+                offset: const Offset(0, 6),
+              ),
+            ],
           ),
-          NavigationDestination(
-            icon: const Icon(Icons.menu_book_rounded),
-            label: s.tr('القرآن', 'Quran'),
+          child: ClipRRect(
+            borderRadius: BorderRadius.circular(999),
+            child: NavigationBar(
+              height: 62,
+              backgroundColor: Colors.transparent,
+              elevation: 0,
+              selectedIndex: _currentIndex,
+              onDestinationSelected: (idx) {
+                      setState(() => _currentIndex = idx);
+              },
+              indicatorColor: primary.withOpacity(0.18),
+              destinations: [
+                NavigationDestination(
+                  icon: const Icon(Icons.home_rounded),
+                  label: s.tr('الرئيسية', 'Home'),
+                ),
+                NavigationDestination(
+                  icon: const Icon(Icons.menu_book_rounded),
+                  label: s.tr('القرآن', 'Quran'),
+                ),
+                NavigationDestination(
+                  icon: const Icon(Icons.grid_view_rounded),
+                  label: s.tr('الأذكار', 'Azkar'),
+                ),
+                NavigationDestination(
+                  icon: const Icon(Icons.scatter_plot_rounded),
+                  label: s.tr('السبحة', 'Tasbih'),
+                ),
+                NavigationDestination(
+                  icon: const Icon(Icons.settings_rounded),
+                  label: s.tr('الإعدادات', 'Settings'),
+                ),
+              ],
+            ),
           ),
-          NavigationDestination(
-            icon: const Icon(Icons.grid_view_rounded),
-            label: s.tr('كل الأذكار', 'All Azkar'),
-          ),
-          NavigationDestination(
-            icon: const Icon(Icons.scatter_plot_rounded),
-            label: s.tr('السبحة', 'Tasbih'),
-          ),
-          NavigationDestination(
-            icon: const Icon(Icons.settings_rounded),
-            label: s.tr('الإعدادات', 'Settings'),
-          ),
-        ],
+        ),
       ),
     );
   }
@@ -1554,12 +1761,13 @@ class _MainShellScreenState extends State<MainShellScreen> {
                 children: [
                   Expanded(
                     child: OutlinedButton.icon(
-                      onPressed: () {
-                        s.isEnglish = !s.isEnglish;
-                        s.saveAllState(resyncTimers: false);
-                      },
+                      onPressed: () => s.showLanguagePicker(context),
                       icon: Icon(Icons.public_rounded, color: primary),
-                      label: Text(s.isEnglish ? 'العربية' : 'English'),
+                      label: Text(
+                        s.appLang == 'tr'
+                            ? 'Türkçe'
+                            : (s.appLang == 'en' ? 'English' : 'العربية'),
+                      ),
                     ),
                   ),
                   const SizedBox(width: 10),
@@ -1650,14 +1858,14 @@ class _MainShellScreenState extends State<MainShellScreen> {
                         onPressed: () => launchUrl(
                             Uri.parse('https://instagram.com'),
                             mode: LaunchMode.externalApplication),
-                        icon: const Icon(Icons.camera_alt_rounded, color: Color(0xFFE4405F)),
+                        icon: const _InstagramVectorIcon(),
                       ),
                       IconButton(
                         tooltip: 'TikTok',
                         onPressed: () => launchUrl(
                             Uri.parse('https://tiktok.com'),
                             mode: LaunchMode.externalApplication),
-                        icon: const Icon(Icons.music_note_rounded),
+                        icon: const _TikTokVectorIcon(),
                       ),
                       IconButton(
                         tooltip: 'Email',
@@ -2962,7 +3170,27 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
                         color: isDark ? Colors.white70 : Colors.black87,
                       ),
                     ),
-                    const SizedBox(height: 36),
+                    const SizedBox(height: 20),
+                    OutlinedButton.icon(
+                      style: OutlinedButton.styleFrom(
+                        shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(999)),
+                        padding: const EdgeInsets.symmetric(
+                            horizontal: 20, vertical: 12),
+                      ),
+                      onPressed: () => s.showLanguagePicker(context),
+                      icon: const Icon(Icons.public_rounded,
+                          color: AppColors.skyBlue),
+                      label: Text(
+                        s.appLang == 'tr'
+                            ? 'Dil: Türkçe'
+                            : (s.appLang == 'en'
+                                ? 'Language: English'
+                                : 'اللغة: العربية'),
+                        style: const TextStyle(fontWeight: FontWeight.bold),
+                      ),
+                    ),
+                    const SizedBox(height: 22),
                     SizedBox(
                       width: double.infinity,
                       height: 54,
@@ -2971,7 +3199,9 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
                           shape: RoundedRectangleBorder(
                               borderRadius: BorderRadius.circular(999)),
                         ),
-                        onPressed: () => setState(() => _step = 1),
+                        onPressed: () {
+                          setState(() => _step = 2);
+                        },
                         child: Text(
                           s.tr('متابعة', 'Continue'),
                           style: const TextStyle(
@@ -3372,6 +3602,18 @@ class _AzkarReaderScreenState extends State<AzkarReaderScreen> {
                     setState(() {});
                   },
                 ),
+                SwitchListTile(
+                  contentPadding: EdgeInsets.zero,
+                  title: Text(s.tr('طيّ الذكر المكتمل تلقائياً',
+                      'Auto-collapse Completed', 'Tamamlanan Zikri Küçült')),
+                  value: s.collapseCompletedAzkar,
+                  onChanged: (v) {
+                    s.collapseCompletedAzkar = v;
+                    s.saveAllState(resyncTimers: false);
+                    setSheetState(() {});
+                    setState(() {});
+                  },
+                ),
               ],
             ),
           ),
@@ -3621,7 +3863,7 @@ class _AzkarReaderScreenState extends State<AzkarReaderScreen> {
         isDark ? const Color(0xFF222222) : const Color(0xFFE2E8F0);
     final primary = isDark ? AppColors.primaryDark : AppColors.primaryBlue;
     final catLabel = items.isNotEmpty
-        ? items.first.categoryLabel
+        ? (items.first.categoryForLang(s.appLang))
         : s.tr('الأذكار', 'Azkar');
 
     return PopScope(
@@ -3635,6 +3877,11 @@ class _AzkarReaderScreenState extends State<AzkarReaderScreen> {
         appBar: AppBar(
           title: Text(catLabel),
           actions: [
+            IconButton(
+              tooltip: s.tr('إضافة ذكر جديد', 'Add Zikr'),
+              onPressed: () => _showAddOrEditZikrDialog(catLabel: catLabel),
+              icon: const Icon(Icons.add_circle_outline_rounded),
+            ),
             if (_isEditMode && s.deletedAzkarIds.isNotEmpty)
               IconButton(
                 tooltip: s.tr('استعادة الأذكار المحذوفة', 'Restore Deleted'),
@@ -3669,21 +3916,83 @@ class _AzkarReaderScreenState extends State<AzkarReaderScreen> {
             ),
           ],
         ),
-        floatingActionButton: FloatingActionButton(
-          onPressed: () => _showAddOrEditZikrDialog(catLabel: catLabel),
-          backgroundColor: primary,
-          foregroundColor: Colors.white,
-          shape: const CircleBorder(),
-          child: const Icon(Icons.add_rounded, size: 28),
-        ),
+
         body: items.isEmpty
             ? Center(
                 child: Text(s.tr('لا توجد أذكار في هذا القسم', 'No Azkar here')),
               )
-            : ListView.builder(
+            : Column(
+                children: [
+                  Builder(builder: (_) {
+                    final doneCount = items.where((z) => z.count >= z.target).length;
+                    final pct = items.isEmpty ? 0.0 : doneCount / items.length;
+                    return Container(
+                      padding: const EdgeInsets.fromLTRB(16, 8, 16, 8),
+                      child: Column(
+                        children: [
+                          Row(
+                            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                            children: [
+                              Text(
+                                s.tr(
+                                  'تم $doneCount من ${items.length}',
+                                  'Done $doneCount of ${items.length}',
+                                  'Tamamlanan: $doneCount / ${items.length}',
+                                ),
+                                style: TextStyle(
+                                  fontSize: 12.5,
+                                  fontWeight: FontWeight.bold,
+                                  color: primary,
+                                ),
+                              ),
+                              Text(
+                                '${(pct * 100).round()}%',
+                                style: TextStyle(
+                                  fontSize: 12,
+                                  fontWeight: FontWeight.bold,
+                                  color: isDark ? Colors.white60 : Colors.black54,
+                                ),
+                              ),
+                            ],
+                          ),
+                          const SizedBox(height: 6),
+                          ClipRRect(
+                            borderRadius: BorderRadius.circular(999),
+                            child: LinearProgressIndicator(
+                              value: pct,
+                              minHeight: 5,
+                              backgroundColor: borderColor,
+                              valueColor: AlwaysStoppedAnimation<Color>(primary),
+                            ),
+                          ),
+                        ],
+                      ),
+                    );
+                  }),
+                  Expanded(
+                    child: ListView.builder(
                 padding: const EdgeInsets.fromLTRB(14, 10, 14, 90),
-                itemCount: items.length,
+                itemCount: items.length + 1,
                 itemBuilder: (context, index) {
+                  if (index == items.length) {
+                    return Padding(
+                      padding: const EdgeInsets.only(top: 4, bottom: 16),
+                      child: OutlinedButton.icon(
+                        style: OutlinedButton.styleFrom(
+                          padding: const EdgeInsets.symmetric(vertical: 14),
+                          shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(20)),
+                          side: BorderSide(color: primary.withOpacity(0.45)),
+                        ),
+                        onPressed: () => _showAddOrEditZikrDialog(catLabel: catLabel),
+                        icon: Icon(Icons.add_rounded, color: primary),
+                        label: Text(
+                          s.tr('إضافة مربع ذكر جديد', 'Add New Zikr Card'),
+                          style: TextStyle(color: primary, fontWeight: FontWeight.bold),
+                        ),
+                      ),
+                    );
+                  }
                   final item = items[index];
                   final rawText = s.minimalTashkeel
                       ? lightTashkeel(item.text)
@@ -3695,6 +4004,47 @@ class _AzkarReaderScreenState extends State<AzkarReaderScreen> {
                   final done = item.count >= item.target;
                   final progress =
                       item.target > 0 ? (item.count / item.target).clamp(0.0, 1.0) : 1.0;
+
+                  if (s.collapseCompletedAzkar && done && !_isEditMode) {
+                    return Container(
+                      margin: const EdgeInsets.only(bottom: 10),
+                      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                      decoration: BoxDecoration(
+                        color: const Color(0xFF7F1D1D).withOpacity(0.18),
+                        borderRadius: BorderRadius.circular(18),
+                        border: Border.all(
+                            color: const Color(0xFF991B1B).withOpacity(0.45)),
+                      ),
+                      child: Row(
+                        children: [
+                          Text(
+                            '${index + 1}',
+                            style: const TextStyle(
+                                fontWeight: FontWeight.bold, color: Colors.redAccent),
+                          ),
+                          const SizedBox(width: 10),
+                          Expanded(
+                            child: Text(
+                              s.isTurkish
+                                  ? item.turkishText
+                                  : (s.isEnglish ? item.englishText : body),
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                              style: const TextStyle(fontSize: 13.5),
+                            ),
+                          ),
+                          const SizedBox(width: 8),
+                          Text(
+                            '${item.target} / ${item.target}',
+                            style: const TextStyle(
+                                fontSize: 12,
+                                fontWeight: FontWeight.bold,
+                                color: Colors.redAccent),
+                          ),
+                        ],
+                      ),
+                    );
+                  }
 
                   return RepaintBoundary(
                     child: Container(
@@ -3769,16 +4119,20 @@ class _AzkarReaderScreenState extends State<AzkarReaderScreen> {
                             const SizedBox(height: 8),
                           ],
                           Text(
-                            s.isEnglish ? toEnglishTranslit(body) : body,
+                            s.isTurkish
+                                ? item.turkishText
+                                : (s.isEnglish ? item.englishText : body),
                             textAlign: TextAlign.center,
                             style: TextStyle(
-                              fontFamily: s.isEnglish ? null : s.azkarFontFamily,
+                              fontFamily: (s.isEnglish || s.isTurkish)
+                                  ? null
+                                  : s.azkarFontFamily,
                               fontSize: 19 * s.fontScale,
                               height: 1.9,
                               fontWeight: FontWeight.w500,
                             ),
                           ),
-                          if (s.isEnglish) ...[
+                          if (s.isEnglish || s.isTurkish) ...[
                             const SizedBox(height: 6),
                             Text(
                               body,
@@ -3831,6 +4185,9 @@ class _AzkarReaderScreenState extends State<AzkarReaderScreen> {
                     ),
                   );
                 },
+              ),
+                  ),
+                ],
               ),
       ),
     );
@@ -4283,3 +4640,126 @@ class _RoundedSquareProgressPainter extends CustomPainter {
         oldDelegate.trackColor != trackColor;
   }
 }
+
+class _InstagramVectorIcon extends StatelessWidget {
+  const _InstagramVectorIcon();
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      width: 26,
+      height: 26,
+      decoration: BoxDecoration(
+        borderRadius: BorderRadius.circular(7),
+        gradient: const LinearGradient(
+          colors: [Color(0xFFF58529), Color(0xFFDD2A7B), Color(0xFF8134AF)],
+          begin: Alignment.bottomLeft,
+          end: Alignment.topRight,
+        ),
+      ),
+      child: Stack(
+        alignment: Alignment.center,
+        children: [
+          Container(
+            width: 12,
+            height: 12,
+            decoration: BoxDecoration(
+              shape: BoxShape.circle,
+              border: Border.all(color: Colors.white, width: 1.8),
+            ),
+          ),
+          Positioned(
+            top: 4,
+            right: 4,
+            child: Container(
+              width: 3,
+              height: 3,
+              decoration: const BoxDecoration(
+                color: Colors.white,
+                shape: BoxShape.circle,
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _TikTokVectorIcon extends StatelessWidget {
+  const _TikTokVectorIcon();
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      width: 26,
+      height: 26,
+      decoration: BoxDecoration(
+        color: Colors.black,
+        borderRadius: BorderRadius.circular(7),
+        border: Border.all(color: Colors.white24),
+      ),
+      child: const Center(
+        child: Icon(
+          Icons.audiotrack_rounded,
+          color: Color(0xFF25F4EE),
+          size: 18,
+        ),
+      ),
+    );
+  }
+}
+
+const Map<String, String> kEnToTrUi = {
+  'Home': 'Ana Sayfa',
+  'Quran': 'Kur’an',
+  'Azkar': 'Zikirler',
+  'All Azkar': 'Tüm Zikirler',
+  'Tasbih': 'Tesbih',
+  'Settings': 'Ayarlar',
+  'Welcome to Azkari': 'Zikirlerim’e Hoş Geldiniz',
+  'Your daily companion for Azkar, Quran, and Tasbih.': 'Zikirler, Kur’an ve Tesbih için günlük manevi rehberiniz.',
+  'Continue': 'Devam Et',
+  'Reminder Style': 'Hatırlatma Yöntemi',
+  'Notification Bar': 'Bildirim Çubuğu',
+  'Quiet notification in status bar': 'Bildirim çubuğunda sessiz hatırlatma',
+  'Floating Over Apps': 'Uygulamalar Üzerinde',
+  'Floating Zikr card over other apps': 'Diğer uygulamaların üzerinde şık zikir penceresi',
+  'Reminder Frequency': 'Hatırlatma Sıklığı',
+  'Qibla, Habits & Backup': 'Kıble, Alışkanlıklar ve Yedekleme',
+  'Achievements & Tasks': 'Başarılar ve Görevler',
+  'Button Sound': 'Tuş Sesi',
+  'Share with a Friend': 'Arkadaşınla Paylaş',
+  'Rate App': 'Uygulamayı Değerlendir',
+  'Check for Updates': 'Güncellemeleri Kontrol Et',
+  'Follow Us': 'Bizi Takip Edin',
+  'Tap & Tasbih Sounds': 'Dokunma ve Tesbih Sesleri',
+  'Haptic Feedback': 'Titreşim',
+  'Light Tashkeel in Azkar': 'Zikirlerde Sade Hareke',
+  'Azkar Font Family': 'Zikir Yazı Tipi',
+  'Azkar Font Size': 'Zikir Yazı Boyutu',
+  'App Version': 'Uygulama Sürümü',
+  'Contact Us': 'Bize Ulaşın',
+  'Privacy Policy': 'Gizlilik Politikası',
+  'Add': 'Ekle',
+  'Reset': 'Sıfırla',
+  'Tap': 'Dokun',
+  'Done': 'Tamam',
+  'Edit Azkar': 'Zikirleri Düzenle',
+  'Restore Deleted': 'Silinenleri Geri Yükle',
+  'Reset All': 'Tümünü Sıfırla',
+  'Display Settings': 'Görünüm Ayarları',
+  'Add Zikr': 'Zikir Ekle',
+  'Add New Zikr Card': 'Yeni Zikir Kartı Ekle',
+  'Edit Zikr': 'Zikri Düzenle',
+  'Confirm Reset': 'Sıfırlamayı Onayla',
+  'Reset all counters in this category?': 'Bu bölümdeki tüm sayaçlar sıfırlansın mı?',
+  'Cancel': 'İptal',
+  'Save': 'Kaydet',
+  'Delete': 'Sil',
+  'Next': 'Sonraki',
+  'Prev': 'Önceki',
+  'Tafsir': 'Tefsir',
+  'Info': 'Bilgi',
+  'Alhamdulillah': 'Elhamdülillah',
+};

@@ -17,24 +17,137 @@ class QuranReciter {
   final String nameAr;
   final String nameEn;
   final String everyAyahFolder;
-  const QuranReciter(this.id, this.nameAr, this.nameEn, this.everyAyahFolder);
+  final int quranComId;
+  const QuranReciter(
+      this.id, this.nameAr, this.nameEn, this.everyAyahFolder, this.quranComId);
 }
 
 const List<QuranReciter> kReciters = [
-  QuranReciter('ar.alafasy', 'مشاري راشد العفاسي', 'Mishary Alafasy', 'Alafasy_128kbps'),
-  QuranReciter('ar.husary', 'محمود خليل الحصري', 'Mahmoud Al-Husary', 'Husary_128kbps'),
-  QuranReciter('ar.abdulbasitmurattal', 'عبد الباسط عبد الصمد', 'Abdul Basit', 'Abdul_Basit_Murattal_192kbps'),
-  QuranReciter('ar.minshawi', 'محمد صديق المنشاوي', 'Al-Minshawi', 'Minshawy_Murattal_128kbps'),
-  QuranReciter('ar.mahermuaiqly', 'ماهر المعيقلي', 'Maher Al-Muaiqly', 'MaherAlMuaiqly128kbps'),
+  QuranReciter('ar.alafasy', 'مشاري راشد العفاسي', 'Mishary Alafasy', 'Alafasy_128kbps', 7),
+  QuranReciter('ar.husary', 'محمود خليل الحصري', 'Mahmoud Al-Husary', 'Husary_128kbps', 6),
+  QuranReciter('ar.abdulbasitmurattal', 'عبد الباسط عبد الصمد', 'Abdul Basit', 'Abdul_Basit_Murattal_192kbps', 2),
+  QuranReciter('ar.minshawi', 'محمد صديق المنشاوي', 'Al-Minshawi', 'Minshawy_Murattal_128kbps', 9),
+  QuranReciter('ar.mahermuaiqly', 'ماهر المعيقلي', 'Maher Al-Muaiqly', 'MaherAlMuaiqly128kbps', 10),
 ];
+
+
+String transliterateQuranWord(String rawWord, {bool turkish = false}) {
+  // Strip Quranic stop/waqf symbols
+  final w = rawWord
+      .replaceAll(RegExp(r'[\u06D6-\u06ED\u0640]'), '')
+      .trim();
+  if (w.isEmpty) return '';
+
+  final bare = w
+      .replaceAll(RegExp(r'[\u064B-\u065F\u0670]'), '')
+      .replaceAll('ٱ', 'ا');
+
+  // Exact common Quranic words for natural reading
+  const exactCommon = {
+    'بسم': 'bism',
+    'الله': 'Allahi',
+    'لله': 'lillahi',
+    'الرحمن': 'ar-Rahmani',
+    'الرحيم': 'ar-Rahimi',
+    'الحمد': 'al-hamdu',
+    'رب': 'Rabbi',
+    'العالمين': 'al-alamin',
+    'مالك': 'Maliki',
+    'ملك': 'Maliki',
+    'يوم': 'yawmi',
+    'الدين': 'ad-din',
+    'اياك': 'iyyaka',
+    'نعبد': 'na’budu',
+    'نستعين': 'nasta’in',
+    'اهدنا': 'ihdina',
+    'الصراط': 'as-sirata',
+    'المستقيم': 'al-mustaqim',
+    'صراط': 'sirata',
+    'الذين': 'alladhina',
+    'انعمت': 'an’amta',
+    'عليهم': 'alayhim',
+    'غير': 'ghayri',
+    'المغضوب': 'al-maghdubi',
+    'ولا': 'wa la',
+    'الضالين': 'ad-dallin',
+    'الم': 'Alif-Lam-Mim',
+    'قل': 'qul',
+    'هو': 'Huwa',
+    'احد': 'Ahad',
+    'الصمد': 'as-Samad',
+  };
+  if (exactCommon.containsKey(bare)) {
+    final res = exactCommon[bare]!;
+    if (turkish) {
+      return res
+          .replaceAll('dh', 'z')
+          .replaceAll('sh', 'ş')
+          .replaceAll('gh', 'ğ')
+          .replaceAll('th', 's');
+    }
+    return res;
+  }
+
+  final Map<String, String> cons = turkish
+      ? const {
+          'ب': 'b', 'ت': 't', 'ث': 's', 'ج': 'c', 'ح': 'h', 'خ': 'h',
+          'د': 'd', 'ذ': 'z', 'ر': 'r', 'ز': 'z', 'س': 's', 'ش': 'ş',
+          'ص': 's', 'ض': 'd', 'ط': 't', 'ظ': 'z', 'ع': 'a', 'غ': 'ğ',
+          'ف': 'f', 'ق': 'k', 'ك': 'k', 'ل': 'l', 'م': 'm', 'ن': 'n',
+          'ه': 'h', 'ة': 'h', 'و': 'v', 'ي': 'y', 'ى': 'a', 'ء': '’',
+          'أ': 'e', 'إ': 'i', 'آ': 'a', 'ا': 'a', 'ٱ': 'a', 'ؤ': 'u', 'ئ': 'y',
+        }
+      : const {
+          'ب': 'b', 'ت': 't', 'ث': 'th', 'ج': 'j', 'ح': 'h', 'خ': 'kh',
+          'د': 'd', 'ذ': 'dh', 'ر': 'r', 'ز': 'z', 'س': 's', 'ش': 'sh',
+          'ص': 's', 'ض': 'd', 'ط': 't', 'ظ': 'z', 'ع': 'a', 'غ': 'gh',
+          'ف': 'f', 'ق': 'q', 'ك': 'k', 'ل': 'l', 'م': 'm', 'ن': 'n',
+          'ه': 'h', 'ة': 'h', 'و': 'w', 'ي': 'y', 'ى': 'a', 'ء': '’',
+          'أ': 'a', 'إ': 'i', 'آ': 'aa', 'ا': 'a', 'ٱ': 'a', 'ؤ': 'u', 'ئ': 'y',
+        };
+
+  final runes = w.runes.toList();
+  final buf = StringBuffer();
+  for (int i = 0; i < runes.length; i++) {
+    final ch = String.fromCharCode(runes[i]);
+    if (ch == 'َ') {
+      buf.write('a');
+    } else if (ch == 'ِ') {
+      buf.write('i');
+    } else if (ch == 'ُ') {
+      buf.write('u');
+    } else if (ch == 'ً') {
+      buf.write('an');
+    } else if (ch == 'ٍ') {
+      buf.write('in');
+    } else if (ch == 'ٌ') {
+      buf.write('un');
+    } else if (ch == 'ٰ') {
+      buf.write('a');
+    } else if (ch == 'ْ' || ch == 'ّ') {
+      // sukun / shadda handled softly
+    } else if (cons.containsKey(ch)) {
+      buf.write(cons[ch]);
+    }
+  }
+  final out = buf.toString();
+  return out.isEmpty ? bare : out;
+}
 
 String stripLeadingBasmala(int surahNumber, int ayahIndex, String text) {
   if (surahNumber == 1 || surahNumber == 9 || ayahIndex != 0) return text;
-  final cleaned = text.replaceFirst(
-    RegExp(r'^بِسْمِ\s+[ٱا]للَّهِ\s+[ٱا]لرَّحْمَ[ٰـ]?نِ\s+[ٱا]لرَّحِيمِ\s*'),
-    '',
-  );
-  return cleaned.trim().isEmpty ? text : cleaned.trim();
+  final words = text.trim().split(RegExp(r'\s+'));
+  if (words.length <= 4) return text;
+  String norm(String w) => w
+      .replaceAll(RegExp(r'[\u064B-\u065F\u0670\u06D6-\u06ED\u0640]'), '')
+      .replaceAll('ٱ', 'ا');
+  if (norm(words[0]) == 'بسم' &&
+      norm(words[1]) == 'الله' &&
+      (norm(words[2]) == 'الرحمن' || norm(words[2]) == 'الرحمان') &&
+      norm(words[3]) == 'الرحيم') {
+    return words.sublist(4).join(' ').trim();
+  }
+  return text;
 }
 
 const List<(String, String)> kQuranFonts = [
@@ -81,15 +194,22 @@ class QuranAudioManager {
 
   final AudioPlayer player = AudioPlayer();
   int? currentSurahNumber;
+  String? currentReciterId;
+  String currentSurahName = '';
+  String currentReciterName = '';
   int? playingAyahIndex;
   int playStartAyahIndex = 0;
   double ayahProgress = 0.0;
+  int currentPositionMs = 0;
+  // Map<"surah:ayah", List<[wordPos, startMs, endMs]>>
+  final Map<String, List<List<int>>> wordSegments = {};
 }
 
 class QuranHomeScreen extends StatefulWidget {
   final SharedPreferences prefs;
   final bool isDarkMode;
   final bool isEnglish;
+  final String appLang;
   final double fontScale;
   final VoidCallback? onSurahCompleted;
 
@@ -98,6 +218,7 @@ class QuranHomeScreen extends StatefulWidget {
     required this.prefs,
     required this.isDarkMode,
     required this.isEnglish,
+    this.appLang = 'ar',
     required this.fontScale,
     this.onSurahCompleted,
   });
@@ -249,6 +370,7 @@ class _QuranHomeScreenState extends State<QuranHomeScreen> {
                     prefs: widget.prefs,
                     initialSurahNumber: bSurah,
                     isEnglish: widget.isEnglish,
+                    appLang: widget.appLang,
                     isDarkMode: widget.isDarkMode,
                     initialFontScale: widget.fontScale,
                     jumpToAyah: bAyah,
@@ -489,6 +611,7 @@ class _SurahReaderScreenState extends State<SurahReaderScreen> {
 
   AudioPlayer get _player => QuranAudioManager.instance.player;
   bool _isPlaying = false;
+  bool _showTranslitBar = false;
   final ScrollController _scrollController = ScrollController();
   int? get _playingAyahIndex => QuranAudioManager.instance.playingAyahIndex;
   set _playingAyahIndex(int? v) => QuranAudioManager.instance.playingAyahIndex = v;
@@ -496,6 +619,10 @@ class _SurahReaderScreenState extends State<SurahReaderScreen> {
   set _playStartAyahIndex(int v) => QuranAudioManager.instance.playStartAyahIndex = v;
   double get _ayahProgress => QuranAudioManager.instance.ayahProgress;
   set _ayahProgress(double v) => QuranAudioManager.instance.ayahProgress = v;
+  int? _flashAyahNum;
+  bool _flashVisible = false;
+  Timer? _flashTimer;
+  final Map<int, GlobalKey> _ayahKeys = {};
   StreamSubscription<int?>? _idxSub;
   StreamSubscription<Duration>? _posSub;
   StreamSubscription<PlayerState>? _stateSub;
@@ -529,20 +656,25 @@ class _SurahReaderScreenState extends State<SurahReaderScreen> {
 
     _idxSub = _player.currentIndexStream.listen((idx) {
       if (!mounted || idx == null) return;
-      setState(() {
-        _playingAyahIndex = _playStartAyahIndex + idx;
-        _ayahProgress = 0.0;
-      });
+      if (QuranAudioManager.instance.currentSurahNumber != _surahNumber) return;
+      final targetIdx = _playStartAyahIndex + idx;
+      if (targetIdx >= 0 && targetIdx < _ayahs.length) {
+        setState(() {
+          _playingAyahIndex = targetIdx;
+          _ayahProgress = 0.0;
+          QuranAudioManager.instance.currentPositionMs = 0;
+        });
+      }
     });
 
     _posSub = _player.positionStream.listen((pos) {
       if (!mounted || !_isPlaying) return;
+      if (QuranAudioManager.instance.currentSurahNumber != _surahNumber) return;
+      QuranAudioManager.instance.currentPositionMs = pos.inMilliseconds;
       final dur = _player.duration;
       if (dur != null && dur.inMilliseconds > 0) {
         final p = (pos.inMilliseconds / dur.inMilliseconds).clamp(0.0, 1.0);
-        if ((p - _ayahProgress).abs() >= 0.015 || p == 1.0) {
-          setState(() => _ayahProgress = p);
-        }
+        setState(() => _ayahProgress = p);
       }
     });
 
@@ -573,16 +705,63 @@ class _SurahReaderScreenState extends State<SurahReaderScreen> {
     });
   }
 
+  void _triggerAyahFlash(int ayahNum) {
+    _flashTimer?.cancel();
+    int ticks = 0;
+    setState(() {
+      _flashAyahNum = ayahNum;
+      _flashVisible = true;
+    });
+    _flashTimer = Timer.periodic(const Duration(milliseconds: 220), (t) {
+      ticks++;
+      if (!mounted || ticks >= 5) {
+        t.cancel();
+        if (mounted) {
+          setState(() {
+            _flashAyahNum = null;
+            _flashVisible = false;
+          });
+        }
+        return;
+      }
+      setState(() => _flashVisible = !_flashVisible);
+    });
+  }
+
   void _scrollToAyahNumber(int ayahNum) {
-    if (!_scrollController.hasClients) return;
     final idx = _ayahs.indexWhere((a) => a['numberInSurah'] == ayahNum);
-    if (idx > 0) {
-      _scrollController.animateTo(
-        (idx * 125.0).clamp(0.0, _scrollController.position.maxScrollExtent),
-        duration: const Duration(milliseconds: 450),
+    if (idx < 0) return;
+    _triggerAyahFlash(ayahNum);
+
+    final key = _ayahKeys[ayahNum];
+    if (key?.currentContext != null) {
+      Scrollable.ensureVisible(
+        key!.currentContext!,
+        alignment: 0.5,
+        duration: const Duration(milliseconds: 420),
         curve: Curves.easeOut,
       );
+      return;
     }
+
+    if (!_scrollController.hasClients) return;
+    final viewport = _scrollController.position.viewportDimension;
+    final targetOffset = ((idx * 140.0) - (viewport / 2) + 70.0)
+        .clamp(0.0, _scrollController.position.maxScrollExtent);
+    _scrollController.animateTo(
+      targetOffset,
+      duration: const Duration(milliseconds: 420),
+      curve: Curves.easeOut,
+    ).then((_) {
+      if (mounted && _ayahKeys[ayahNum]?.currentContext != null) {
+        Scrollable.ensureVisible(
+          _ayahKeys[ayahNum]!.currentContext!,
+          alignment: 0.5,
+          duration: const Duration(milliseconds: 260),
+          curve: Curves.easeOut,
+        );
+      }
+    });
   }
 
   Map<String, dynamic> get _currentSurah =>
@@ -658,15 +837,56 @@ class _SurahReaderScreenState extends State<SurahReaderScreen> {
     }
   }
 
+  Future<void> _fetchWordTimingsIfNeeded() async {
+    final recId = _currentReciter.quranComId;
+    final keyPrefix = '$_surahNumber:1';
+    if (QuranAudioManager.instance.wordSegments.containsKey('${recId}_$keyPrefix')) {
+      return;
+    }
+    try {
+      final url =
+          'https://api.quran.com/api/v4/recitations/$recId/by_chapter/$_surahNumber?per_page=300';
+      final res = await http.get(Uri.parse(url)).timeout(const Duration(seconds: 6));
+      if (res.statusCode == 200) {
+        final data = jsonDecode(res.body) as Map<String, dynamic>;
+        final files = (data['audio_files'] as List<dynamic>?) ?? [];
+        for (final f in files) {
+          final vKey = (f['verse_key'] ?? '').toString();
+          final segs = (f['segments'] as List<dynamic>?) ?? [];
+          final parsed = <List<int>>[];
+          for (final seg in segs) {
+            if (seg is List && seg.length >= 3) {
+              parsed.add([
+                (seg[0] as num).toInt(),
+                (seg[1] as num).toInt(),
+                (seg[2] as num).toInt(),
+              ]);
+            }
+          }
+          if (vKey.isNotEmpty && parsed.isNotEmpty) {
+            QuranAudioManager.instance.wordSegments['${recId}_$vKey'] = parsed;
+          }
+        }
+      }
+    } catch (_) {}
+  }
+
   Future<void> _playSingleAyah(int ayahIndex, {bool repeat = false}) async {
     try {
+      _fetchWordTimingsIfNeeded();
+      await _player.stop();
       await _player.setVolume(1.0);
       await _player.setSpeed(_speed);
       await _player.setLoopMode(repeat ? LoopMode.one : LoopMode.off);
+      QuranAudioManager.instance.currentSurahNumber = _surahNumber;
+      QuranAudioManager.instance.currentReciterId = _reciterId;
+      QuranAudioManager.instance.currentSurahName = (_currentSurah['name'] ?? '').toString();
+      QuranAudioManager.instance.currentReciterName = _currentReciter.nameAr;
       _playStartAyahIndex = ayahIndex;
       setState(() {
         _playingAyahIndex = ayahIndex;
         _ayahProgress = 0.0;
+        QuranAudioManager.instance.currentPositionMs = 0;
       });
       final numInSurah = (_ayahs[ayahIndex]['numberInSurah'] as int?) ?? (ayahIndex + 1);
       final url = _ayahAudioUrl(numInSurah);
@@ -678,13 +898,20 @@ class _SurahReaderScreenState extends State<SurahReaderScreen> {
 
   Future<void> _playFromAyah(int startIndex) async {
     try {
+      _fetchWordTimingsIfNeeded();
+      await _player.stop();
       await _player.setVolume(1.0);
       await _player.setSpeed(_speed);
       await _player.setLoopMode(LoopMode.off);
+      QuranAudioManager.instance.currentSurahNumber = _surahNumber;
+      QuranAudioManager.instance.currentReciterId = _reciterId;
+      QuranAudioManager.instance.currentSurahName = (_currentSurah['name'] ?? '').toString();
+      QuranAudioManager.instance.currentReciterName = _currentReciter.nameAr;
       _playStartAyahIndex = startIndex;
       setState(() {
         _playingAyahIndex = startIndex;
         _ayahProgress = 0.0;
+        QuranAudioManager.instance.currentPositionMs = 0;
       });
       final sources = _ayahs.sublist(startIndex).map((a) {
         final numInSurah = a['numberInSurah'] as int;
@@ -701,6 +928,12 @@ class _SurahReaderScreenState extends State<SurahReaderScreen> {
   Future<void> _toggleAudio() async {
     if (_isPlaying) {
       await _player.pause();
+    } else if (_player.audioSource != null &&
+        QuranAudioManager.instance.currentSurahNumber == _surahNumber &&
+        QuranAudioManager.instance.currentReciterId == _reciterId &&
+        _player.processingState != ProcessingState.completed &&
+        _player.processingState != ProcessingState.idle) {
+      await _player.play();
     } else {
       await _player.setLoopMode(LoopMode.off);
       await _playFullSurah();
@@ -740,6 +973,7 @@ class _SurahReaderScreenState extends State<SurahReaderScreen> {
 
   void _cancelSleepTimer() {
     _sleepTimer?.cancel();
+    _flashTimer?.cancel();
     _idxSub?.cancel();
     _posSub?.cancel();
     _stateSub?.cancel();
@@ -1176,13 +1410,19 @@ class _SurahReaderScreenState extends State<SurahReaderScreen> {
     if (!isActiveAyah) {
       return TextSpan(
         text: '$text  ﴿$numInSurah﴾',
-        style: TextStyle(color: baseColor.withOpacity(0.38)),
+        style: TextStyle(color: baseColor.withOpacity(0.36)),
       );
     }
     final words = text.split(RegExp(r'\s+')).where((w) => w.isNotEmpty).toList();
     if (words.isEmpty) {
       return TextSpan(text: '$text  ﴿$numInSurah﴾');
     }
+
+    final segKey = '${_currentReciter.quranComId}_$_surahNumber:$numInSurah';
+    final segs = QuranAudioManager.instance.wordSegments[segKey];
+    final posMs = QuranAudioManager.instance.currentPositionMs;
+    final effectiveProgress = ((progress - 0.04) / 0.90).clamp(0.0, 1.0);
+
     final weights = words
         .map((w) => max(1, w.replaceAll(RegExp(r'[\u064B-\u065F\u0670]'), '').length))
         .toList();
@@ -1190,13 +1430,18 @@ class _SurahReaderScreenState extends State<SurahReaderScreen> {
     int acc = 0;
     final spans = <TextSpan>[];
     for (int i = 0; i < words.length; i++) {
-      final startRatio = acc / totalW;
-      acc += weights[i];
-      final isSpoken = progress >= startRatio;
+      bool isSpoken;
+      if (segs != null && i < segs.length) {
+        isSpoken = posMs >= segs[i][1];
+      } else {
+        final startRatio = acc / totalW;
+        acc += weights[i];
+        isSpoken = effectiveProgress >= startRatio;
+      }
       spans.add(TextSpan(
         text: i == words.length - 1 ? words[i] : '${words[i]} ',
         style: TextStyle(
-          color: isSpoken ? baseColor : baseColor.withOpacity(0.32),
+          color: isSpoken ? baseColor : baseColor.withOpacity(0.30),
         ),
       ));
     }
@@ -1409,21 +1654,30 @@ class _SurahReaderScreenState extends State<SurahReaderScreen> {
                 final isActiveAyah = _playingAyahIndex == i;
                 final baseTextColor = Theme.of(context).textTheme.bodyLarge?.color ?? Colors.white;
 
+                final ayahKey = _ayahKeys.putIfAbsent(numInSurah, () => GlobalKey());
+                final isFlashing = _flashAyahNum == numInSurah && _flashVisible;
                 return InkWell(
+                  key: ayahKey,
                   borderRadius: BorderRadius.circular(14),
                   onTap: () => _showAyahSheet(i),
-                  child: Container(
+                  child: AnimatedContainer(
+                    duration: const Duration(milliseconds: 180),
                     margin: const EdgeInsets.only(bottom: 10),
                     padding: const EdgeInsets.all(14),
                     decoration: BoxDecoration(
-                      color: isSavedBookmark
-                          ? Colors.amber.withOpacity(0.10)
-                          : Colors.transparent,
+                      color: isFlashing
+                          ? Colors.amber.withOpacity(0.38)
+                          : (isSavedBookmark
+                              ? Colors.amber.withOpacity(0.10)
+                              : Colors.transparent),
                       borderRadius: BorderRadius.circular(14),
                       border: Border.all(
-                        color: isSavedBookmark
-                            ? Colors.amber.withOpacity(0.45)
-                            : Colors.grey.withOpacity(0.18),
+                        color: isFlashing
+                            ? Colors.amber
+                            : (isSavedBookmark
+                                ? Colors.amber.withOpacity(0.55)
+                                : Colors.grey.withOpacity(0.18)),
+                        width: isFlashing ? 2.0 : 1.0,
                       ),
                     ),
                     child: Column(
@@ -1463,7 +1717,80 @@ class _SurahReaderScreenState extends State<SurahReaderScreen> {
               },
             ),
           ),
+          if (widget.appLang == 'en' || widget.appLang == 'tr' || _showTranslitBar)
+            _buildBottomTranslitStrip(),
         ],
+      ),
+    );
+  }
+
+  Widget _buildBottomTranslitStrip() {
+    if (_ayahs.isEmpty) return const SizedBox.shrink();
+    final activeIdx = (_playingAyahIndex ?? 0).clamp(0, _ayahs.length - 1);
+    final ayah = _ayahs[activeIdx] as Map<String, dynamic>;
+    final numInSurah = (ayah['numberInSurah'] as int?) ?? (activeIdx + 1);
+    final rawText = stripLeadingBasmala(
+      _surahNumber,
+      activeIdx,
+      (ayah['text'] ?? '').toString(),
+    );
+    final words = rawText.split(RegExp(r'\s+')).where((w) => w.isNotEmpty).toList();
+    if (words.isEmpty) return const SizedBox.shrink();
+
+    final segKey = '${_currentReciter.quranComId}_$_surahNumber:$numInSurah';
+    final segs = QuranAudioManager.instance.wordSegments[segKey];
+    final posMs = QuranAudioManager.instance.currentPositionMs;
+    final effectiveProgress = ((_ayahProgress - 0.04) / 0.90).clamp(0.0, 1.0);
+
+    final weights = words
+        .map((w) => max(1, w.replaceAll(RegExp(r'[\u064B-\u065F\u0670]'), '').length))
+        .toList();
+    final totalW = weights.fold<int>(0, (a, b) => a + b);
+    int acc = 0;
+
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final baseColor = isDark ? Colors.white : Colors.black87;
+    final isTr = widget.appLang == 'tr';
+
+    final spans = <TextSpan>[];
+    for (int i = 0; i < words.length; i++) {
+      bool isSpoken = !_isPlaying;
+      if (_isPlaying) {
+        if (segs != null && i < segs.length) {
+          isSpoken = posMs >= segs[i][1];
+        } else {
+          final startRatio = acc / totalW;
+          acc += weights[i];
+          isSpoken = effectiveProgress >= startRatio;
+        }
+      }
+      final tWord = transliterateQuranWord(words[i], turkish: isTr);
+      spans.add(TextSpan(
+        text: i == words.length - 1 ? '$tWord ($numInSurah)' : '$tWord ',
+        style: TextStyle(
+          color: isSpoken ? baseColor : baseColor.withOpacity(0.30),
+          fontWeight: isSpoken && _isPlaying ? FontWeight.w600 : FontWeight.normal,
+        ),
+      ));
+    }
+
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+      decoration: BoxDecoration(
+        color: isDark ? const Color(0xFF0B1220) : const Color(0xFFF1F5F9),
+        border: Border(
+          top: BorderSide(color: Colors.grey.withOpacity(0.22)),
+        ),
+      ),
+      child: SingleChildScrollView(
+        scrollDirection: Axis.horizontal,
+        child: RichText(
+          text: TextSpan(
+            style: const TextStyle(fontSize: 12.5, height: 1.4),
+            children: spans,
+          ),
+        ),
       ),
     );
   }

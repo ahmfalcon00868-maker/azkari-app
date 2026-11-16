@@ -19,6 +19,29 @@ class ZikrItem {
     this.favorite = false,
   });
 
+  String get categoryLabelEn {
+    switch (category) {
+      case 'morning':
+        return 'Morning Azkar';
+      case 'evening':
+        return 'Evening Azkar';
+      case 'sleep':
+        return 'Sleep Azkar';
+      case 'wakeup':
+        return 'Wakeup Azkar';
+      case 'prayer':
+        return 'After Prayer Azkar';
+      case 'daily':
+        return 'Home & Travel';
+      case 'supplications':
+        return 'Comprehensive Duas';
+      default:
+        return categoryLabel;
+    }
+  }
+
+  String get englishText => kAzkarEnglishById[id] ?? text;
+
   Map<String, dynamic> toJson() => {
         'id': id,
         'count': count,
@@ -830,3 +853,104 @@ List<ZikrItem> getInitialAzkarList() => [
         target: 1,
       ),
     ];
+
+const Map<int, String> kAzkarEnglishById = {
+  // Morning (101-129)
+  101: 'Ayat Al-Kursi: Allah — there is no deity except Him, the Ever-Living, the Sustainer of all existence. Neither drowsiness overtakes Him nor sleep...',
+  102: 'Surah Al-Ikhlas: Say, He is Allah, the One. Allah, the Eternal Refuge. He neither begets nor is born, nor is there to Him any equivalent.',
+  103: 'Surah Al-Falaq: Say, I seek refuge in the Lord of daybreak from the evil of that which He created...',
+  104: 'Surah An-Nas: Say, I seek refuge in the Lord of mankind, the Sovereign of mankind, the God of mankind...',
+  105: 'We have reached the morning and at this very time all sovereignty belongs to Allah, and all praise is for Allah. None has the right to be worshipped except Allah alone, without partner.',
+  106: 'Sayyid Al-Istighfar: O Allah, You are my Lord, none has the right to be worshipped except You. You created me and I am Your servant... forgive me, for none forgives sins except You.',
+  107: 'Raditu billahi Rabban wa bil-Islami dinan wa bi-Muhammadin (peace be upon him) nabiyya. (I am pleased with Allah as my Lord, Islam as my religion, and Muhammad as my Prophet.)',
+  108: 'O Allah, verily I have reached the morning and call on You, the bearers of Your throne, Your angels, and all creation to witness that You are Allah, none has the right to be worshipped except You alone.',
+  109: 'O Allah, whatever blessing I or any of Your creation have risen upon is from You alone, without partner, so for You is all praise and unto You all thanks.',
+  110: 'HasbiyAllahu la ilaha illa Huwa, alayhi tawakkaltu wa Huwa Rabbul-Arshil-Azim. (Allah is sufficient for me; none has the right to be worshipped except Him; upon Him I rely.)',
+  111: 'Bismillahil-ladhi la yadurru ma’asmihi shay’un fil-ardi wa la fis-sama’i wa Huwas-Sami’ul-Alim. (In the name of Allah with whose name nothing on earth or in heaven can harm.)',
+  112: 'O Allah, by Your leave we have reached the morning and by Your leave we have reached the evening, by Your leave we live and die and unto You is our resurrection.',
+  113: 'We have risen upon the natural religion of Islam, the word of sincere devotion, the religion of our Prophet Muhammad, and the faith of our father Ibrahim.',
+  114: 'SubhanAllahi wa bihamdihi: adada khalqihi, wa rida nafsihi, wa zinata arshihi, wa midada kalimatih.',
+  115: 'O Allah, grant my body health, O Allah, grant my hearing health, O Allah, grant my sight health. None has the right to be worshipped except You.',
+  116: 'O Allah, I seek refuge in You from disbelief and poverty, and I seek refuge in You from the punishment of the grave. None has the right to be worshipped except You.',
+  117: 'O Allah, I ask You for pardon and well-being in this life and the next. O Allah, conceal my faults and calm my fears, and protect me from before me, behind me, my right, my left, and above me.',
+  118: 'Ya Hayyu Ya Qayyum, bi-rahmatika astaghith, aslih li sha’ni kullahu wa la takilni ila nafsi tarfata ayn. (O Ever-Living, O Sustainer, in Your mercy I seek relief; rectify all my affairs.)',
+  119: 'We have reached the morning and all sovereignty belongs to Allah, Lord of the worlds. O Allah, I ask You for the good of this day: its victory, its light, its blessings, and its guidance.',
+  120: 'O Allah, Knower of the unseen and the seen, Creator of the heavens and the earth, I seek refuge in You from the evil of my own soul and from the evil of Satan.',
+  121: 'A’udhu bi-kalimatillahit-tammati min sharri ma khalaq. (I seek refuge in the perfect words of Allah from the evil of what He has created.)',
+  122: 'Allahumma salli wa sallim wa barik ala Nabiyyina Muhammad. (O Allah, send peace and blessings upon our Prophet Muhammad.)',
+  123: 'O Allah, we seek refuge in You from associating anything with You knowingly, and we seek Your forgiveness for what we do unknowingly.',
+  124: 'O Allah, I seek refuge in You from anxiety and sorrow, weakness and laziness, miserliness and cowardice, the burden of debts and being overpowered by men.',
+  125: 'Astaghfirullahal-Azimal-ladhi la ilaha illa Huwal-Hayyul-Qayyum wa atubu ilayh.',
+  126: 'Ya Rabbi lakal-hamdu kama yanbaghi li-jalali wajhika wa li-azimi sultanik.',
+  127: 'La ilaha illAllahu wahdahu la sharika lah, lahul-mulku wa lahul-hamdu wa Huwa ala kulli shay’in Qadir.',
+  128: 'O Allah, You are my Lord, none has the right to be worshipped except You. Upon You I rely, and You are the Lord of the Mighty Throne. Whatever Allah wills happens...',
+  129: 'SubhanAllahi wa bihamdih. (Glory be to Allah and praise Him.)',
+
+  // Evening (201-230)
+  201: 'Ayat Al-Kursi: Allah — there is no deity except Him, the Ever-Living, the Sustainer of all existence...',
+  202: 'Last two verses of Al-Baqarah (285-286): The Messenger has believed in what was revealed to him from his Lord, and so have the believers...',
+  203: 'Surah Al-Ikhlas: Say, He is Allah, the One...',
+  204: 'Surah Al-Falaq: Say, I seek refuge in the Lord of daybreak...',
+  205: 'Surah An-Nas: Say, I seek refuge in the Lord of mankind...',
+  206: 'We have reached the evening and at this very time all sovereignty belongs to Allah, and all praise is for Allah...',
+  207: 'Sayyid Al-Istighfar: O Allah, You are my Lord, none has the right to be worshipped except You... forgive me, for none forgives sins except You.',
+  208: 'Raditu billahi Rabban wa bil-Islami dinan wa bi-Muhammadin (peace be upon him) nabiyya.',
+  209: 'O Allah, verily I have reached the evening and call on You, the bearers of Your throne, Your angels, and all creation to witness that You are Allah...',
+  210: 'O Allah, whatever blessing I or any of Your creation have entered the evening upon is from You alone, without partner...',
+  211: 'HasbiyAllahu la ilaha illa Huwa, alayhi tawakkaltu wa Huwa Rabbul-Arshil-Azim.',
+  212: 'Bismillahil-ladhi la yadurru ma’asmihi shay’un fil-ardi wa la fis-sama’i wa Huwas-Sami’ul-Alim.',
+  213: 'O Allah, by Your leave we have reached the evening and by Your leave we have reached the morning, by Your leave we live and die and unto You is our return.',
+  214: 'We have entered the evening upon the natural religion of Islam, the word of sincere devotion, and the religion of our Prophet Muhammad.',
+  215: 'SubhanAllahi wa bihamdihi: adada khalqihi, wa rida nafsihi, wa zinata arshihi, wa midada kalimatih.',
+  216: 'O Allah, grant my body health, O Allah, grant my hearing health, O Allah, grant my sight health. None has the right to be worshipped except You.',
+  217: 'O Allah, I seek refuge in You from disbelief and poverty, and from the punishment of the grave.',
+  218: 'O Allah, I ask You for pardon and well-being in this life and the next. Conceal my faults and calm my fears...',
+  219: 'Ya Hayyu Ya Qayyum, bi-rahmatika astaghith, aslih li sha’ni kullahu wa la takilni ila nafsi tarfata ayn.',
+  220: 'We have reached the evening and all sovereignty belongs to Allah, Lord of the worlds. O Allah, I ask You for the good of this night...',
+  221: 'O Allah, Knower of the unseen and the seen, Creator of the heavens and the earth, I seek refuge in You from the evil of my own soul...',
+  222: 'A’udhu bi-kalimatillahit-tammati min sharri ma khalaq.',
+  223: 'Allahumma salli wa sallim wa barik ala Nabiyyina Muhammad.',
+  224: 'O Allah, we seek refuge in You from associating anything with You knowingly, and seek Your forgiveness for what we do unknowingly.',
+  225: 'O Allah, I seek refuge in You from anxiety and sorrow, weakness and laziness, miserliness and cowardice, debt and oppression.',
+  226: 'Astaghfirullahal-Azimal-ladhi la ilaha illa Huwal-Hayyul-Qayyum wa atubu ilayh.',
+  227: 'Ya Rabbi lakal-hamdu kama yanbaghi li-jalali wajhika wa li-azimi sultanik.',
+  228: 'La ilaha illAllahu wahdahu la sharika lah, lahul-mulku wa lahul-hamdu wa Huwa ala kulli shay’in Qadir.',
+  229: 'O Allah, You are my Lord, none has the right to be worshipped except You. Upon You I rely...',
+  230: 'SubhanAllahi wa bihamdih.',
+
+  // Sleep (301-307)
+  301: 'Cup your palms together, blow gently into them, recite Al-Ikhlas, Al-Falaq, and An-Nas, and wipe over your head, face, and body.',
+  302: 'Ayat Al-Kursi before sleep: Allah — there is no deity except Him, the Ever-Living, the Sustainer of all existence...',
+  303: 'Bismika Rabbi wada’tu janbi, wa bika arfa’uh. (In Your name my Lord, I lie down and in Your name I rise.)',
+  304: 'Allahumma qini adhabaka yawma tab’athu ibadak. (O Allah, protect me from Your punishment on the Day You resurrect Your servants.)',
+  305: 'Bismika Allahumma amutu wa ahya. (In Your name, O Allah, I die and I live.)',
+  306: 'SubhanAllah (33), Alhamdulillah (33), Allahu Akbar (34).',
+  307: 'O Allah, I submit my soul to You, entrust my affairs to You, and turn my face to You in hope and fear...',
+
+  // Wakeup (401-403)
+  401: 'Alhamdulillahil-ladhi ahyana ba’da ma amatana wa ilayhin-nushur. (All praise is for Allah who gave us life after causing us to die, and unto Him is the resurrection.)',
+  402: 'All praise is for Allah who gave strength to my body, returned my soul to me, and permitted me to remember Him.',
+  403: 'La ilaha illAllahu wahdahu la sharika lah... SubhanAllah, Alhamdulillah, La ilaha illAllah, Allahu Akbar, Rabbi-ghfir li.',
+
+  // After Prayer (501-505)
+  501: 'Astaghfirullah (3x). Allahumma Antas-Salam wa minkas-salam, tabarakta ya Dhal-Jalali wal-Ikram.',
+  502: 'La ilaha illAllahu wahdahu la sharika lah... O Allah, none can withhold what You give, and none can give what You withhold.',
+  503: 'SubhanAllah (33) • Alhamdulillah (33) • Allahu Akbar (33).',
+  504: 'Recite Ayat Al-Kursi after every obligatory prayer.',
+  505: 'Allahumma a’inni ala dhikrika, wa shukrika, wa husni ibadatik. (O Allah, help me to remember You, thank You, and worship You in the best manner.)',
+
+  // Home & Travel (601-606)
+  601: 'Bismillahi, tawakkaltu alAllahi, wa la hawla wa la quwwata illa billah. (Leaving home)',
+  602: 'Bismillahi walajna, wa bismillahi kharajna, wa ala Rabbina tawakkalna. (Entering home)',
+  603: 'Subhanal-ladhi sakhkhara lana hadha wa ma kunna lahu muqrinin, wa inna ila Rabbina lamunqalibun. (Travel / Riding)',
+  604: 'Bismillahi, Allahumma inni a’udhu bika minal-khubuthi wal-khaba’ith. (Entering restroom)',
+  605: 'Ghufranaka. (I seek Your forgiveness — leaving restroom)',
+  606: 'Alhamdulillahil-ladhi at’amani hadha wa razaqanihi min ghayri hawlin minni wa la quwwah. (After eating)',
+
+  // Comprehensive Duas (701-705)
+  701: 'Rabbana atina fid-dunya hasanatan wa fil-akhirati hasanatan wa qina adhaban-nar.',
+  702: 'La ilaha illa Anta subhanaka inni kuntu minaz-zalimin.',
+  703: 'Ya Muqallibal-qulubi thabbit qalbi ala dinik. (O Turner of hearts, keep my heart firm upon Your religion.)',
+  704: 'Allahumma innaka Afuwwun tuhibbul-afwa fa’fu anni. (O Allah, You are Pardoning and love to pardon, so pardon me.)',
+  705: 'Allahummaghfir li, warhamni, wahdini, wa’afini, warzuqni.',
+};
