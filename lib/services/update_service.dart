@@ -18,7 +18,7 @@ class UpdateService {
   }) async {
     try {
       final response = await http
-          .get(Uri.parse(_versionUrl))
+          .get(Uri.parse('$_versionUrl?t=${DateTime.now().millisecondsSinceEpoch}'), headers: {'Cache-Control': 'no-cache'})
           .timeout(const Duration(seconds: 6));
       if (response.statusCode != 200) return;
 

@@ -62,25 +62,14 @@ class SoundEffectsService {
       await _chimePlayer.setReleaseMode(ap.ReleaseMode.stop);
 
       final dir = await getTemporaryDirectory();
-      _tapPath = '${dir.path}/azkari_soft_tap_v3.wav';
-      _chimePath = '${dir.path}/azkari_chime_33_v3.wav';
+      _tapPath = '${dir.path}/azkari_bead_tap_v5.wav';
+      _chimePath = '${dir.path}/azkari_warm_chime_v5.wav';
 
       if (!await File(_tapPath!).exists()) {
-        await File(_tapPath!).writeAsBytes(_buildToneWav(
-          freqHz: 520,
-          durationMs: 42,
-          volume: 0.95,
-          decay: 20.0,
-        ));
+        await File(_tapPath!).writeAsBytes(_buildSoftBeadClickWav());
       }
       if (!await File(_chimePath!).exists()) {
-        await File(_chimePath!).writeAsBytes(_buildToneWav(
-          freqHz: 740,
-          durationMs: 280,
-          volume: 0.95,
-          decay: 6.5,
-          secondHarmonic: 1110,
-        ));
+        await File(_chimePath!).writeAsBytes(_buildWarmAcousticChimeWav());
       }
       _initialized = true;
     } catch (_) {}
@@ -92,7 +81,7 @@ class SoundEffectsService {
       final player = _tapPool[_tapIdx % _tapPool.length];
       _tapIdx++;
       await player.stop();
-      await player.play(ap.DeviceFileSource(_tapPath!), volume: 0.25);
+      await player.play(ap.DeviceFileSource(_tapPath!), volume: 0.14);
     } catch (_) {}
   }
 
@@ -100,28 +89,18 @@ class SoundEffectsService {
     try {
       if (!_initialized || _chimePath == null) await init();
       await _chimePlayer.stop();
-      await _chimePlayer.play(ap.DeviceFileSource(_chimePath!), volume: 0.45);
+      await _chimePlayer.play(ap.DeviceFileSource(_chimePath!), volume: 0.16);
     } catch (_) {}
   }
 
-  Uint8List _buildToneWav({
-    required double freqHz,
-    required int durationMs,
-    required double volume,
-    required double decay,
-    double? secondHarmonic,
-  }) {
-    const sampleRate = 22050;
-    final numSamples = (sampleRate * durationMs / 1000).round();
-    final dataSize = numSamples * 2;
+  Uint8List _wrapWav(List<int> pcmSamples, int sampleRate) {
+    final dataSize = pcmSamples.length * 2;
     final buffer = ByteData(44 + dataSize);
-
-    void writeStr(int offset, String s) {
-      for (int i = 0; i < s.length; i++) {
-        buffer.setUint8(offset + i, s.codeUnitAt(i));
+    void writeStr(int offset, String str) {
+      for (int i = 0; i < str.length; i++) {
+        buffer.setUint8(offset + i, str.codeUnitAt(i));
       }
     }
-
     writeStr(0, 'RIFF');
     buffer.setUint32(4, 36 + dataSize, Endian.little);
     writeStr(8, 'WAVE');
@@ -135,18 +114,53 @@ class SoundEffectsService {
     buffer.setUint16(34, 16, Endian.little);
     writeStr(36, 'data');
     buffer.setUint32(40, dataSize, Endian.little);
-
-    for (int i = 0; i < numSamples; i++) {
-      final t = i / sampleRate;
-      final env = exp(-decay * t);
-      double sample = sin(2 * pi * freqHz * t);
-      if (secondHarmonic != null) {
-        sample = 0.65 * sample + 0.35 * sin(2 * pi * secondHarmonic * t);
-      }
-      final val = (sample * env * volume * 32767).round().clamp(-32768, 32767);
-      buffer.setInt16(44 + i * 2, val, Endian.little);
+    for (int i = 0; i < pcmSamples.length; i++) {
+      buffer.setInt16(44 + i * 2, pcmSamples[i], Endian.little);
     }
     return buffer.buffer.asUint8List();
+  }
+
+  // Organic soft wooden-bead click (14ms, pitch drop 220Hz -> 95Hz, zero electronic beep)
+  Uint8List _buildSoftBeadClickWav() {
+    const sampleRate = 22050;
+    const durationMs = 16;
+    final numSamples = (sampleRate * durationMs / 1000).round();
+    final samples = List<int>.filled(numSamples, 0);
+    double phase = 0.0;
+    for (int i = 0; i < numSamples; i++) {
+      final t = i / sampleRate;
+      final fadeIn = (t / 0.0015).clamp(0.0, 1.0);
+      final env = fadeIn * exp(-210.0 * t);
+      final freq = 95.0 + 135.0 * exp(-260.0 * t);
+      phase += 2 * pi * freq / sampleRate;
+      final sample = sin(phase) * env * 0.72;
+      samples[i] = (sample * 32767).round().clamp(-32768, 32767);
+    }
+    return _wrapWav(samples, sampleRate);
+  }
+
+  // Gentle 2-note acoustic chime (soft C5 -> G5, calm and warm)
+  Uint8List _buildWarmAcousticChimeWav() {
+    const sampleRate = 22050;
+    const durationMs = 340;
+    final numSamples = (sampleRate * durationMs / 1000).round();
+    final samples = List<int>.filled(numSamples, 0);
+    for (int i = 0; i < numSamples; i++) {
+      final t = i / sampleRate;
+      // Note 1: soft C5 (523.25 Hz)
+      final fade1 = (t / 0.018).clamp(0.0, 1.0);
+      final n1 = sin(2 * pi * 523.25 * t) * fade1 * exp(-7.5 * t) * 0.45;
+      // Note 2: soft G5 (783.99 Hz) entering smoothly at 90ms
+      double n2 = 0.0;
+      if (t >= 0.09) {
+        final t2 = t - 0.09;
+        final fade2 = (t2 / 0.022).clamp(0.0, 1.0);
+        n2 = sin(2 * pi * 783.99 * t2) * fade2 * exp(-8.5 * t2) * 0.40;
+      }
+      final sample = (n1 + n2) * 0.65;
+      samples[i] = (sample * 32767).round().clamp(-32768, 32767);
+    }
+    return _wrapWav(samples, sampleRate);
   }
 }
 
@@ -1238,7 +1252,6 @@ class _MainShellScreenState extends State<MainShellScreen> {
   }
 
   void _openCategoryReader(String category, {int initialIndex = 0}) {
-    widget.appState.playTapFeedback();
     Navigator.of(context).push(
       MaterialPageRoute(
         builder: (_) => AzkarReaderScreen(
@@ -1252,7 +1265,6 @@ class _MainShellScreenState extends State<MainShellScreen> {
 
   void _openExplore({int tab = 0}) {
     final s = widget.appState;
-    s.playTapFeedback();
     Navigator.of(context).push(
       MaterialPageRoute(
         builder: (_) => ExploreIslamicScreen(
@@ -1266,7 +1278,6 @@ class _MainShellScreenState extends State<MainShellScreen> {
 
   void _openTools() {
     final s = widget.appState;
-    s.playTapFeedback();
     Navigator.of(context).push(
       MaterialPageRoute(
         builder: (_) => ToolsHubScreen(
@@ -1378,8 +1389,7 @@ class _MainShellScreenState extends State<MainShellScreen> {
       bottomNavigationBar: NavigationBar(
         selectedIndex: _currentIndex,
         onDestinationSelected: (idx) {
-          s.playTapFeedback();
-          setState(() => _currentIndex = idx);
+                setState(() => _currentIndex = idx);
         },
         backgroundColor: cardColor,
         indicatorColor: primary.withOpacity(0.16),
@@ -1662,16 +1672,14 @@ class _MainShellScreenState extends State<MainShellScreen> {
                 const SizedBox(width: 6),
                 IconButton.filledTonal(
                   onPressed: () {
-                    s.playTapFeedback();
-                    setState(() => _showSearch = !_showSearch);
+                                    setState(() => _showSearch = !_showSearch);
                   },
                   icon: const Icon(Icons.search_rounded),
                 ),
                 const SizedBox(width: 6),
                 IconButton.filledTonal(
                   onPressed: () {
-                    s.playTapFeedback();
-                    if (s.isEnglish) {
+                                    if (s.isEnglish) {
                       _scaffoldKey.currentState?.openDrawer();
                     } else {
                       _scaffoldKey.currentState?.openEndDrawer();
@@ -2272,8 +2280,7 @@ class _MainShellScreenState extends State<MainShellScreen> {
                   ),
                   TextButton.icon(
                     onPressed: () {
-                      s.playTapFeedback();
-                      s.tasbihCount = 0;
+                                        s.tasbihCount = 0;
                       s.saveAllState();
                     },
                     icon: const Icon(Icons.refresh_rounded),
@@ -2913,8 +2920,7 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
                               borderRadius: BorderRadius.circular(999)),
                         ),
                         onPressed: () {
-                          s.playTapFeedback();
-                          setState(() => _step = 1);
+                                                setState(() => _step = 1);
                         },
                         child: Text(
                           s.tr('متابعة', 'Continue'),
@@ -2939,8 +2945,7 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
                     InkWell(
                       borderRadius: BorderRadius.circular(22),
                       onTap: () {
-                        s.playTapFeedback();
-                        _showFrequencyDialog('notification');
+                                            _showFrequencyDialog('notification');
                       },
                       child: Container(
                         width: double.infinity,
@@ -2988,8 +2993,7 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
                     InkWell(
                       borderRadius: BorderRadius.circular(22),
                       onTap: () async {
-                        s.playTapFeedback();
-                        try {
+                                            try {
                           final granted =
                               await FlutterOverlayWindow.isPermissionGranted();
                           if (!granted) {
@@ -3442,8 +3446,7 @@ class _AzkarReaderScreenState extends State<AzkarReaderScreen> {
             IconButton(
               tooltip: s.tr('تعديل الأذكار', 'Edit Azkar'),
               onPressed: () {
-                s.playTapFeedback();
-                setState(() => _isEditMode = !_isEditMode);
+                            setState(() => _isEditMode = !_isEditMode);
               },
               icon: Icon(
                 _isEditMode ? Icons.check_rounded : Icons.edit_rounded,
