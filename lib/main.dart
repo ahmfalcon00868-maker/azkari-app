@@ -201,9 +201,7 @@ String toEnglishTranslit(String ar) {
     'س': 's', 'ش': 'sh', 'ص': 's', 'ض': 'd', 'ط': 't', 'ظ': 'z', 'ع': '’',
     'غ': 'gh', 'ف': 'f', 'ق': 'q', 'ك': 'k', 'ل': 'l', 'م': 'm', 'ن': 'n',
     'ه': 'h', 'و': 'w', 'ي': 'y', 'ى': 'a', 'ة': 'h', 'ء': '’', 'ئ': 'y',
-    'ؤ': 'w', ' ': ' ', '
-': '
-',
+    'ؤ': 'w', ' ': ' ', '\n': '\n',
   };
   final buf = StringBuffer();
   for (final r in clean.runes) {
@@ -756,7 +754,7 @@ class _AzkariAppState extends State<AzkariApp> {
       await FlutterOverlayWindow.showOverlay(
         enableDrag: true,
         height: 76,
-        width: WindowSize.wrapContent,
+        width: WindowSize.matchParent,
         alignment: OverlayAlignment.topCenter,
         flag: OverlayFlag.defaultFlag,
       );
