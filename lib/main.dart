@@ -1191,30 +1191,32 @@ class _MainShellScreenState extends State<MainShellScreen> {
   Future<void> _showDailyAyahDialog() async {
     final s = widget.appState;
     try {
-      final qRaw = await rootBundle.loadString('assets/data/quran_uthmani.json');
-      final tRaw = await rootBundle.loadString('assets/data/tafsir_muyassar.json');
-      final qList = jsonDecode(qRaw) as List<dynamic>;
-      final tList = jsonDecode(tRaw) as List<dynamic>;
+      await QuranDataRepository.ensureLoaded();
+      final qList = QuranDataRepository.surahs;
+      final tList = QuranDataRepository.tafsirSurahs;
+      if (qList.isEmpty || !mounted) return;
 
       final flatAyahs = <Map<String, dynamic>>[];
       for (int sIdx = 0; sIdx < qList.length; sIdx++) {
         final surah = qList[sIdx] as Map<String, dynamic>;
         final tSurah = sIdx < tList.length ? tList[sIdx] as Map<String, dynamic> : null;
-        final ayahs = (surah['verses'] ?? surah['ayahs'] ?? []) as List<dynamic>;
-        final tAyahs = tSurah != null
-            ? ((tSurah['verses'] ?? tSurah['ayahs'] ?? []) as List<dynamic>)
-            : <dynamic>[];
+        final ayahs = (surah['ayahs'] ?? []) as List<dynamic>;
+        final tAyahs = tSurah != null ? ((tSurah['ayahs'] ?? []) as List<dynamic>) : <dynamic>[];
+        final sNum = (surah['number'] as int?) ?? (sIdx + 1);
         for (int aIdx = 0; aIdx < ayahs.length; aIdx++) {
           final a = ayahs[aIdx] as Map<String, dynamic>;
           final tText = aIdx < tAyahs.length
               ? ((tAyahs[aIdx] as Map<String, dynamic>)['text'] ?? '').toString()
               : '';
-          final sNum = (surah['number'] as int?) ?? (sIdx + 1);
-          final rawAyahText = (a['text'] ?? '').toString();
-          final cleanAyahText = stripLeadingBasmala(sNum, aIdx, rawAyahText);
+          final cleanAyahText = stripLeadingBasmala(
+            sNum,
+            aIdx,
+            (a['text'] ?? '').toString(),
+          );
           flatAyahs.add({
             'surah': surah['name'] ?? '',
-            'num': a['id'] ?? a['numberInSurah'] ?? (aIdx + 1),
+            'surahEn': surah['englishName'] ?? '',
+            'num': a['numberInSurah'] ?? (aIdx + 1),
             'text': cleanAyahText,
             'tafsir': tText,
           });
@@ -1241,11 +1243,16 @@ class _MainShellScreenState extends State<MainShellScreen> {
                     Text(
                       '${item['surah']}',
                       style: const TextStyle(
-                        fontSize: 17,
+                        fontSize: 18,
                         fontWeight: FontWeight.bold,
                         color: AppColors.skyBlue,
                       ),
                     ),
+                    if (s.appLang != 'ar')
+                      Text(
+                        '${item['surahEn']}',
+                        style: const TextStyle(fontSize: 12, color: Colors.grey),
+                      ),
                     const SizedBox(height: 14),
                     ConstrainedBox(
                       constraints: const BoxConstraints(maxHeight: 220),
@@ -1253,6 +1260,7 @@ class _MainShellScreenState extends State<MainShellScreen> {
                         child: Text(
                           '${item['text']} ﴿${item['num']}﴾',
                           textAlign: TextAlign.center,
+                          textDirection: TextDirection.rtl,
                           style: TextStyle(
                             fontFamily: qFont,
                             fontSize: 22 * qScale,
@@ -1268,24 +1276,24 @@ class _MainShellScreenState extends State<MainShellScreen> {
                         TextButton.icon(
                           onPressed: () {
                             setDState(() {
-                              idx = (idx + 1) % flatAyahs.length;
-                            });
-                            s.dailyAyahIndex = idx;
-                            s.widget.prefs.setInt('dailyAyahIndex', idx);
-                          },
-                          icon: const Icon(Icons.chevron_left_rounded),
-                          label: Text(s.tr('التالي', 'Next')),
-                        ),
-                        TextButton.icon(
-                          onPressed: () {
-                            setDState(() {
                               idx = (idx - 1 + flatAyahs.length) % flatAyahs.length;
                             });
                             s.dailyAyahIndex = idx;
                             s.widget.prefs.setInt('dailyAyahIndex', idx);
                           },
+                          icon: const Icon(Icons.chevron_left_rounded),
+                          label: Text(s.tr('السابق', 'Prev', 'Önceki')),
+                        ),
+                        TextButton.icon(
+                          onPressed: () {
+                            setDState(() {
+                              idx = (idx + 1) % flatAyahs.length;
+                            });
+                            s.dailyAyahIndex = idx;
+                            s.widget.prefs.setInt('dailyAyahIndex', idx);
+                          },
                           icon: const Icon(Icons.chevron_right_rounded),
-                          label: Text(s.tr('السابق', 'Prev')),
+                          label: Text(s.tr('التالي', 'Next', 'Sonraki')),
                         ),
                       ],
                     ),
@@ -1301,11 +1309,12 @@ class _MainShellScreenState extends State<MainShellScreen> {
                               builder: (infoCtx) => AlertDialog(
                                 shape: RoundedRectangleBorder(
                                     borderRadius: BorderRadius.circular(22)),
-                                title: Text(s.tr('معلومات عن الميزة', 'About Feature')),
+                                title: Text(s.tr('معلومات عن الميزة', 'About Feature', 'Özellik Hakkında')),
                                 content: Text(
                                   s.tr(
                                     'هذه الميزة تساعدك على قراءة آية من القرآن بالتسلسل عند بدء تشغيل التطبيق.\n\nيمكنك إيقاف تفعيل الميزة من الإعدادات في وقت لاحق أو من الزر بالأسفل.\n\nملاحظة: الخط وحجم الخط المستخدمان هنا هما نفس إعدادات صفحة القرآن.',
-                                    'Shows a sequential Quran Ayah on startup using your Quran font settings.',
+                                    'Shows a sequential Quran Ayah on startup using your Quran font settings. You can disable it anytime below or in Settings.',
+                                    'Uygulama açılışında sırayla bir Kur’an ayeti gösterir. İstediğiniz zaman aşağıdan veya Ayarlar’dan kapatabilirsiniz.',
                                   ),
                                 ),
                                 actions: [
@@ -1316,18 +1325,18 @@ class _MainShellScreenState extends State<MainShellScreen> {
                                       Navigator.pop(infoCtx);
                                       Navigator.pop(ctx);
                                     },
-                                    child: Text(s.tr('إيقاف الميزة', 'Disable'),
+                                    child: Text(s.tr('إيقاف الميزة', 'Disable', 'Kapat'),
                                         style: const TextStyle(color: Colors.redAccent)),
                                   ),
                                   FilledButton(
                                     onPressed: () => Navigator.pop(infoCtx),
-                                    child: Text(s.tr('متابعة', 'Continue')),
+                                    child: Text(s.tr('متابعة', 'Continue', 'Devam')),
                                   ),
                                 ],
                               ),
                             );
                           },
-                          child: Text(s.tr('معلومات عن الميزة', 'Info')),
+                          child: Text(s.tr('معلومات عن الميزة', 'Info', 'Bilgi')),
                         ),
                         TextButton(
                           onPressed: () {
@@ -1339,18 +1348,18 @@ class _MainShellScreenState extends State<MainShellScreen> {
                               builder: (tCtx) => AlertDialog(
                                 shape: RoundedRectangleBorder(
                                     borderRadius: BorderRadius.circular(22)),
-                                title: Text(s.tr('التفسير الميسر', 'Tafsir')),
+                                title: Text(s.tr('تفسير الآية', 'Tafsir', 'Tefsir')),
                                 content: SingleChildScrollView(child: Text(tafsir)),
                                 actions: [
                                   FilledButton(
                                     onPressed: () => Navigator.pop(tCtx),
-                                    child: Text(s.tr('إغلاق', 'Close')),
+                                    child: Text(s.tr('إغلاق', 'Close', 'Kapat')),
                                   ),
                                 ],
                               ),
                             );
                           },
-                          child: Text(s.tr('تفسير الآية', 'Tafsir')),
+                          child: Text(s.tr('تفسير الآية', 'Tafsir', 'Tefsir')),
                         ),
                         FilledButton(
                           onPressed: () {
@@ -1358,7 +1367,7 @@ class _MainShellScreenState extends State<MainShellScreen> {
                             s.widget.prefs.setInt('dailyAyahIndex', s.dailyAyahIndex);
                             Navigator.pop(ctx);
                           },
-                          child: Text(s.tr('تم', 'Done')),
+                          child: Text(s.tr('تم', 'Done', 'Tamam')),
                         ),
                       ],
                     ),
@@ -2917,7 +2926,7 @@ class _MainShellScreenState extends State<MainShellScreen> {
                     spacing: 8,
                     children: kQuranFonts.map((f) {
                       return ChoiceChip(
-                        label: Text(f.$2),
+                        label: Text(fontLabelForLang(f.$1, s.appLang)),
                         selected: s.azkarFontFamily == f.$1,
                         onSelected: (_) {
                           s.azkarFontFamily = f.$1;
@@ -3528,7 +3537,7 @@ class _AzkarReaderScreenState extends State<AzkarReaderScreen> {
                   spacing: 8,
                   children: kQuranFonts.map((f) {
                     return ChoiceChip(
-                      label: Text(f.$2),
+                      label: Text(fontLabelForLang(f.$1, s.appLang)),
                       selected: s.azkarFontFamily == f.$1,
                       onSelected: (_) {
                         s.azkarFontFamily = f.$1;
@@ -3592,6 +3601,46 @@ class _AzkarReaderScreenState extends State<AzkarReaderScreen> {
         ),
       ),
     );
+  }
+
+  Future<void> _shareZikrAsImage(String zikrText, String catLabel) async {
+    try {
+      final recorder = ui.PictureRecorder();
+      final canvas = Canvas(recorder);
+      const w = 900.0;
+      const h = 620.0;
+      final bgPaint = Paint()
+        ..shader = ui.Gradient.linear(
+          const Offset(0, 0),
+          const Offset(w, h),
+          const [Color(0xFF0A192F), Color(0xFF0D47A1)],
+        );
+      canvas.drawRRect(
+        RRect.fromRectAndRadius(const Rect.fromLTWH(0, 0, w, h), const Radius.circular(32)),
+        bgPaint,
+      );
+      final tp = TextPainter(
+        text: TextSpan(
+          text: zikrText,
+          style: const TextStyle(color: Colors.white, fontSize: 30, height: 1.6),
+        ),
+        textAlign: TextAlign.center,
+        textDirection: TextDirection.rtl,
+      )..layout(maxWidth: w - 100);
+      tp.paint(canvas, Offset((w - tp.width) / 2, (h - tp.height) / 2));
+
+      final pic = recorder.endRecording();
+      final img = await pic.toImage(w.toInt(), h.toInt());
+      final bytes = await img.toByteData(format: ui.ImageByteFormat.png);
+      if (bytes != null) {
+        final dir = await getTemporaryDirectory();
+        final file = File('${dir.path}/azkari_card.png');
+        await file.writeAsBytes(bytes.buffer.asUint8List());
+        await Share.shareXFiles([XFile(file.path)], text: catLabel);
+      }
+    } catch (_) {
+      Share.share(zikrText);
+    }
   }
 
   void _confirmResetAll(List<ZikrItem> items) {
@@ -4026,10 +4075,8 @@ class _AzkarReaderScreenState extends State<AzkarReaderScreen> {
                         color: cardColor,
                         borderRadius: BorderRadius.circular(24),
                         border: Border.all(
-                          color: done
-                              ? Colors.green.withOpacity(0.55)
-                              : borderColor,
-                          width: done ? 1.4 : 1.0,
+                          color: borderColor,
+                          width: 1.0,
                         ),
                       ),
                       child: Column(
@@ -4058,6 +4105,51 @@ class _AzkarReaderScreenState extends State<AzkarReaderScreen> {
                                       icon: const Icon(Icons.edit_rounded,
                                           size: 20, color: Colors.amber),
                                     ),
+                                  IconButton(
+                                    visualDensity: VisualDensity.compact,
+                                    tooltip: s.tr('مشاركة', 'Share', 'Paylaş'),
+                                    onPressed: () {
+                                      final shareBody = s.isTurkish
+                                          ? item.turkishText
+                                          : (s.isEnglish ? item.englishText : item.text);
+                                      showModalBottomSheet(
+                                        context: context,
+                                        shape: const RoundedRectangleBorder(
+                                          borderRadius: BorderRadius.vertical(
+                                              top: Radius.circular(22)),
+                                        ),
+                                        builder: (shCtx) => SafeArea(
+                                          child: Column(
+                                            mainAxisSize: MainAxisSize.min,
+                                            children: [
+                                              ListTile(
+                                                leading: const Icon(Icons.text_fields_rounded,
+                                                    color: AppColors.skyBlue),
+                                                title: Text(s.tr('مشاركة كنص',
+                                                    'Share as Text', 'Metin Olarak Paylaş')),
+                                                onTap: () {
+                                                  Navigator.pop(shCtx);
+                                                  Share.share('$shareBody\n\n— ${s.tr("تطبيق أذكاري", "Azkari App", "Zikirlerim")}');
+                                                },
+                                              ),
+                                              ListTile(
+                                                leading: const Icon(Icons.image_rounded,
+                                                    color: AppColors.skyBlue),
+                                                title: Text(s.tr('مشاركة كبطاقة',
+                                                    'Share as Image Card', 'Kart Olarak Paylaş')),
+                                                onTap: () {
+                                                  Navigator.pop(shCtx);
+                                                  _shareZikrAsImage(shareBody, catLabel);
+                                                },
+                                              ),
+                                            ],
+                                          ),
+                                        ),
+                                      );
+                                    },
+                                    icon: const Icon(Icons.share_rounded,
+                                        size: 20, color: AppColors.skyBlue),
+                                  ),
                                   IconButton(
                                     visualDensity: VisualDensity.compact,
                                     onPressed: () {
