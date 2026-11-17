@@ -759,7 +759,7 @@ List<ZikrItem> getInitialAzkarList() => [
         category: 'prayer',
         categoryLabel: 'أذكار بعد الصلاة',
         text:
-            '﴿اللَّهُ لَا إِلَٰهَ إِلَّا هُوَ الْحَيُّ الْقَيُّومُ...﴾ (آية الكرسي).',
+            '﴿اللَّهُ لَا إِلَٰهَ إِلَّا هُوَ الْحَيُّ الْقَيُّومُ لَا تَأْخُذُهُ سِنَةٌ وَلَا نَوْمٌ لَهُ مَا فِي السَّمَاوَاتِ وَمَا فِي الْأَرْضِ مَنْ ذَا الَّذِي يَشْفَعُ عِنْدَهُ إِلَّا بِإِذْنِهِ يَعْلَمُ مَا بَيْنَ أَيْدِيهِمْ وَمَا خَلْفَهُمْ وَلَا يُحِيطُونَ بِشَيْءٍ مِنْ عِلْمِهِ إِلَّا بِمَا شَاءَ وَسِعَ كُرْسِيُّهُ السَّمَاوَاتِ وَالْأَرْضَ وَلَا يَئُودُهُ حِفْظُهُمَا وَهُوَ الْعَلِيُّ الْعَظِيمُ﴾',
         source: 'من قرأها دبر كل صلاة مكتوبة لم يمنعه من دخول الجنة إلا أن يموت',
         target: 1,
       ),
@@ -921,7 +921,7 @@ const Map<int, String> kAzkarEnglishById = {
   204: 'Surah Al-Falaq: Say, I seek refuge in the Lord of daybreak, from the evil of that which He created, and from the evil of darkness when it settles, and from the evil of the blowers in knots, and from the evil of an envier when he envies.',
   205: 'Surah An-Nas: Say, I seek refuge in the Lord of mankind, the Sovereign of mankind, the God of mankind, from the evil of the retreating whisperer, who whispers into the breasts of mankind, from among the jinn and mankind.',
   206: 'We have reached the evening and at this very time all sovereignty belongs to Allah, and all praise is for Allah',
-  207: 'Sayyid Al-Istighfar: O Allah, You are my Lord, none has the right to be worshipped except You... forgive me, for none forgives sins except You.',
+  207: 'Sayyid Al-Istighfar: O Allah, You are my Lord, none has the right to be worshipped except You. You created me and I am Your servant, and I abide by Your covenant and promise as best I can. I seek refuge in You from the evil of what I have done. I acknowledge Your favor upon me and I acknowledge my sin, so forgive me, for none forgives sins except You.',
   208: 'Raditu billahi Rabban wa bil-Islami dinan wa bi-Muhammadin (peace be upon him) nabiyya.',
   209: 'O Allah, verily I have reached the evening and call on You, the bearers of Your throne, Your angels, and all creation to witness that You are Allah',
   210: 'O Allah, whatever blessing I or any of Your creation have entered the evening upon is from You alone, without partner',
@@ -958,11 +958,11 @@ const Map<int, String> kAzkarEnglishById = {
   // Wakeup (401-403)
   401: 'Alhamdulillahil-ladhi ahyana ba’da ma amatana wa ilayhin-nushur. (All praise is for Allah who gave us life after causing us to die, and unto Him is the resurrection.)',
   402: 'All praise is for Allah who gave strength to my body, returned my soul to me, and permitted me to remember Him.',
-  403: 'La ilaha illAllahu wahdahu la sharika lah... SubhanAllah, Alhamdulillah, La ilaha illAllah, Allahu Akbar, Rabbi-ghfir li.',
+  403: 'La ilaha illAllahu wahdahu la sharika lah, lahul-mulku wa lahul-hamdu wa Huwa ala kulli shay-in Qadir. SubhanAllah, Alhamdulillah, La ilaha illAllah, Allahu Akbar, wa la hawla wa la quwwata illa billah. Rabbi-ghfir li.',
 
   // After Prayer (501-505)
   501: 'Astaghfirullah (3x). Allahumma Antas-Salam wa minkas-salam, tabarakta ya Dhal-Jalali wal-Ikram.',
-  502: 'La ilaha illAllahu wahdahu la sharika lah... O Allah, none can withhold what You give, and none can give what You withhold.',
+  502: 'La ilaha illAllahu wahdahu la sharika lah, lahul-mulku wa lahul-hamdu wa Huwa ala kulli shay-in Qadir. Allahumma la mani-a lima a-tayta wa la mu-tiya lima mana-ta wa la yanfa-u dhal-jaddi minkal-jadd.',
   503: 'SubhanAllah (33) • Alhamdulillah (33) • Allahu Akbar (33).',
   504: 'Recite Ayat Al-Kursi after every obligatory prayer.',
   505: 'Allahumma a’inni ala dhikrika, wa shukrika, wa husni ibadatik. (O Allah, help me to remember You, thank You, and worship You in the best manner.)',
@@ -1023,7 +1023,7 @@ const Map<int, String> kAzkarTurkishById = {
   204: 'Felak Suresi: De ki: Yarattığı şeylerin şerrinden, karanlığı çöktüğü zaman gecenin şerrinden, düğümlere üfleyenlerin şerrinden ve haset ettiği zaman hasetçinin şerrinden sabahın Rabbine sığınırım.',
   205: 'Nas Suresi: De ki: İnsanların Rabbine, insanların Melikine, insanların İlahına; sinsi vesvesecinin şerrinden —ki o insanların göğüslerine vesvese verir— gerek cinlerden gerek insanlardan olsun, Allah’a sığınırım.',
   206: 'Akşama eriştik, mülk de Allah’ın olarak akşamladı. Hamd Allah’a mahsustur',
-  207: 'Seyyidül İstiğfar: Allah’ım! Sen benim Rabbimsin, Senden başka ilah yoktur... Beni bağışla.',
+  207: 'Seyyidül İstiğfar: Allah’ım! Sen benim Rabbimsin, Senden başka ilah yoktur. Beni Sen yarattın ve ben Senin kulunum. Gücüm yettiğince Senin ahdin ve vaadin üzereyim. Yaptıklarımın şerrinden Sana sığınırım. Üzerimdeki nimetlerini itiraf ediyorum, günahlarımı da itiraf ediyorum; beni bağışla, çünkü günahları ancak Sen bağışlarsın.',
   208: 'Rab olarak Allah’tan, din olarak İslam’dan, peygamber olarak Hz. Muhammed’den razı oldum.',
   209: 'Allah’ım! Akşama erdim; Seni, Arş’ını taşıyanları ve meleklerini şahit tutarım ki Sen Allah’sın',
   210: 'Allah’ım! Benimle veya yarattıklarından biriyle akşamlayan her nimet yalnız Sendendir',
@@ -1060,11 +1060,11 @@ const Map<int, String> kAzkarTurkishById = {
   // Uyanış Zikirleri (401-403)
   401: 'Bizi öldürdükten sonra dirilten Allah’a hamdolsun. Dönüş de O’nadır.',
   402: 'Bedenime afiyet veren, ruhumu bana geri döndüren ve kendisini zikretmeme izin veren Allah’a hamdolsun.',
-  403: 'Allah’tan başka ilah yoktur... Subhanallah, Elhamdülillah, La ilahe illallah, Allahu Ekber, Rabbim beni bağışla.',
+  403: 'Allah’tan başka ilah yoktur, O tektir, ortağı yoktur. Mülk O’nundur, hamd O’nadır ve O her şeye kadirdir. Subhanallah, Elhamdülillah, La ilahe illallah, Allahu Ekber, La havle ve la kuvvete illa billah. Rabbim beni bağışla.',
 
   // Namaz Sonrası (501-505)
   501: 'Estağfirullah (3 kez). Allah’ım! Selam Sensin, selamet Sendendir. Ey celal ve ikram sahibi, Sen yücesin.',
-  502: 'Allah’tan başka ilah yoktur... Allah’ım! Senin verdiğine engel olacak, vermediğini de verecek kimse yoktur.',
+  502: 'Allah’tan başka ilah yoktur, O tektir, ortağı yoktur. Mülk O’nundur, hamd O’nadır ve O her şeye kadirdir. Allah’ım! Senin verdiğine engel olacak, vermediğini de verecek kimse yoktur. Zenginlik ve makam sahibine, Senin katında serveti fayda vermez.',
   503: 'Subhanallah (33) • Elhamdülillah (33) • Allahu Ekber (33).',
   504: 'Her farz namazın ardından Ayetel Kürsi okumak.',
   505: 'Allah’ım! Seni zikretmek, Sana şükretmek ve Sana güzelce kulluk etmek için bana yardım et.',
