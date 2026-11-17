@@ -2163,16 +2163,7 @@ class _MainShellScreenState extends State<MainShellScreen> {
                 () => _openExplore(tab: 0),
               ),
             ),
-            const SizedBox(width: 10),
-            Expanded(
-              child: _quickCard(
-                cardColor,
-                borderColor,
-                _assetIcon('assets/images/icon_qibla.png', Icons.explore_rounded),
-                s.tr('القبلة والأدوات', 'Qibla & Tools'),
-                _openTools,
-              ),
-            ),
+
           ],
         ),
         const SizedBox(height: 14),
@@ -2593,7 +2584,6 @@ class _MainShellScreenState extends State<MainShellScreen> {
   }
 
   Widget _quickCard(
-    BuildContext context,
     Color cardColor,
     Color borderColor,
     Widget iconWidget,
