@@ -2521,6 +2521,524 @@ class _MainShellScreenState extends State<MainShellScreen> {
       ),
     );
   }
+
+  void _showAddCustomZikrDialog() {
+    final s = widget.appState;
+    final titleCtrl = TextEditingController();
+    final textCtrl = TextEditingController();
+    final targetCtrl = TextEditingController(text: '1');
+    showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(22)),
+        title: Text(s.tr('إضافة ذكر مخصص', 'Add Custom Zikr', 'Özel Zikir Ekle')),
+        content: SingleChildScrollView(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              TextField(
+                controller: titleCtrl,
+                decoration: InputDecoration(
+                  labelText: s.tr('العنوان', 'Title', 'Başlık'),
+                  border: OutlineInputBorder(borderRadius: BorderRadius.circular(14)),
+                ),
+              ),
+              const SizedBox(height: 10),
+              TextField(
+                controller: textCtrl,
+                maxLines: 3,
+                decoration: InputDecoration(
+                  labelText: s.tr('نص الذكر', 'Zikr Text', 'Zikir Metni'),
+                  border: OutlineInputBorder(borderRadius: BorderRadius.circular(14)),
+                ),
+              ),
+              const SizedBox(height: 10),
+              TextField(
+                controller: targetCtrl,
+                keyboardType: TextInputType.number,
+                decoration: InputDecoration(
+                  labelText: s.tr('عدد التكرار', 'Repeat Count', 'Tekrar Sayısı'),
+                  border: OutlineInputBorder(borderRadius: BorderRadius.circular(14)),
+                ),
+              ),
+            ],
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx),
+            child: Text(s.tr('إلغاء', 'Cancel', 'İptal')),
+          ),
+          FilledButton(
+            onPressed: () {
+              final txt = textCtrl.text.trim();
+              if (txt.isEmpty) return;
+              s.customAzkar.add({
+                'title': titleCtrl.text.trim().isEmpty
+                    ? s.tr('ذكر مخصص', 'Custom Zikr', 'Özel Zikir')
+                    : titleCtrl.text.trim(),
+                'before': '',
+                'text': txt,
+                'note': '',
+                'target': (int.tryParse(targetCtrl.text.trim()) ?? 1).clamp(1, 999),
+              });
+              s.saveAllState(resyncTimers: false);
+              Navigator.pop(ctx);
+            },
+            child: Text(s.tr('إضافة', 'Add', 'Ekle')),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _quickCard(
+    BuildContext context,
+    Color cardColor,
+    Color borderColor,
+    Widget iconWidget,
+    String label,
+    VoidCallback onTap,
+  ) {
+    return InkWell(
+      borderRadius: BorderRadius.circular(20),
+      onTap: onTap,
+      child: Container(
+        padding: const EdgeInsets.symmetric(vertical: 14, horizontal: 10),
+        decoration: BoxDecoration(
+          color: cardColor,
+          borderRadius: BorderRadius.circular(20),
+          border: Border.all(color: borderColor),
+        ),
+        child: Column(
+          children: [
+            iconWidget,
+            const SizedBox(height: 8),
+            Text(
+              label,
+              textAlign: TextAlign.center,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: const TextStyle(fontSize: 12.5, fontWeight: FontWeight.bold),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildTasbihTab(BuildContext context, Color cardColor,
+      Color borderColor, Color primary, Color textSecondary) {
+    final s = widget.appState;
+    final cycleVal = s.tasbihCount % 33;
+    final cycleProgress = (s.tasbihCount > 0 && cycleVal == 0) ? 1.0 : cycleVal / 33.0;
+    final allPhrases = [
+      ...kRandomShortAzkar,
+      ...s.customTasbihPhrases.where((c) => !kRandomShortAzkar.contains(c)),
+    ];
+    final currentVal = allPhrases.contains(s.tasbihPhrase) ? s.tasbihPhrase : allPhrases.first;
+
+    return SingleChildScrollView(
+      padding: const EdgeInsets.fromLTRB(16, 16, 16, 100),
+      child: Column(
+        children: [
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Row(
+                children: [
+                  _assetIcon('assets/images/icon_tasbih.png', Icons.scatter_plot_rounded, size: 28),
+                  const SizedBox(width: 8),
+                  Text(s.tr('السبحة الإلكترونية', 'Tasbih', 'Tesbih'),
+                      style: const TextStyle(fontSize: 22, fontWeight: FontWeight.bold)),
+                ],
+              ),
+              TextButton.icon(
+                onPressed: () {
+                  s.tasbihCount = 0;
+                  s.saveAllState(resyncTimers: false);
+                },
+                icon: const Icon(Icons.refresh_rounded),
+                label: Text(s.tr('تصفير', 'Reset', 'Sıfırla')),
+              ),
+            ],
+          ),
+          const SizedBox(height: 12),
+          Row(
+            children: [
+              Expanded(
+                child: DropdownButtonFormField<String>(
+                  value: currentVal,
+                  isExpanded: true,
+                  decoration: InputDecoration(
+                    filled: true,
+                    fillColor: cardColor,
+                    border: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(16),
+                      borderSide: BorderSide(color: borderColor),
+                    ),
+                  ),
+                  items: allPhrases
+                      .map((p) => DropdownMenuItem(
+                          value: p,
+                          child: Text(
+                            s.appLang != 'ar'
+                                ? translateShortZikr(p, s.appLang)
+                                : (s.minimalTashkeel ? lightTashkeel(p) : p),
+                            overflow: TextOverflow.ellipsis,
+                          )))
+                      .toList(),
+                  onChanged: (v) {
+                    if (v != null) s.switchTasbihPhrase(v);
+                  },
+                ),
+              ),
+              const SizedBox(width: 8),
+              FilledButton.tonalIcon(
+                onPressed: () {
+                  final ctrl = TextEditingController();
+                  showDialog(
+                    context: context,
+                    builder: (ctx) => AlertDialog(
+                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(22)),
+                      title: Text(s.tr('إضافة ذكر للسبحة', 'Add Tasbih Zikr', 'Tesbihe Zikir Ekle')),
+                      content: TextField(
+                        controller: ctrl,
+                        maxLines: 2,
+                        decoration: InputDecoration(
+                          hintText: s.tr('اكتب الذكر هنا...', 'Enter Zikr...', 'Zikri yazın...'),
+                          border: OutlineInputBorder(borderRadius: BorderRadius.circular(14)),
+                        ),
+                      ),
+                      actions: [
+                        TextButton(
+                          onPressed: () => Navigator.pop(ctx),
+                          child: Text(s.tr('إلغاء', 'Cancel', 'İptal')),
+                        ),
+                        FilledButton(
+                          onPressed: () {
+                            final txt = ctrl.text.trim();
+                            if (txt.isNotEmpty) {
+                              if (!s.customTasbihPhrases.contains(txt)) {
+                                s.customTasbihPhrases.add(txt);
+                              }
+                              s.switchTasbihPhrase(txt);
+                              s.saveAllState(resyncTimers: false);
+                            }
+                            Navigator.pop(ctx);
+                          },
+                          child: Text(s.tr('إضافة', 'Add', 'Ekle')),
+                        ),
+                      ],
+                    ),
+                  );
+                },
+                icon: const Icon(Icons.add_rounded),
+                label: Text(s.tr('إضافة', 'Add', 'Ekle')),
+              ),
+            ],
+          ),
+          const SizedBox(height: 16),
+          Container(
+            width: double.infinity,
+            padding: const EdgeInsets.symmetric(vertical: 20, horizontal: 16),
+            decoration: BoxDecoration(
+              color: cardColor,
+              borderRadius: BorderRadius.circular(24),
+              border: Border.all(color: borderColor),
+            ),
+            child: Column(
+              children: [
+                Text(
+                  s.appLang != 'ar'
+                      ? translateShortZikr(s.tasbihPhrase, s.appLang)
+                      : (s.minimalTashkeel ? lightTashkeel(s.tasbihPhrase) : s.tasbihPhrase),
+                  textAlign: TextAlign.center,
+                  style: TextStyle(
+                    fontFamily: s.appLang != 'ar' ? null : s.azkarFontFamily,
+                    fontSize: 19,
+                    fontWeight: FontWeight.bold,
+                    color: primary,
+                  ),
+                ),
+                const SizedBox(height: 8),
+                Text(
+                  s.tr(
+                    'الدورة: $cycleVal / 33  •  الإجمالي: ${s.tasbihLifetime}',
+                    'Cycle: $cycleVal / 33  •  Total: ${s.tasbihLifetime}',
+                    'Tur: $cycleVal / 33  •  Toplam: ${s.tasbihLifetime}',
+                  ),
+                  style: TextStyle(fontSize: 13, color: textSecondary),
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(height: 22),
+          RoundedSquareCounterButton(
+            progress: cycleProgress,
+            title: '${s.tasbihCount}',
+            subtitle: s.tr('سبّح', 'Tap', 'Dokun'),
+            gradientColors: s.sabhaColors,
+            borderGlowColor: AppColors.skyBlue,
+            size: 190,
+            onTap: () {
+              s.tasbihCount += 1;
+              s.tasbihLifetime += 1;
+              s.playTapFeedback(stronger: s.tasbihCount % 33 == 0);
+              s.saveLightState();
+              setState(() {});
+            },
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildFavoritesTab(BuildContext context, Color cardColor,
+      Color borderColor, Color primary, Color textSecondary) {
+    final s = widget.appState;
+    final favs = s.azkarList.where((z) => z.favorite).toList();
+    if (favs.isEmpty) {
+      return Center(
+        child: Padding(
+          padding: const EdgeInsets.all(24),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              const Icon(Icons.star_rounded, size: 48, color: AppColors.skyBlue),
+              const SizedBox(height: 12),
+              Text(s.tr('لا توجد أذكار مفضلة بعد', 'No favorites yet', 'Henüz favori yok')),
+            ],
+          ),
+        ),
+      );
+    }
+    return ListView.builder(
+      padding: const EdgeInsets.all(16),
+      itemCount: favs.length,
+      itemBuilder: (ctx, i) {
+        final item = favs[i];
+        return Container(
+          margin: const EdgeInsets.only(bottom: 12),
+          padding: const EdgeInsets.all(16),
+          decoration: BoxDecoration(
+            color: cardColor,
+            borderRadius: BorderRadius.circular(20),
+            border: Border.all(color: borderColor),
+          ),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  Text(item.categoryForLang(s.appLang),
+                      style: TextStyle(color: primary, fontWeight: FontWeight.bold, fontSize: 12.5)),
+                  IconButton(
+                    visualDensity: VisualDensity.compact,
+                    onPressed: () {
+                      item.favorite = false;
+                      s.saveLightState();
+                      setState(() {});
+                    },
+                    icon: const Icon(Icons.star_rounded, color: AppColors.skyBlue),
+                  ),
+                ],
+              ),
+              Text(
+                s.isTurkish
+                    ? item.turkishText
+                    : (s.isEnglish ? item.englishText : item.text),
+                style: TextStyle(
+                  fontFamily: s.appLang == 'ar' ? s.azkarFontFamily : null,
+                  fontSize: 17 * s.fontScale,
+                  height: 1.8,
+                ),
+              ),
+            ],
+          ),
+        );
+      },
+    );
+  }
+
+  Widget _buildSettingsTab(BuildContext context, Color cardColor,
+      Color borderColor, Color primary, Color textSecondary) {
+    final s = widget.appState;
+    return ListView(
+      padding: const EdgeInsets.fromLTRB(16, 16, 16, 100),
+      children: [
+        Text(s.tr('الإعدادات', 'Settings', 'Ayarlar'),
+            style: const TextStyle(fontSize: 22, fontWeight: FontWeight.bold)),
+        const SizedBox(height: 16),
+        Container(
+          decoration: BoxDecoration(
+            color: cardColor,
+            borderRadius: BorderRadius.circular(20),
+            border: Border.all(color: borderColor),
+          ),
+          child: Column(
+            children: [
+              SwitchListTile(
+                title: Text(s.tr('صوت النقرات والتسبيح اللطيف', 'Tap & Tasbih Sounds', 'Dokunma ve Tesbih Sesleri')),
+                value: s.buttonSoundEnabled,
+                onChanged: (v) {
+                  s.buttonSoundEnabled = v;
+                  s.saveAllState(resyncTimers: false);
+                },
+              ),
+              SwitchListTile(
+                title: Text(s.tr('الاهتزاز', 'Haptic Feedback', 'Titreşim')),
+                value: s.hapticEnabled,
+                onChanged: (v) {
+                  s.hapticEnabled = v;
+                  s.saveAllState(resyncTimers: false);
+                },
+              ),
+              SwitchListTile(
+                title: Text(s.tr('آية اليوم عند فتح التطبيق', 'Daily Ayah on Startup', 'Açılışta Günün Ayeti')),
+                value: s.dailyAyahEnabled,
+                onChanged: (v) {
+                  s.dailyAyahEnabled = v;
+                  s.saveAllState(resyncTimers: false);
+                },
+              ),
+              SwitchListTile(
+                title: Text(s.tr('الذكر العائم فوق التطبيقات', 'Floating Zikr Overlay', 'Uygulamalar Üzerinde Zikir')),
+                value: s.floatingEnabled,
+                onChanged: (v) {
+                  s.floatingEnabled = v;
+                  s.saveAllState();
+                },
+              ),
+              const Divider(height: 1),
+              if (s.appLang == 'ar') ...[
+                SwitchListTile(
+                  title: Text(s.tr('تشكيل مبسط ومريح في الأذكار', 'Light Tashkeel in Azkar')),
+                  value: s.minimalTashkeel,
+                  onChanged: (v) {
+                    s.minimalTashkeel = v;
+                    s.saveAllState(resyncTimers: false);
+                  },
+                ),
+                ListTile(
+                  title: Text(s.tr('نوع خط الأذكار', 'Azkar Font Family')),
+                  subtitle: Wrap(
+                    spacing: 8,
+                    children: kQuranFonts.map((f) {
+                      return ChoiceChip(
+                        label: Text(f.$2),
+                        selected: s.azkarFontFamily == f.$1,
+                        onSelected: (_) {
+                          s.azkarFontFamily = f.$1;
+                          s.saveAllState(resyncTimers: false);
+                        },
+                      );
+                    }).toList(),
+                  ),
+                ),
+              ],
+              ListTile(
+                title: Text(s.tr('حجم خط الأذكار', 'Azkar Font Size', 'Zikir Yazı Boyutu')),
+                subtitle: Slider(
+                  value: s.fontScale,
+                  min: 0.85,
+                  max: 1.50,
+                  divisions: 6,
+                  label: '${(s.fontScale * 100).round()}%',
+                  onChanged: (v) {
+                    s.fontScale = v;
+                    s.saveAllState(resyncTimers: false);
+                  },
+                ),
+              ),
+            ],
+          ),
+        ),
+        const SizedBox(height: 18),
+        Container(
+          decoration: BoxDecoration(
+            color: cardColor,
+            borderRadius: BorderRadius.circular(20),
+            border: Border.all(color: borderColor),
+          ),
+          child: Column(
+            children: [
+              ListTile(
+                leading: Icon(Icons.info_outline_rounded, color: primary),
+                title: Text(s.tr('إصدار التطبيق', 'App Version', 'Uygulama Sürümü')),
+                trailing: const Text('2.2.0',
+                    style: TextStyle(fontWeight: FontWeight.bold, color: Colors.grey)),
+              ),
+              const Divider(height: 1),
+              ListTile(
+                leading: Icon(Icons.support_agent_rounded, color: primary),
+                title: Text(s.tr('تواصل معنا', 'Contact Us', 'Bize Ulaşın')),
+                subtitle: const Text('support@azkari.app'),
+                onTap: () => launchUrl(
+                  Uri.parse('mailto:support@azkari.app'),
+                  mode: LaunchMode.externalApplication,
+                ),
+              ),
+              const Divider(height: 1),
+              ListTile(
+                leading: Icon(Icons.privacy_tip_outlined, color: primary),
+                title: Text(s.tr('سياسة الخصوصية وحذف البيانات', 'Privacy Policy', 'Gizlilik Politikası')),
+                trailing: const Icon(Icons.open_in_new_rounded, size: 18),
+                onTap: () => launchUrl(
+                  Uri.parse(
+                      'https://docs.google.com/document/d/1CRS1CVXWhUAgwBNWYXHooPk2JyUAiS6CSepioB6oZgA/edit?usp=drivesdk'),
+                  mode: LaunchMode.externalApplication,
+                ),
+              ),
+            ],
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+class AchievementsScreen extends StatelessWidget {
+  final _AzkariAppState appState;
+  const AchievementsScreen({super.key, required this.appState});
+
+  @override
+  Widget build(BuildContext context) {
+    final s = appState;
+    return Scaffold(
+      appBar: AppBar(title: Text(s.tr('الإنجازات والمهام', 'Achievements & Tasks', 'Başarılar'))),
+      body: ListView(
+        padding: const EdgeInsets.all(16),
+        children: [
+          Card(
+            child: ListTile(
+              leading: const Icon(Icons.local_fire_department_rounded, color: Colors.amber, size: 32),
+              title: Text(s.tr('المواظبة الحالية: ${s.currentStreak} يوم', 'Current Streak: ${s.currentStreak} days')),
+              subtitle: Text(s.tr('أفضل مواظبة: ${s.bestStreak} يوم • إجمالي الأذكار: ${s.totalAzkarCompleted}',
+                  'Best: ${s.bestStreak} days • Total Azkar: ${s.totalAzkarCompleted}')),
+            ),
+          ),
+          const SizedBox(height: 12),
+          CheckboxListTile(
+            title: Text(s.tr('أذكار الصباح', 'Morning Azkar', 'Sabah Zikirleri')),
+            value: s.taskMorningDone,
+            onChanged: null,
+          ),
+          CheckboxListTile(
+            title: Text(s.tr('أذكار المساء', 'Evening Azkar', 'Akşam Zikirleri')),
+            value: s.taskEveningDone,
+            onChanged: null,
+          ),
+          CheckboxListTile(
+            title: Text(s.tr('أذكار النوم', 'Sleep Azkar', 'Uyku Zikirleri')),
+            value: s.taskSleepDone,
+            onChanged: null,
+          ),
+        ],
+      ),
+    );
+  }
 }
 
 class OnboardingScreen extends StatefulWidget {
