@@ -71,6 +71,19 @@ jobs:
               open(grv, "w", encoding="utf-8").write(g)
           '
 
+      - name: Use pre-installed NDK to avoid slow/corrupt downloads
+        run: |
+          SDK_DIR="${ANDROID_HOME:-${ANDROID_SDK_ROOT:-/usr/local/lib/android/sdk}}"
+          PRE_NDK=$(ls -1 "$SDK_DIR/ndk" 2>/dev/null | sort -V | tail -n 1)
+          if [ -n "$PRE_NDK" ]; then
+            echo "Using pre-installed NDK: $PRE_NDK"
+            if [ -f "android/app/build.gradle.kts" ]; then
+              sed -i "s/ndkVersion = .*/ndkVersion = \"$PRE_NDK\"/" android/app/build.gradle.kts
+            elif [ -f "android/app/build.gradle" ]; then
+              sed -i "s/ndkVersion .*/ndkVersion \"$PRE_NDK\"/" android/app/build.gradle
+            fi
+          fi
+
       - name: Configure Facebook SDK & Internet Permission
         env:
           FB_APP_ID: ${{ secrets.FB_APP_ID }}
