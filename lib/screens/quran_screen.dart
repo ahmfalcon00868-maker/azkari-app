@@ -23,11 +23,19 @@ class QuranReciter {
 }
 
 const List<QuranReciter> kReciters = [
-  QuranReciter('ar.alafasy', 'مشاري راشد العفاسي', 'Mishary Alafasy', 'Alafasy_128kbps', 7),
-  QuranReciter('ar.husary', 'محمود خليل الحصري', 'Mahmoud Al-Husary', 'Husary_128kbps', 6),
+  QuranReciter('ar.ahmedajamy', 'أحمد العجمي', 'Ahmed Al-Ajamy', 'Ahmed_ibn_Ali_al-Ajamy_128kbps_ketaballah.net', 0),
+  QuranReciter('ar.saadalghamdi', 'سعد الغامدي', 'Saad Al-Ghamdi', 'Ghamadi_40kbps', 0),
   QuranReciter('ar.abdulbasitmurattal', 'عبد الباسط عبد الصمد', 'Abdul Basit', 'Abdul_Basit_Murattal_192kbps', 2),
-  QuranReciter('ar.minshawi', 'محمد صديق المنشاوي', 'Al-Minshawi', 'Minshawy_Murattal_128kbps', 9),
+  QuranReciter('ar.abdurrahmaansudais', 'عبد الرحمن السديس', 'Abdurrahman As-Sudais', 'Abdurrahmaan_As-Sudais_192kbps', 3),
+  QuranReciter('ar.hudhaify', 'علي الحذيفي', 'Ali Al-Hudhaify', 'Hudhaify_128kbps', 0),
+  QuranReciter('ar.alijaber', 'علي جابر', 'Ali Jaber', 'Ali_Jaber_64kbps', 0),
   QuranReciter('ar.mahermuaiqly', 'ماهر المعيقلي', 'Maher Al-Muaiqly', 'MaherAlMuaiqly128kbps', 10),
+  QuranReciter('ar.minshawi', 'محمد صديق المنشاوي', 'Muhammad Al-Minshawi', 'Minshawy_Murattal_128kbps', 9),
+  QuranReciter('ar.husary', 'محمود خليل الحصري', 'Mahmoud Al-Husary', 'Husary_128kbps', 6),
+  QuranReciter('ar.mahmoudbanna', 'محمود علي البنا', 'Mahmoud Ali Al-Banna', 'mahmoud_ali_al_banna_32kbps', 0),
+  QuranReciter('ar.alafasy', 'مشاري راشد العفاسي', 'Mishary Alafasy', 'Alafasy_128kbps', 7),
+  QuranReciter('ar.nasseralqatami', 'ناصر القطامي', 'Nasser Al-Qatami', 'Nasser_Alqatami_128kbps', 0),
+  QuranReciter('ar.yasseraldossari', 'ياسر الدوسري', 'Yasser Al-Dosari', 'Yasser_Ad-Dussary_128kbps', 0),
 ];
 
 
@@ -197,6 +205,7 @@ class QuranAudioManager {
   String? currentReciterId;
   String currentSurahName = '';
   String currentReciterName = '';
+  Uri? cachedArtUri;
   int? playingAyahIndex;
   int playStartAyahIndex = 0;
   double ayahProgress = 0.0;
@@ -250,7 +259,7 @@ class _QuranHomeScreenState extends State<QuranHomeScreen> {
 
   Future<void> _downloadAllSurahsForReciter() async {
     if (_downloadingAll) return;
-    final reciterId = widget.prefs.getString('quranReciterId') ?? 'ar.alafasy';
+    final reciterId = widget.prefs.getString('quranReciterId') ?? 'ar.hudhaify';
     setState(() {
       _downloadingAll = true;
       _downloadDoneCount = 0;
@@ -647,8 +656,9 @@ class _SurahReaderScreenState extends State<SurahReaderScreen> {
     _fontScale = widget.initialFontScale;
     _fontFamily = widget.prefs.getString('quranFontFamily') ?? 'AmiriQuran';
     _tajweedColors = widget.prefs.getBool('quranTajweedColors') ?? true;
-    _reciterId = widget.prefs.getString('quranReciterId') ?? 'ar.alafasy';
+    _reciterId = widget.prefs.getString('quranReciterId') ?? 'ar.hudhaify';
     _isPlaying = _player.playing;
+    _ensureMediaArtUri();
     _checkAudioCache();
     if (widget.jumpToAyah != null) {
       WidgetsBinding.instance.addPostFrameCallback((_) {
@@ -666,6 +676,8 @@ class _SurahReaderScreenState extends State<SurahReaderScreen> {
           _ayahProgress = 0.0;
           QuranAudioManager.instance.currentPositionMs = 0;
         });
+        final numInSurah = (_ayahs[targetIdx]['numberInSurah'] as int?) ?? (targetIdx + 1);
+        _scrollToAyahNumber(numInSurah, flash: false);
       }
     });
 
@@ -730,10 +742,10 @@ class _SurahReaderScreenState extends State<SurahReaderScreen> {
     });
   }
 
-  void _scrollToAyahNumber(int ayahNum) {
+  void _scrollToAyahNumber(int ayahNum, {bool flash = true}) {
     final idx = _ayahs.indexWhere((a) => a['numberInSurah'] == ayahNum);
     if (idx < 0) return;
-    _triggerAyahFlash(ayahNum);
+    if (flash) _triggerAyahFlash(ayahNum);
 
     final key = _ayahKeys[ayahNum];
     if (key?.currentContext != null) {
@@ -803,16 +815,31 @@ class _SurahReaderScreenState extends State<SurahReaderScreen> {
   String get _surahAudioUrl =>
       'https://cdn.islamic.network/quran/audio-surah/128/$_reciterId/$_surahNumber.mp3';
 
-  MediaItem _surahMediaItem() {
+  Future<void> _ensureMediaArtUri() async {
+    if (QuranAudioManager.instance.cachedArtUri != null) return;
+    try {
+      final dir = await getTemporaryDirectory();
+      final f = File('${dir.path}/azkari_media_art.png');
+      if (!await f.exists()) {
+        final data = await rootBundle.load('assets/images/app_icon.png');
+        await f.writeAsBytes(data.buffer.asUint8List());
+      }
+      QuranAudioManager.instance.cachedArtUri = Uri.file(f.path);
+    } catch (_) {}
+  }
+
+  MediaItem _surahMediaItem({int? ayahNum}) {
     final surahName = (_currentSurah['name'] ?? '').toString();
     final reciterName = kReciters
         .firstWhere((r) => r.id == _reciterId, orElse: () => kReciters.first)
         .nameAr;
+    final titleStr = ayahNum != null ? '$surahName • الآية $ayahNum' : surahName;
     return MediaItem(
-      id: 'surah_${_reciterId}_$_surahNumber',
-      album: 'القرآن الكريم • أذكاري',
-      title: surahName,
+      id: 'surah_${_reciterId}_${_surahNumber}_${ayahNum ?? 0}',
+      album: 'أذكاري • القرآن الكريم',
+      title: titleStr,
       artist: reciterName,
+      artUri: QuranAudioManager.instance.cachedArtUri,
     );
   }
 
@@ -841,6 +868,7 @@ class _SurahReaderScreenState extends State<SurahReaderScreen> {
 
   Future<void> _fetchWordTimingsIfNeeded() async {
     final recId = _currentReciter.quranComId;
+    if (recId <= 0) return;
     final keyPrefix = '$_surahNumber:1';
     if (QuranAudioManager.instance.wordSegments.containsKey('${recId}_$keyPrefix')) {
       return;
@@ -893,7 +921,7 @@ class _SurahReaderScreenState extends State<SurahReaderScreen> {
       final numInSurah = (_ayahs[ayahIndex]['numberInSurah'] as int?) ?? (ayahIndex + 1);
       final url = _ayahAudioUrl(numInSurah);
       await _player.setAudioSource(
-          AudioSource.uri(Uri.parse(url), tag: _surahMediaItem()));
+          AudioSource.uri(Uri.parse(url), tag: _surahMediaItem(ayahNum: numInSurah)));
       await _player.play();
     } catch (_) {}
   }
@@ -919,7 +947,7 @@ class _SurahReaderScreenState extends State<SurahReaderScreen> {
         final numInSurah = a['numberInSurah'] as int;
         return AudioSource.uri(
           Uri.parse(_ayahAudioUrl(numInSurah)),
-          tag: _surahMediaItem(),
+          tag: _surahMediaItem(ayahNum: numInSurah),
         );
       }).toList();
       await _player.setAudioSource(ConcatenatingAudioSource(children: sources));
@@ -1145,12 +1173,43 @@ class _SurahReaderScreenState extends State<SurahReaderScreen> {
                             child: Text(widget.isEnglish ? r.nameEn : r.nameAr),
                           ))
                       .toList(),
-                  onChanged: (v) {
-                    if (v != null) {
+                  onChanged: (v) async {
+                    if (v == null || v == _reciterId) return;
+                    if (_isPlaying) {
+                      final newName = kReciters
+                          .firstWhere((r) => r.id == v, orElse: () => kReciters.first)
+                          .nameAr;
+                      final confirm = await showDialog<bool>(
+                        context: ctx,
+                        builder: (dCtx) => AlertDialog(
+                          title: Text(tr('تغيير القارئ', 'Change Reciter')),
+                          content: Text(tr(
+                            'التلاوة تعمل حالياً. هل تريد التبديل إلى $newName؟',
+                            'Audio is playing. Switch to $newName?',
+                          )),
+                          actions: [
+                            TextButton(
+                              onPressed: () => Navigator.pop(dCtx, false),
+                              child: Text(tr('إلغاء', 'Cancel')),
+                            ),
+                            FilledButton(
+                              onPressed: () => Navigator.pop(dCtx, true),
+                              child: Text(tr('تبديل', 'Switch')),
+                            ),
+                          ],
+                        ),
+                      );
+                      if (confirm != true) return;
                       widget.prefs.setString('quranReciterId', v);
                       setState(() => _reciterId = v);
                       setSheetState(() {});
-                      _checkAudioCache();
+                      await _checkAudioCache();
+                      await _playFromAyah(_playingAyahIndex ?? 0);
+                    } else {
+                      widget.prefs.setString('quranReciterId', v);
+                      setState(() => _reciterId = v);
+                      setSheetState(() {});
+                      await _checkAudioCache();
                     }
                   },
                 ),
@@ -1434,7 +1493,8 @@ class _SurahReaderScreenState extends State<SurahReaderScreen> {
     for (int i = 0; i < words.length; i++) {
       bool isSpoken;
       if (segs != null && i < segs.length) {
-        isSpoken = posMs >= segs[i][1];
+        final match = segs.firstWhere((e) => e[0] == i + 1, orElse: () => segs[i]);
+        isSpoken = posMs >= match[1];
       } else {
         final startRatio = acc / totalW;
         acc += weights[i];
