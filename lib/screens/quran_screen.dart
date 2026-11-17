@@ -72,7 +72,7 @@ String transliterateQuranWord(String rawWord, {bool turkish = false}) {
     'المستقيم': 'al-mustaqim',
     'صراط': 'sirata',
     'الذين': 'alladhina',
-    'انعمت': turkish ? 'en’amte' : 'an’amta',
+    'انعمت': 'an’amta',
     'عليهم': 'alayhim',
     'غير': 'ghayri',
     'المغضوب': 'al-maghdubi',
@@ -93,7 +93,7 @@ String transliterateQuranWord(String rawWord, {bool turkish = false}) {
           .replaceAll('gh', 'ğ')
           .replaceAll('th', 's')
           .replaceAll('wa la', 've la')
-          .replaceAll('al-', 'el-');
+          .replaceAll('al-', 'el-').replaceAll('an’amta', 'en’amte');
     }
     return res;
   }
