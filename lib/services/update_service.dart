@@ -10,6 +10,8 @@ import 'package:url_launcher/url_launcher.dart';
 class UpdateService {
   static const String _versionUrl =
       'https://raw.githubusercontent.com/ahmfalcon00868-maker/azkari-app/main/version.json';
+  static const String _releasesApiUrl =
+      'https://api.github.com/repos/ahmfalcon00868-maker/azkari-app/releases/latest';
 
   static Future<void> checkForUpdate(
     BuildContext context, {
@@ -17,20 +19,62 @@ class UpdateService {
     bool showNoUpdateMessage = false,
   }) async {
     try {
-      final response = await http
-          .get(Uri.parse('$_versionUrl?t=${DateTime.now().millisecondsSinceEpoch}'), headers: {'Cache-Control': 'no-cache'})
-          .timeout(const Duration(seconds: 6));
-      if (response.statusCode != 200) return;
-
-      final data =
-          jsonDecode(utf8.decode(response.bodyBytes)) as Map<String, dynamic>;
-      final int remoteBuild = (data['build_number'] as num?)?.toInt() ?? 0;
-      final String remoteVersion = (data['version'] ?? '').toString();
-      final String apkUrl = (data['apk_url'] ?? '').toString();
-      final String notes = (data['notes'] ?? '').toString();
-
       final info = await PackageInfo.fromPlatform();
       final int localBuild = int.tryParse(info.buildNumber) ?? 0;
+
+      int remoteBuild = 0;
+      String remoteVersion = '';
+      String apkUrl = '';
+      String notes = '';
+
+      // 1. Try version.json first (cache-busted)
+      try {
+        final response = await http.get(
+          Uri.parse('$_versionUrl?t=${DateTime.now().millisecondsSinceEpoch}'),
+          headers: {'Cache-Control': 'no-cache'},
+        ).timeout(const Duration(seconds: 6));
+
+        if (response.statusCode == 200) {
+          final data = jsonDecode(utf8.decode(response.bodyBytes))
+              as Map<String, dynamic>;
+          remoteBuild = (data['build_number'] as num?)?.toInt() ?? 0;
+          remoteVersion = (data['version'] ?? '').toString();
+          apkUrl = (data['apk_url'] ?? '').toString();
+          notes = (data['notes'] ?? '').toString();
+        }
+      } catch (_) {}
+
+      // 2. Fallback to GitHub Releases API if version.json missing or not newer
+      if (remoteBuild <= localBuild || apkUrl.isEmpty) {
+        try {
+          final relRes = await http
+              .get(Uri.parse(_releasesApiUrl))
+              .timeout(const Duration(seconds: 6));
+          if (relRes.statusCode == 200) {
+            final rel = jsonDecode(utf8.decode(relRes.bodyBytes))
+                as Map<String, dynamic>;
+            final tag = (rel['tag_name'] ?? '').toString(); // e.g. v2.2.0 or v2.2.0+4
+            final assets = (rel['assets'] as List<dynamic>?) ?? [];
+            String? releaseApk;
+            for (final a in assets) {
+              final url = (a['browser_download_url'] ?? '').toString();
+              if (url.endsWith('.apk')) {
+                releaseApk = url;
+                break;
+              }
+            }
+            if (releaseApk != null && tag.isNotEmpty) {
+              final cleanTag = tag.replaceFirst(RegExp(r'^v'), '');
+              if (cleanTag != info.version && remoteBuild <= localBuild) {
+                remoteVersion = cleanTag;
+                apkUrl = releaseApk;
+                notes = (rel['body'] ?? '').toString();
+                remoteBuild = localBuild + 1;
+              }
+            }
+          }
+        } catch (_) {}
+      }
 
       if (remoteBuild > localBuild && apkUrl.isNotEmpty && context.mounted) {
         showDialog(
@@ -68,8 +112,8 @@ class UpdateService {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
             content: Text(isEnglish
-                ? 'You are on the latest version (${info.version})'
-                : 'أنت على أحدث إصدار بالفعل (${info.version})'),
+                ? 'Latest version (${info.version}+${info.buildNumber} | GitHub: $remoteBuild)'
+                : 'أنت على أحدث إصدار (${info.version}+${info.buildNumber} | GitHub: $remoteBuild)'),
           ),
         );
       }
@@ -102,7 +146,8 @@ class UpdateService {
           builder: (ctx, setS) {
             setDialogState = setS;
             return AlertDialog(
-              title: Text(isEnglish ? 'Downloading Update...' : 'جاري تحميل التحديث...'),
+              title: Text(
+                  isEnglish ? 'Downloading Update...' : 'جاري تحميل التحديث...'),
               content: Column(
                 mainAxisSize: MainAxisSize.min,
                 children: [

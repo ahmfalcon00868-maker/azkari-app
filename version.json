@@ -1,6 +1,6 @@
 {
-  "version": "2.0.0",
-  "build_number": 1,
+  "version": "2.3.0",
+  "build_number": 5,
   "apk_url": "https://github.com/ahmfalcon00868-maker/azkari-app/releases/latest/download/app-release.apk",
-  "notes": "الإصدار الرسمي الأول لتطبيق أذكاري"
+  "notes": "تحديث جديد: التنقل بالسحب، شريط النطق المتحرك، التفسير بالإنجليزية والتركية، نظام الإنجازات، وتحديثات الصوت."
 }
