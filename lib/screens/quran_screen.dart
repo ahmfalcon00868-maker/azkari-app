@@ -471,10 +471,12 @@ class QuranHomeScreen extends StatefulWidget {
 class _QuranHomeScreenState extends State<QuranHomeScreen> {
   bool _loading = true;
   String _search = '';
+  String _ayahSearch = '';
   bool _downloadingAll = false;
   int _downloadDoneCount = 0;
   final GlobalKey _surahsTabKey = GlobalKey();
   final GlobalKey _juzTabKey = GlobalKey();
+  final GlobalKey _ayahsTabKey = GlobalKey();
 
   String tr(String ar, String en, [String? trText]) {
     if (widget.appLang == 'tr') return trText ?? _kQuranEnToTr[en] ?? en;
@@ -513,6 +515,11 @@ class _QuranHomeScreenState extends State<QuranHomeScreen> {
               targetKey: _juzTabKey,
               title: tr('الأجزاء (30)', 'Juz (30)', 'Cüzler (30)'),
               body: tr('انتقل مباشرة إلى أي جزء أو حزب لمتابعة وردك.', 'Jump directly to any Juz to continue reading.', 'Okumaya devam etmek için doğrudan cüze gidin.'),
+            ),
+            SpotlightStep(
+              targetKey: _ayahsTabKey,
+              title: tr('البحث في الآيات', 'Search Ayahs', 'Ayet Ara'),
+              body: tr('ابحث عن أي آية بكلمة منها أو برقمها مثل 2:255 للوصول إليها فوراً.', 'Search any Ayah by word or reference like 2:255 to jump straight to it.', 'Herhangi bir ayeti kelimeyle veya 2:255 gibi numarayla arayın.'),
             ),
           ],
         );
@@ -621,7 +628,7 @@ class _QuranHomeScreenState extends State<QuranHomeScreen> {
     final juzList = _loading ? <Map<String, dynamic>>[] : _buildJuzSummary();
 
     return DefaultTabController(
-      length: 2,
+      length: 3,
       child: Scaffold(
         appBar: AppBar(
           title: Text(tr('القرآن الكريم (بدون نت)', 'Noble Quran (Offline)', 'Kur’an-ı Kerim (Çevrimdışı)')),
@@ -696,6 +703,7 @@ class _QuranHomeScreenState extends State<QuranHomeScreen> {
             tabs: [
               Tab(key: _surahsTabKey, text: tr('السور (114)', 'Surahs (114)', 'Sureler (114)')),
               Tab(key: _juzTabKey, text: tr('الأجزاء (30)', 'Juz (30)', 'Cüzler (30)')),
+              Tab(key: _ayahsTabKey, text: tr('الآيات', 'Ayahs', 'Ayetler')),
             ],
           ),
         ),
@@ -865,6 +873,140 @@ class _QuranHomeScreenState extends State<QuranHomeScreen> {
                               ),
                             );
                           },
+                        ),
+                        Column(
+                          children: [
+                            Padding(
+                              padding: const EdgeInsets.fromLTRB(16, 12, 16, 8),
+                              child: TextField(
+                                decoration: InputDecoration(
+                                  prefixIcon: const Icon(Icons.search_rounded),
+                                  hintText: tr(
+                                    'ابحث عن آية (مثال: الله نور السماوات أو 2:255)...',
+                                    'Search Ayah (e.g. Arabic word or 2:255)...',
+                                    'Ayet ara (ör. Arapça kelime veya 2:255)...',
+                                  ),
+                                  border: OutlineInputBorder(
+                                    borderRadius: BorderRadius.circular(18),
+                                  ),
+                                  isDense: true,
+                                ),
+                                onChanged: (v) => setState(() => _ayahSearch = v),
+                              ),
+                            ),
+                            Expanded(
+                              child: Builder(
+                                builder: (ctx) {
+                                  final rawQ = _ayahSearch.trim();
+                                  final normAyahQ = normalizeArabicForSearch(rawQ);
+                                  if (rawQ.isEmpty || (normAyahQ.length < 2 && !rawQ.contains(':'))) {
+                                    return Center(
+                                      child: Padding(
+                                        padding: const EdgeInsets.all(24),
+                                        child: Column(
+                                          mainAxisSize: MainAxisSize.min,
+                                          children: [
+                                            const Icon(Icons.manage_search_rounded, size: 52, color: Color(0xFF38BDF8)),
+                                            const SizedBox(height: 12),
+                                            Text(
+                                              tr(
+                                                'اكتب كلمة من الآية أو رقمها (مثل 2:255) للبحث المباشر',
+                                                'Type a word from an Ayah or reference (like 2:255) to search',
+                                                'Doğrudan aramak için ayetten bir kelime veya 2:255 yazın',
+                                              ),
+                                              textAlign: TextAlign.center,
+                                              style: const TextStyle(color: Colors.grey),
+                                            ),
+                                          ],
+                                        ),
+                                      ),
+                                    );
+                                  }
+
+                                  final matches = <Map<String, dynamic>>[];
+                                  final refMatch = RegExp(r'^(\d+):(\d+)$').firstMatch(rawQ);
+                                  if (refMatch != null) {
+                                    final sTarget = int.tryParse(refMatch.group(1)!);
+                                    final aTarget = int.tryParse(refMatch.group(2)!);
+                                    for (final s in QuranDataRepository.surahs) {
+                                      if (s['number'] == sTarget) {
+                                        final ayahsList = (s['ayahs'] as List<dynamic>);
+                                        for (final a in ayahsList) {
+                                          if (a['numberInSurah'] == aTarget) {
+                                            matches.add({
+                                              'surahNum': sTarget,
+                                              'surahName': s['name'],
+                                              'surahEn': s['englishName'],
+                                              'ayahNum': aTarget,
+                                              'text': a['text'],
+                                            });
+                                            break;
+                                          }
+                                        }
+                                        break;
+                                      }
+                                    }
+                                  } else {
+                                    for (final s in QuranDataRepository.surahs) {
+                                      final sNum = s['number'] as int;
+                                      final ayahsList = s['ayahs'] as List<dynamic>;
+                                      for (final a in ayahsList) {
+                                        final aText = (a['text'] ?? '').toString();
+                                        if (normalizeArabicForSearch(aText).contains(normAyahQ)) {
+                                          matches.add({
+                                            'surahNum': sNum,
+                                            'surahName': s['name'],
+                                            'surahEn': s['englishName'],
+                                            'ayahNum': a['numberInSurah'],
+                                            'text': aText,
+                                          });
+                                          if (matches.length >= 60) break;
+                                        }
+                                      }
+                                      if (matches.length >= 60) break;
+                                    }
+                                  }
+
+                                  if (matches.isEmpty) {
+                                    return Center(
+                                      child: Text(tr('لم يتم العثور على آيات مطابقة', 'No matching Ayahs found', 'Eşleşen ayet bulunamadı')),
+                                    );
+                                  }
+
+                                  return ListView.separated(
+                                    padding: const EdgeInsets.fromLTRB(14, 4, 14, 24),
+                                    itemCount: matches.length,
+                                    separatorBuilder: (_, __) => const Divider(height: 1),
+                                    itemBuilder: (_, idx) {
+                                      final item = matches[idx];
+                                      return ListTile(
+                                        title: Text(
+                                          (item['text'] ?? '').toString(),
+                                          textDirection: TextDirection.rtl,
+                                          maxLines: 3,
+                                          overflow: TextOverflow.ellipsis,
+                                          style: const TextStyle(
+                                            fontFamily: 'AmiriQuran',
+                                            fontSize: 17,
+                                            height: 1.7,
+                                          ),
+                                        ),
+                                        subtitle: Text(
+                                          '${widget.appLang == 'ar' ? item['surahName'] : item['surahEn']} • ${tr('الآية', 'Ayah', 'Ayet')} ${item['ayahNum']}',
+                                          style: const TextStyle(color: Color(0xFF38BDF8), fontSize: 12),
+                                        ),
+                                        trailing: const Icon(Icons.arrow_forward_ios_rounded, size: 15),
+                                        onTap: () => _openSurah(
+                                          item['surahNum'] as int,
+                                          jumpToAyah: item['ayahNum'] as int,
+                                        ),
+                                      );
+                                    },
+                                  );
+                                },
+                              ),
+                            ),
+                          ],
                         ),
                       ],
                     ),
