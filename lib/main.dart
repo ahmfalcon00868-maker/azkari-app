@@ -3252,7 +3252,7 @@ class _MainShellScreenState extends State<MainShellScreen> {
               ListTile(
                 leading: Icon(Icons.info_outline_rounded, color: primary),
                 title: Text(s.tr('إصدار التطبيق', 'App Version', 'Uygulama Sürümü')),
-                trailing: const Text('2.3.0',
+                trailing: const Text('1.0.0',
                     style: TextStyle(fontWeight: FontWeight.bold, color: Colors.grey)),
               ),
               const Divider(height: 1),
