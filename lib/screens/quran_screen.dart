@@ -11,6 +11,9 @@ import 'package:just_audio_background/just_audio_background.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:share_plus/share_plus.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:speech_to_text/speech_to_text.dart' as stt;
+
+import 'sha7nawy_payment_screen.dart';
 
 class QuranReciter {
   final String id;
@@ -227,6 +230,96 @@ String normalizeArabicForSearch(String input) {
       .replaceAll('ى', 'ي')
       .trim()
       .toLowerCase();
+}
+
+Widget buildHighlightedQuranText(
+  String text,
+  String query, {
+  TextStyle? baseStyle,
+  Color highlightColor = const Color(0xFFF59E0B),
+  int maxLines = 3,
+  TextDirection? textDirection,
+}) {
+  final q = query.trim();
+  if (q.isEmpty) {
+    return Text(
+      text,
+      maxLines: maxLines,
+      overflow: TextOverflow.ellipsis,
+      textDirection: textDirection,
+      style: baseStyle,
+    );
+  }
+  final normChars = <String>[];
+  final origIndices = <int>[];
+  for (int i = 0; i < text.length; i++) {
+    final ch = text[i];
+    if (RegExp(r'[\u064B-\u065F\u0670\u06D6-\u06ED\u0640]').hasMatch(ch)) {
+      continue;
+    }
+    var n = ch;
+    if (n == 'أ' || n == 'إ' || n == 'آ' || n == 'ٱ') n = 'ا';
+    if (n == 'ى') n = 'ي';
+    if (n == 'ة') n = 'ه';
+    normChars.add(n.toLowerCase());
+    origIndices.add(i);
+  }
+  final normText = normChars.join();
+  final normQ = normalizeArabicForSearch(q).toLowerCase();
+  if (normQ.isEmpty) {
+    return Text(
+      text,
+      maxLines: maxLines,
+      overflow: TextOverflow.ellipsis,
+      textDirection: textDirection,
+      style: baseStyle,
+    );
+  }
+  final matchRanges = <(int, int)>[];
+  int start = 0;
+  while (true) {
+    final idx = normText.indexOf(normQ, start);
+    if (idx < 0) break;
+    final origStart = origIndices[idx];
+    final lastNormIdx = (idx + normQ.length - 1).clamp(0, origIndices.length - 1);
+    var origEnd = origIndices[lastNormIdx] + 1;
+    while (origEnd < text.length &&
+        RegExp(r'[\u064B-\u065F\u0670\u06D6-\u06ED]').hasMatch(text[origEnd])) {
+      origEnd++;
+    }
+    matchRanges.add((origStart, origEnd));
+    start = idx + normQ.length;
+  }
+  if (matchRanges.isEmpty) {
+    return Text(
+      text,
+      maxLines: maxLines,
+      overflow: TextOverflow.ellipsis,
+      textDirection: textDirection,
+      style: baseStyle,
+    );
+  }
+  final spans = <TextSpan>[];
+  int cursor = 0;
+  for (final r in matchRanges) {
+    if (r.$1 > cursor) spans.add(TextSpan(text: text.substring(cursor, r.$1)));
+    spans.add(TextSpan(
+      text: text.substring(r.$1, r.$2),
+      style: TextStyle(
+        color: highlightColor,
+        fontWeight: FontWeight.bold,
+        backgroundColor: highlightColor.withOpacity(0.18),
+      ),
+    ));
+    cursor = r.$2;
+  }
+  if (cursor < text.length) spans.add(TextSpan(text: text.substring(cursor)));
+  return RichText(
+    maxLines: maxLines,
+    overflow: TextOverflow.ellipsis,
+    textDirection: textDirection,
+    text: TextSpan(style: baseStyle, children: spans),
+  );
 }
 
 class QuranDataRepository {
@@ -838,12 +931,15 @@ class _QuranHomeScreenState extends State<QuranHomeScreen> {
                                           style: const TextStyle(
                                               fontWeight: FontWeight.bold)),
                                     ),
-                                    title: Text(
-                                      s['name'] ?? '',
-                                      style: const TextStyle(
+                                    title: buildHighlightedQuranText(
+                                      (s['name'] ?? '').toString(),
+                                      _search,
+                                      textDirection: TextDirection.rtl,
+                                      baseStyle: TextStyle(
                                         fontFamily: 'AmiriQuran',
                                         fontWeight: FontWeight.bold,
                                         fontSize: 19,
+                                        color: Theme.of(context).textTheme.bodyLarge?.color,
                                       ),
                                     ),
                                     subtitle: Text(
@@ -1008,15 +1104,16 @@ class _QuranHomeScreenState extends State<QuranHomeScreen> {
                                     itemBuilder: (_, idx) {
                                       final item = matches[idx];
                                       return ListTile(
-                                        title: Text(
+                                        title: buildHighlightedQuranText(
                                           (item['text'] ?? '').toString(),
+                                          _ayahSearch,
                                           textDirection: TextDirection.rtl,
                                           maxLines: 3,
-                                          overflow: TextOverflow.ellipsis,
-                                          style: const TextStyle(
+                                          baseStyle: TextStyle(
                                             fontFamily: 'AmiriQuran',
                                             fontSize: 17,
                                             height: 1.7,
+                                            color: Theme.of(context).textTheme.bodyLarge?.color,
                                           ),
                                         ),
                                         subtitle: Text(
@@ -1054,6 +1151,7 @@ class SurahReaderScreen extends StatefulWidget {
   final String appLang;
   final double initialFontScale;
   final int? jumpToAyah;
+  final bool flashSurahHeader;
   final VoidCallback? onSurahCompleted;
 
   const SurahReaderScreen({
@@ -1065,6 +1163,7 @@ class SurahReaderScreen extends StatefulWidget {
     this.appLang = 'ar',
     required this.initialFontScale,
     this.jumpToAyah,
+    this.flashSurahHeader = false,
     this.onSurahCompleted,
   });
 
@@ -1163,6 +1262,10 @@ class _SurahReaderScreenState extends State<SurahReaderScreen> {
     if (widget.jumpToAyah != null) {
       WidgetsBinding.instance.addPostFrameCallback((_) {
         _scrollToAyahNumber(widget.jumpToAyah!);
+      });
+    } else if (widget.flashSurahHeader) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        _triggerAyahFlash(1);
       });
     }
 
@@ -1341,10 +1444,13 @@ class _SurahReaderScreenState extends State<SurahReaderScreen> {
     if (QuranAudioManager.instance.cachedArtUri != null) return;
     try {
       final dir = await getTemporaryDirectory();
-      final f = File('${dir.path}/azkari_media_art.png');
+      final f = File('${dir.path}/azkari_sky_blue_art.png');
       if (!await f.exists()) {
-        final data = await rootBundle.load('assets/images/app_icon.png');
-        await f.writeAsBytes(data.buffer.asUint8List());
+        // Pure solid Sky Blue (#0288D1) 1x1 PNG so Android MediaStyle tints the notification Sky Blue
+        final skyBluePng = base64Decode(
+          'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk2P7/PwAFfwL9l9vP4QAAAABJRU5ErkJggg==',
+        );
+        await f.writeAsBytes(skyBluePng);
       }
       QuranAudioManager.instance.cachedArtUri = Uri.file(f.path);
     } catch (_) {}
@@ -1491,7 +1597,7 @@ class _SurahReaderScreenState extends State<SurahReaderScreen> {
           ));
         }
       }
-      await _player.setAudioSource(ConcatenatingAudioSource(children: sources));
+      await _player.setAudioSource(ConcatenatingAudioSource(useLazyPreparation: true, children: sources));
       await _player.play();
     } catch (_) {}
   }
@@ -2194,6 +2300,13 @@ class _SurahReaderScreenState extends State<SurahReaderScreen> {
     }
 
     final segKey = '${_currentReciter.quranComId}_$_surahNumber:$numInSurah';
+    final isPro = AzkariProManager.isPro(widget.prefs);
+    if (!isPro) {
+      return TextSpan(
+        text: '$text  ﴿$numInSurah﴾',
+        style: TextStyle(color: baseColor),
+      );
+    }
     final segs = QuranAudioManager.instance.wordSegments[segKey];
     final posMs = QuranAudioManager.instance.currentPositionMs;
     final effectiveProgress = ((progress - 0.04) / 0.90).clamp(0.0, 1.0);
@@ -2261,6 +2374,433 @@ class _SurahReaderScreenState extends State<SurahReaderScreen> {
     return TextSpan(children: spans);
   }
 
+  Future<bool> _ensureProOrPrompt(String featureName) async {
+    if (AzkariProManager.isPro(widget.prefs)) return true;
+    final res = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(22)),
+        title: Row(
+          children: [
+            const Icon(Icons.workspace_premium_rounded, color: Color(0xFF0288D1)),
+            const SizedBox(width: 8),
+            Expanded(child: Text(tr('ميزة أذكاري برو', 'Azkari Pro Feature'))),
+          ],
+        ),
+        content: Text(
+          tr(
+            'ميزة "$featureName" متاحة لمشتركي أذكاري برو. يمكنك دعم التطبيق وتفعيل برو بسهولة عبر محفظتك الإلكترونية (فودافون / أورنج / اتصالات كاش).',
+            '"$featureName" is an Azkari Pro feature. Support the app via mobile wallet to unlock all Pro features.',
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, false),
+            child: Text(tr('لاحقاً', 'Later')),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.pop(ctx, true),
+            child: Text(tr('تفعيل أذكاري برو', 'Unlock Pro')),
+          ),
+        ],
+      ),
+    );
+    if (res == true && mounted) {
+      await Navigator.of(context).push(
+        MaterialPageRoute(
+          builder: (_) => Sha7nawyPaymentScreen(
+            prefs: widget.prefs,
+            appLang: widget.appLang,
+            isDarkMode: widget.isDarkMode,
+          ),
+        ),
+      );
+      if (mounted) setState(() {});
+    }
+    return AzkariProManager.isPro(widget.prefs);
+  }
+
+  Future<void> _openHifzSheet() async {
+    if (!await _ensureProOrPrompt(tr('وضع الحفظ والتكرار الصامت', 'Hifz Mode'))) return;
+    int fromAyah = 1;
+    int toAyah = _ayahs.length.clamp(1, 5);
+    int repeatCount = 3;
+    double silenceMultiplier = 1.0; // 1.0x or 1.25x reciter duration
+    bool running = false;
+
+    if (!mounted) return;
+    await showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+      ),
+      builder: (sCtx) => StatefulBuilder(
+        builder: (sCtx, setS) => SafeArea(
+          child: Padding(
+            padding: const EdgeInsets.all(20),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  tr('وضع الحفظ (تكرار مع صمت تلقائي)', 'Hifz Mode (Auto-Silence Repeat)'),
+                  style: const TextStyle(fontSize: 17, fontWeight: FontWeight.bold),
+                ),
+                const SizedBox(height: 6),
+                Text(
+                  tr(
+                    'يتوقف الصوت تلقائياً بعد كل آية بنفس مدة تلاوة القارئ لتقرأها غيباً.',
+                    'Pauses automatically after each Ayah for the exact reciter duration so you can recite from memory.',
+                  ),
+                  style: const TextStyle(fontSize: 12.5, color: Colors.grey),
+                ),
+                const SizedBox(height: 14),
+                Row(
+                  children: [
+                    Expanded(
+                      child: DropdownButtonFormField<int>(
+                        value: fromAyah,
+                        decoration: InputDecoration(
+                          labelText: tr('من آية', 'From Ayah'),
+                          border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
+                          isDense: true,
+                        ),
+                        items: List.generate(
+                          _ayahs.length,
+                          (i) => DropdownMenuItem(value: i + 1, child: Text('${i + 1}')),
+                        ),
+                        onChanged: (v) {
+                          if (v != null) {
+                            setS(() {
+                              fromAyah = v;
+                              if (toAyah < fromAyah) toAyah = fromAyah;
+                            });
+                          }
+                        },
+                      ),
+                    ),
+                    const SizedBox(width: 10),
+                    Expanded(
+                      child: DropdownButtonFormField<int>(
+                        value: toAyah,
+                        decoration: InputDecoration(
+                          labelText: tr('إلى آية', 'To Ayah'),
+                          border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
+                          isDense: true,
+                        ),
+                        items: List.generate(
+                          _ayahs.length,
+                          (i) => DropdownMenuItem(value: i + 1, child: Text('${i + 1}')),
+                        ),
+                        onChanged: (v) {
+                          if (v != null && v >= fromAyah) {
+                            setS(() => toAyah = v);
+                          }
+                        },
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 12),
+                Text(tr('عدد مرات التكرار', 'Repeat Count'),
+                    style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13)),
+                const SizedBox(height: 6),
+                Wrap(
+                  spacing: 8,
+                  children: [1, 3, 5, 10].map((c) {
+                    return ChoiceChip(
+                      label: Text('${c}x'),
+                      selected: repeatCount == c,
+                      onSelected: (_) => setS(() => repeatCount = c),
+                    );
+                  }).toList(),
+                ),
+                const SizedBox(height: 10),
+                Text(tr('مدة الصمت بعد كل آية', 'Silence Pause Duration'),
+                    style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13)),
+                const SizedBox(height: 6),
+                Wrap(
+                  spacing: 8,
+                  children: [1.0, 1.25].map((m) {
+                    return ChoiceChip(
+                      label: Text(m == 1.0
+                          ? tr('نفس مدة القارئ (1.0x)', 'Exact Reciter Time (1.0x)')
+                          : tr('أطول قليلاً (1.25x)', 'Extra Time (1.25x)')),
+                      selected: silenceMultiplier == m,
+                      onSelected: (_) => setS(() => silenceMultiplier = m),
+                    );
+                  }).toList(),
+                ),
+                const SizedBox(height: 16),
+                SizedBox(
+                  width: double.infinity,
+                  height: 46,
+                  child: FilledButton.icon(
+                    onPressed: running
+                        ? null
+                        : () async {
+                            setS(() => running = true);
+                            Navigator.pop(sCtx);
+                            for (int r = 0; r < repeatCount; r++) {
+                              for (int ay = fromAyah; ay <= toAyah; ay++) {
+                                if (!mounted) return;
+                                final idx = ay - 1;
+                                await _playSingleAyah(idx);
+                                final startWait = DateTime.now();
+                                while (mounted && _player.playing) {
+                                  await Future.delayed(const Duration(milliseconds: 250));
+                                }
+                                final elapsedMs = DateTime.now()
+                                    .difference(startWait)
+                                    .inMilliseconds
+                                    .clamp(1200, 120000);
+                                final silenceMs = (elapsedMs * silenceMultiplier).round();
+                                if (mounted) {
+                                  ScaffoldMessenger.of(context).showSnackBar(
+                                    SnackBar(
+                                      duration: Duration(milliseconds: silenceMs),
+                                      content: Text(
+                                        tr(
+                                          'دورك الآن: ردّد الآية $ay غيباً (${(silenceMs / 1000).toStringAsFixed(1)} ث)...',
+                                          'Your turn: recite Ayah $ay (${(silenceMs / 1000).toStringAsFixed(1)}s)...',
+                                        ),
+                                      ),
+                                    ),
+                                  );
+                                }
+                                await Future.delayed(Duration(milliseconds: silenceMs));
+                              }
+                            }
+                          },
+                    icon: const Icon(Icons.play_arrow_rounded),
+                    label: Text(tr('بدء جلسة الحفظ', 'Start Hifz Session')),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  Future<void> _openSmartTasmeeSheet() async {
+    if (!await _ensureProOrPrompt(tr('التسميع الصوتي وتصحيح المتشابهات', 'Smart Voice Checker'))) return;
+    int targetAyahIdx = (_playingAyahIndex ?? 0).clamp(0, _ayahs.length - 1);
+    final speech = stt.SpeechToText();
+    bool listening = false;
+    String recognized = '';
+    String feedback = '';
+    bool isCorrect = false;
+    bool initialized = await speech.initialize();
+
+    if (!mounted) return;
+    await showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+      ),
+      builder: (tCtx) => StatefulBuilder(
+        builder: (tCtx, setT) {
+          final targetAyah = _ayahs[targetAyahIdx] as Map<String, dynamic>;
+          final targetNum = (targetAyah['numberInSurah'] as int?) ?? (targetAyahIdx + 1);
+          final targetText = (targetAyah['text'] ?? '').toString();
+          final normTarget = normalizeArabicForSearch(targetText);
+
+          void evaluateSpoken(String spoken) {
+            final normSpoken = normalizeArabicForSearch(spoken);
+            if (normSpoken.isEmpty) return;
+            final targetWords = normTarget.split(' ').where((w) => w.isNotEmpty).toList();
+            final spokenWords = normSpoken.split(' ').where((w) => w.isNotEmpty).toList();
+            int matched = 0;
+            for (final w in spokenWords) {
+              if (targetWords.contains(w)) matched++;
+            }
+            final ratio = targetWords.isEmpty ? 0.0 : matched / targetWords.length;
+            if (ratio >= 0.72) {
+              isCorrect = true;
+              feedback = tr(
+                'ممتاز! تلاوتك مطابقة للآية $targetNum.',
+                'Excellent! Your recitation matches Ayah $targetNum.',
+              );
+              return;
+            }
+            isCorrect = false;
+            // Search all 6,236 Ayahs for similar-verse mix-up (Mutashabihat)
+            String? mixedRef;
+            int bestOverlap = 0;
+            for (final sr in QuranDataRepository.surahs) {
+              final sNum = sr['number'] as int;
+              final sName = (sr['name'] ?? '').toString();
+              for (final ay in (sr['ayahs'] as List<dynamic>)) {
+                final aNum = ay['numberInSurah'] as int;
+                if (sNum == _surahNumber && aNum == targetNum) continue;
+                final normCandidate = normalizeArabicForSearch((ay['text'] ?? '').toString());
+                if (normCandidate.contains(normSpoken) && normSpoken.length >= 8) {
+                  mixedRef = '$sName • الآية $aNum';
+                  break;
+                }
+                final candWords = normCandidate.split(' ').toSet();
+                int ov = 0;
+                for (final w in spokenWords) {
+                  if (candWords.contains(w)) ov++;
+                }
+                if (ov > bestOverlap && ov >= 3 && ov > matched) {
+                  bestOverlap = ov;
+                  mixedRef = '$sName • الآية $aNum';
+                }
+              }
+              if (mixedRef != null && bestOverlap == 0) break;
+            }
+            if (mixedRef != null) {
+              feedback = tr(
+                'تنبيه متشابهات: الآية التي قلتها قريبة من ($mixedRef).
+الآية الصحيحة هنا ($targetNum): $targetText',
+                'Similar-verse alert: What you recited matches ($mixedRef).
+Correct Ayah ($targetNum): $targetText',
+              );
+            } else {
+              feedback = tr(
+                'يوجد اختلاف في التلاوة. الآية الصحيحة ($targetNum) هي:
+$targetText',
+                'Recitation mismatch. Correct Ayah ($targetNum):
+$targetText',
+              );
+            }
+          }
+
+          return SafeArea(
+            child: Padding(
+              padding: const EdgeInsets.all(20),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      Text(
+                        tr('التسميع الصوتي الذكي', 'Smart Voice Checker'),
+                        style: const TextStyle(fontSize: 17, fontWeight: FontWeight.bold),
+                      ),
+                      DropdownButton<int>(
+                        value: targetAyahIdx,
+                        items: List.generate(
+                          _ayahs.length,
+                          (i) => DropdownMenuItem(
+                            value: i,
+                            child: Text('${tr('آية', 'Ayah')} ${i + 1}'),
+                          ),
+                        ),
+                        onChanged: (v) {
+                          if (v != null) {
+                            setT(() {
+                              targetAyahIdx = v;
+                              recognized = '';
+                              feedback = '';
+                            });
+                          }
+                        },
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 8),
+                  Text(
+                    tr(
+                      'اقرأ الآية من حفظك وسيتم التحقق منها وتنبيهك عند الخلط بين المتشابهات.',
+                      'Recite the Ayah from memory to verify accuracy and catch similar-verse mix-ups.',
+                    ),
+                    style: const TextStyle(fontSize: 12.5, color: Colors.grey),
+                  ),
+                  const SizedBox(height: 14),
+                  Center(
+                    child: GestureDetector(
+                      onTap: () async {
+                        if (!initialized) {
+                          setT(() => feedback = tr('يرجى السماح بصلاحية الميكروفون للتسميع.', 'Please grant microphone permission.'));
+                          return;
+                        }
+                        if (listening) {
+                          await speech.stop();
+                          setT(() {
+                            listening = false;
+                            evaluateSpoken(recognized);
+                          });
+                        } else {
+                          setT(() {
+                            listening = true;
+                            recognized = '';
+                            feedback = '';
+                          });
+                          await speech.listen(
+                            localeId: 'ar_EG',
+                            onResult: (res) {
+                              setT(() {
+                                recognized = res.recognizedWords;
+                                if (res.finalResult) {
+                                  listening = false;
+                                  evaluateSpoken(recognized);
+                                }
+                              });
+                            },
+                          );
+                        }
+                      },
+                      child: CircleAvatar(
+                        radius: 34,
+                        backgroundColor: listening ? Colors.redAccent : const Color(0xFF0288D1),
+                        child: Icon(
+                          listening ? Icons.stop_rounded : Icons.mic_rounded,
+                          color: Colors.white,
+                          size: 32,
+                        ),
+                      ),
+                    ),
+                  ),
+                  const SizedBox(height: 12),
+                  if (recognized.isNotEmpty)
+                    Container(
+                      padding: const EdgeInsets.all(12),
+                      decoration: BoxDecoration(
+                        color: Colors.grey.withOpacity(0.12),
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                      child: Text(
+                        '${tr('ما قرأته:', 'You recited:')} $recognized',
+                        textDirection: TextDirection.rtl,
+                        style: const TextStyle(fontSize: 14),
+                      ),
+                    ),
+                  if (feedback.isNotEmpty) ...[
+                    const SizedBox(height: 10),
+                    Container(
+                      padding: const EdgeInsets.all(12),
+                      decoration: BoxDecoration(
+                        color: (isCorrect ? Colors.green : Colors.amber).withOpacity(0.14),
+                        borderRadius: BorderRadius.circular(12),
+                        border: Border.all(color: isCorrect ? Colors.green : Colors.amber),
+                      ),
+                      child: Text(
+                        feedback,
+                        textDirection: TextDirection.rtl,
+                        style: const TextStyle(fontSize: 13.5, height: 1.6),
+                      ),
+                    ),
+                  ],
+                ],
+              ),
+            ),
+          );
+        },
+      ),
+    );
+    try {
+      await speech.stop();
+    } catch (_) {}
+  }
+
   @override
   void dispose() {
     _sleepTimer?.cancel();
@@ -2294,6 +2834,16 @@ class _SurahReaderScreenState extends State<SurahReaderScreen> {
           ],
         ),
         actions: [
+          IconButton(
+            tooltip: tr('وضع الحفظ (برو)', 'Hifz Mode (Pro)', 'Hıfz Modu (Pro)'),
+            onPressed: _openHifzSheet,
+            icon: const Icon(Icons.repeat_on_rounded, color: Color(0xFF38BDF8)),
+          ),
+          IconButton(
+            tooltip: tr('التسميع الصوتي الذكي (برو)', 'Smart Voice Checker (Pro)', 'Akıllı Sesli Ezber (Pro)'),
+            onPressed: _openSmartTasmeeSheet,
+            icon: const Icon(Icons.mic_rounded, color: Colors.amber),
+          ),
           IconButton(
             key: _tajweedHelpKey,
             tooltip: tr('دليل الألوان والتجويد والتشكيل', 'Tajweed & Tashkeel Guide'),

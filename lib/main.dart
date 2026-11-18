@@ -10,6 +10,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/rendering.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_facebook_auth/flutter_facebook_auth.dart';
+import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:flutter_overlay_window/flutter_overlay_window.dart';
 import 'package:just_audio_background/just_audio_background.dart';
@@ -23,7 +24,9 @@ import 'screens/explore_islamic_screen.dart';
 import 'screens/quran_screen.dart';
 import 'screens/tools_screen.dart';
 import 'services/notification_service.dart';
+import 'services/cloud_sync_service.dart';
 import 'services/update_service.dart';
+import 'screens/sha7nawy_payment_screen.dart';
 import 'widgets/google_play_icon.dart';
 
 const String kAppDownloadLink =
@@ -39,6 +42,100 @@ const List<String> kSplashVerses = [
 
 String stripAllTashkeel(String input) {
   return input.replaceAll(RegExp(r'[\u064B-\u065F\u0670\u06D6-\u06ED]'), '');
+}
+
+Widget buildHighlightedSearchText(
+  String text,
+  String query, {
+  TextStyle? baseStyle,
+  Color highlightColor = const Color(0xFFF59E0B),
+  int maxLines = 2,
+  TextDirection? textDirection,
+}) {
+  final q = query.trim();
+  if (q.isEmpty) {
+    return Text(
+      text,
+      maxLines: maxLines,
+      overflow: TextOverflow.ellipsis,
+      textDirection: textDirection,
+      style: baseStyle,
+    );
+  }
+  final normChars = <String>[];
+  final origIndices = <int>[];
+  for (int i = 0; i < text.length; i++) {
+    final ch = text[i];
+    if (RegExp(r'[\u064B-\u065F\u0670\u06D6-\u06ED\u0640]').hasMatch(ch)) {
+      continue;
+    }
+    var n = ch;
+    if (n == 'أ' || n == 'إ' || n == 'آ' || n == 'ٱ') n = 'ا';
+    if (n == 'ى') n = 'ي';
+    if (n == 'ة') n = 'ه';
+    normChars.add(n.toLowerCase());
+    origIndices.add(i);
+  }
+  final normText = normChars.join();
+  final normQ = normalizeArabicForSearch(q).toLowerCase();
+  if (normQ.isEmpty) {
+    return Text(
+      text,
+      maxLines: maxLines,
+      overflow: TextOverflow.ellipsis,
+      textDirection: textDirection,
+      style: baseStyle,
+    );
+  }
+  final matchRanges = <(int, int)>[];
+  int start = 0;
+  while (true) {
+    final idx = normText.indexOf(normQ, start);
+    if (idx < 0) break;
+    final origStart = origIndices[idx];
+    final lastNormIdx = (idx + normQ.length - 1).clamp(0, origIndices.length - 1);
+    var origEnd = origIndices[lastNormIdx] + 1;
+    while (origEnd < text.length &&
+        RegExp(r'[\u064B-\u065F\u0670\u06D6-\u06ED]').hasMatch(text[origEnd])) {
+      origEnd++;
+    }
+    matchRanges.add((origStart, origEnd));
+    start = idx + normQ.length;
+  }
+  if (matchRanges.isEmpty) {
+    return Text(
+      text,
+      maxLines: maxLines,
+      overflow: TextOverflow.ellipsis,
+      textDirection: textDirection,
+      style: baseStyle,
+    );
+  }
+  final spans = <TextSpan>[];
+  int cursor = 0;
+  for (final r in matchRanges) {
+    if (r.$1 > cursor) {
+      spans.add(TextSpan(text: text.substring(cursor, r.$1)));
+    }
+    spans.add(TextSpan(
+      text: text.substring(r.$1, r.$2),
+      style: TextStyle(
+        color: highlightColor,
+        fontWeight: FontWeight.bold,
+        backgroundColor: highlightColor.withOpacity(0.18),
+      ),
+    ));
+    cursor = r.$2;
+  }
+  if (cursor < text.length) {
+    spans.add(TextSpan(text: text.substring(cursor)));
+  }
+  return RichText(
+    maxLines: maxLines,
+    overflow: TextOverflow.ellipsis,
+    textDirection: textDirection,
+    text: TextSpan(style: baseStyle, children: spans),
+  );
 }
 
 const List<String> kFloatingAzkarPool = [
@@ -238,6 +335,15 @@ class _FloatingZikrOverlayWidgetState
   @override
   void initState() {
     super.initState();
+    WidgetsBinding.instance.addPostFrameCallback((_) async {
+      try {
+        final plugin = FlutterLocalNotificationsPlugin();
+        await plugin
+            .resolvePlatformSpecificImplementation<
+                AndroidFlutterLocalNotificationsPlugin>()
+            ?.requestNotificationsPermission();
+      } catch (_) {}
+    });
     _zikr = stripAllTashkeel(
         kFloatingAzkarPool[Random().nextInt(kFloatingAzkarPool.length)]);
     _animCtrl.forward();
@@ -397,7 +503,8 @@ Future<void> main() async {
       androidNotificationChannelId: 'com.flc.azkari.channel.audio',
       androidNotificationChannelName: 'تلاوة القرآن الكريم • أذكاري',
       androidNotificationIcon: 'drawable/ic_notification',
-      androidNotificationOngoing: true,
+      androidNotificationOngoing: false,
+      androidStopForegroundOnPause: true,
       notificationColor: const Color(0xFF0D47A1),
     );
   } catch (_) {}
@@ -869,9 +976,10 @@ class _AzkariAppState extends State<AzkariApp> {
       }
       await FlutterOverlayWindow.showOverlay(
         enableDrag: true,
-        height: 124,
+        height: 215,
         width: WindowSize.matchParent,
         alignment: OverlayAlignment.topCenter,
+        positionGravity: PositionGravity.auto,
         flag: OverlayFlag.defaultFlag,
       );
       await FlutterOverlayWindow.shareData(phrase);
@@ -1562,13 +1670,15 @@ class _MainShellScreenState extends State<MainShellScreen> {
     } catch (_) {}
   }
 
-  void _openCategoryReader(String category, {int initialIndex = 0}) {
+  void _openCategoryReader(String category,
+      {int initialIndex = 0, String? highlightZikrId}) {
     Navigator.of(context).push(
       MaterialPageRoute(
         builder: (_) => AzkarReaderScreen(
           appState: widget.appState,
           category: category,
           initialIndex: initialIndex,
+          highlightZikrId: highlightZikrId,
         ),
       ),
     );
@@ -2266,15 +2376,20 @@ class _MainShellScreenState extends State<MainShellScreen> {
                 .map((sr) => ListTile(
                       dense: true,
                       leading: const Icon(Icons.menu_book_rounded, color: AppColors.skyBlue, size: 20),
-                      title: Text(
+                      title: buildHighlightedSearchText(
                         s.appLang == 'ar' ? (sr['name'] ?? '').toString() : (sr['englishName'] ?? '').toString(),
-                        style: const TextStyle(fontWeight: FontWeight.bold),
+                        _searchQuery,
+                        baseStyle: TextStyle(
+                          fontWeight: FontWeight.bold,
+                          color: Theme.of(context).textTheme.bodyLarge?.color,
+                        ),
                       ),
                       subtitle: Text(s.tr('سورة من القرآن الكريم', 'Quran Surah', 'Kur’an Suresi')),
                       onTap: () => Navigator.of(context).push(MaterialPageRoute(
                         builder: (_) => SurahReaderScreen(
                           prefs: s.widget.prefs,
                           initialSurahNumber: sr['number'] as int,
+                          flashSurahHeader: true,
                           isEnglish: s.isEnglish,
                           appLang: s.appLang,
                           isDarkMode: s.isDarkMode,
@@ -2303,10 +2418,14 @@ class _MainShellScreenState extends State<MainShellScreen> {
                 return ayahHits.map((ah) => ListTile(
                       dense: true,
                       leading: const Icon(Icons.auto_stories_rounded, color: Colors.amber, size: 20),
-                      title: Text(
+                      title: buildHighlightedSearchText(
                         (ah['text'] ?? '').toString(),
-                        maxLines: 2,
-                        overflow: TextOverflow.ellipsis,
+                        _searchQuery,
+                        textDirection: TextDirection.rtl,
+                        baseStyle: TextStyle(
+                          color: Theme.of(context).textTheme.bodyLarge?.color,
+                          fontSize: 15,
+                        ),
                       ),
                       subtitle: Text('${ah['sName']} • ${s.tr('الآية', 'Ayah', 'Ayet')} ${ah['aNum']}'),
                       onTap: () => Navigator.of(context).push(MaterialPageRoute(
@@ -2331,13 +2450,17 @@ class _MainShellScreenState extends State<MainShellScreen> {
                 .map((z) => ListTile(
                       dense: true,
                       leading: const Icon(Icons.auto_awesome_rounded, color: AppColors.skyBlue, size: 19),
-                      title: Text(
+                      title: buildHighlightedSearchText(
                         s.isTurkish ? z.turkishText : (s.isEnglish ? z.englishText : z.text),
-                        maxLines: 2,
-                        overflow: TextOverflow.ellipsis,
+                        _searchQuery,
+                        textDirection: s.appLang == 'ar' ? TextDirection.rtl : TextDirection.ltr,
+                        baseStyle: TextStyle(
+                          color: Theme.of(context).textTheme.bodyLarge?.color,
+                          fontSize: 14.5,
+                        ),
                       ),
                       subtitle: Text(z.categoryForLang(s.appLang)),
-                      onTap: () => _openCategoryReader(z.category),
+                      onTap: () => _openCategoryReader(z.category, highlightZikrId: z.id),
                     )),
           ],
         ],
@@ -3269,6 +3392,139 @@ class _MainShellScreenState extends State<MainShellScreen> {
           ),
           child: Column(
             children: [
+              ListTile(
+                leading: const Icon(Icons.workspace_premium_rounded, color: Color(0xFF0288D1)),
+                title: Text(s.tr('دعم التطبيق وأذكاري برو (شحناوي)', 'Support & Azkari Pro (Sha7nawy)', 'Destek ve Azkari Pro')),
+                subtitle: Text(
+                  AzkariProManager.isPro(s.widget.prefs)
+                      ? s.tr('أذكاري برو مُفعّل • شكراً لدعمك', 'Azkari Pro Active • Thank you', 'Azkari Pro Aktif')
+                      : s.tr('ادعم المطورين (10 - 10,000 ج.م) أو فعّل برو', 'Support devs or unlock Pro features', 'Geliştiricileri destekle'),
+                ),
+                trailing: const Icon(Icons.arrow_forward_ios_rounded, size: 15),
+                onTap: () async {
+                  await Navigator.of(context).push(
+                    MaterialPageRoute(
+                      builder: (_) => Sha7nawyPaymentScreen(
+                        prefs: s.widget.prefs,
+                        appLang: s.appLang,
+                        isDarkMode: s.isDarkMode,
+                      ),
+                    ),
+                  );
+                  if (mounted) setState(() {});
+                },
+              ),
+              const Divider(height: 1),
+              ListTile(
+                leading: Icon(Icons.cloud_sync_rounded, color: primary),
+                title: Text(s.tr('المزامنة السحابية والنسخ الاحتياطي (مجاني)', 'Free Cloud Sync & Backup', 'Ücretsiz Bulut Senkronizasyonu')),
+                subtitle: Text(
+                  s.widget.prefs.getString('last_cloud_sync_at') != null
+                      ? s.tr('مرتبط بحسابك • اضغط للمزامنة أو النسخ', 'Account linked • Tap to sync or backup', 'Hesaba bağlı • Senkronize et')
+                      : s.tr('احفظ إنجازاتك وسلسلتك وأذكارك المخصصة', 'Save your streaks, achievements & custom Azkar', 'Başarıları ve özel zikirleri yedekle'),
+                ),
+                trailing: const Icon(Icons.arrow_forward_ios_rounded, size: 15),
+                onTap: () {
+                  final accountId = s.widget.prefs.getString('fbUserId') ??
+                      s.widget.prefs.getString('userName') ??
+                      'azkari_local_user';
+                  showModalBottomSheet(
+                    context: context,
+                    shape: const RoundedRectangleBorder(
+                      borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+                    ),
+                    builder: (cCtx) => SafeArea(
+                      child: Padding(
+                        padding: const EdgeInsets.all(20),
+                        child: Column(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Text(
+                              s.tr('المزامنة والنسخ الاحتياطي المجاني', 'Free Cloud Sync & Backup', 'Ücretsiz Yedekleme'),
+                              style: const TextStyle(fontSize: 17, fontWeight: FontWeight.bold),
+                            ),
+                            const SizedBox(height: 12),
+                            ListTile(
+                              leading: const Icon(Icons.cloud_upload_rounded, color: Color(0xFF0288D1)),
+                              title: Text(s.tr('رفع النسخة للسحابة', 'Push to Cloud', 'Buluta Yükle')),
+                              onTap: () async {
+                                Navigator.pop(cCtx);
+                                final res = await CloudSyncService.instance.pushToCloud(s.widget.prefs, accountId);
+                                if (mounted) {
+                                  ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(res.$2)));
+                                }
+                              },
+                            ),
+                            ListTile(
+                              leading: const Icon(Icons.cloud_download_rounded, color: Color(0xFF0288D1)),
+                              title: Text(s.tr('استعادة من السحابة', 'Restore from Cloud', 'Buluttan Geri Yükle')),
+                              onTap: () async {
+                                Navigator.pop(cCtx);
+                                final res = await CloudSyncService.instance.pullFromCloud(s.widget.prefs, accountId);
+                                if (mounted) {
+                                  ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(res.$2)));
+                                }
+                              },
+                            ),
+                            ListTile(
+                              leading: const Icon(Icons.copy_all_rounded, color: Colors.amber),
+                              title: Text(s.tr('نسخ ملف النسخة الاحتياطية (JSON)', 'Copy Backup JSON', 'Yedek JSON Kopyala')),
+                              onTap: () async {
+                                final jsonStr = CloudSyncService.instance.exportSnapshotJson(s.widget.prefs);
+                                await Clipboard.setData(ClipboardData(text: jsonStr));
+                                if (cCtx.mounted) Navigator.pop(cCtx);
+                                if (mounted) {
+                                  ScaffoldMessenger.of(context).showSnackBar(
+                                    SnackBar(content: Text(s.tr('تم نسخ النسخة الاحتياطية بنجاح', 'Backup JSON copied'))),
+                                  );
+                                }
+                              },
+                            ),
+                            ListTile(
+                              leading: const Icon(Icons.paste_rounded, color: Colors.green),
+                              title: Text(s.tr('استعادة من نص JSON', 'Restore from JSON', 'JSON ile Geri Yükle')),
+                              onTap: () {
+                                Navigator.pop(cCtx);
+                                final pasteCtrl = TextEditingController();
+                                showDialog(
+                                  context: context,
+                                  builder: (pCtx) => AlertDialog(
+                                    title: Text(s.tr('استعادة النسخة الاحتياطية', 'Restore Backup')),
+                                    content: TextField(
+                                      controller: pasteCtrl,
+                                      maxLines: 5,
+                                      decoration: InputDecoration(
+                                        hintText: s.tr('الصق نص JSON هنا...', 'Paste JSON here...'),
+                                        border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
+                                      ),
+                                    ),
+                                    actions: [
+                                      TextButton(onPressed: () => Navigator.pop(pCtx), child: Text(s.tr('إلغاء', 'Cancel'))),
+                                      FilledButton(
+                                        onPressed: () async {
+                                          final ok = await CloudSyncService.instance.importSnapshotJson(s.widget.prefs, pasteCtrl.text);
+                                          if (pCtx.mounted) Navigator.pop(pCtx);
+                                          if (mounted) {
+                                            ScaffoldMessenger.of(context).showSnackBar(
+                                              SnackBar(content: Text(ok ? s.tr('تمت الاستعادة بنجاح', 'Restored!') : s.tr('صيغة JSON غير صالحة', 'Invalid JSON'))),
+                                            );
+                                          }
+                                        },
+                                        child: Text(s.tr('استعادة', 'Restore')),
+                                      ),
+                                    ],
+                                  ),
+                                );
+                              },
+                            ),
+                          ],
+                        ),
+                      ),
+                    ),
+                  );
+                },
+              ),
+              const Divider(height: 1),
               ListTile(
                 leading: Icon(Icons.route_rounded, color: primary),
                 title: Text(s.tr('إعادة الجولة التعليمية', 'Replay App Tour', 'Uygulama Turunu Tekrarla')),
@@ -4389,12 +4645,14 @@ class AzkarReaderScreen extends StatefulWidget {
   final _AzkariAppState appState;
   final String category;
   final int initialIndex;
+  final String? highlightZikrId;
 
   const AzkarReaderScreen({
     super.key,
     required this.appState,
     required this.category,
     this.initialIndex = 0,
+    this.highlightZikrId,
   });
 
   @override
@@ -4405,11 +4663,55 @@ class _AzkarReaderScreenState extends State<AzkarReaderScreen> {
   bool _isEditMode = false;
   late DateTime _enteredAt;
   bool _celebrationShown = false;
+  String? _flashingZikrId;
+  bool _flashOn = false;
+  Timer? _flashTimer;
+  final ScrollController _azkarScrollCtrl = ScrollController();
 
   @override
   void initState() {
     super.initState();
     _enteredAt = DateTime.now();
+    if (widget.highlightZikrId != null) {
+      _flashingZikrId = widget.highlightZikrId;
+      _flashOn = true;
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        final items = widget.appState.azkarList
+            .where((z) => z.category == widget.category)
+            .toList();
+        final idx = items.indexWhere((z) => z.id == widget.highlightZikrId);
+        if (idx > 0 && _azkarScrollCtrl.hasClients) {
+          _azkarScrollCtrl.animateTo(
+            (idx * 220.0).clamp(0.0, _azkarScrollCtrl.position.maxScrollExtent),
+            duration: const Duration(milliseconds: 420),
+            curve: Curves.easeOutCubic,
+          );
+        }
+        int ticks = 0;
+        _flashTimer = Timer.periodic(const Duration(milliseconds: 350), (t) {
+          if (!mounted) {
+            t.cancel();
+            return;
+          }
+          ticks++;
+          setState(() => _flashOn = !_flashOn);
+          if (ticks >= 5) {
+            t.cancel();
+            setState(() {
+              _flashingZikrId = null;
+              _flashOn = false;
+            });
+          }
+        });
+      });
+    }
+  }
+
+  @override
+  void dispose() {
+    _flashTimer?.cancel();
+    _azkarScrollCtrl.dispose();
+    super.dispose();
   }
 
   String _formatDuration(Duration d) {
@@ -5122,6 +5424,7 @@ class _AzkarReaderScreenState extends State<AzkarReaderScreen> {
                   }),
                   Expanded(
                     child: ListView.builder(
+                controller: _azkarScrollCtrl,
                 padding: const EdgeInsets.fromLTRB(14, 10, 14, 90),
                 itemCount: items.length + 1,
                 itemBuilder: (context, index) {
@@ -5197,16 +5500,18 @@ class _AzkarReaderScreenState extends State<AzkarReaderScreen> {
                     );
                   }
 
+                  final isZikrFlashing = _flashingZikrId == item.id && _flashOn;
                   return RepaintBoundary(
-                    child: Container(
+                    child: AnimatedContainer(
+                      duration: const Duration(milliseconds: 200),
                       margin: const EdgeInsets.only(bottom: 14),
                       padding: const EdgeInsets.fromLTRB(16, 14, 16, 14),
                       decoration: BoxDecoration(
-                        color: cardColor,
+                        color: isZikrFlashing ? Colors.amber.withOpacity(0.32) : cardColor,
                         borderRadius: BorderRadius.circular(24),
                         border: Border.all(
-                          color: borderColor,
-                          width: 1.0,
+                          color: isZikrFlashing ? Colors.amber : borderColor,
+                          width: isZikrFlashing ? 2.2 : 1.0,
                         ),
                       ),
                       child: Column(
