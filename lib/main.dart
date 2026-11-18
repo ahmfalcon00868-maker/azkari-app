@@ -1153,6 +1153,12 @@ class _MainShellScreenState extends State<MainShellScreen> {
   final GlobalKey _navSettingsKey = GlobalKey();
   final GlobalKey _fbBtnKey = GlobalKey();
   final GlobalKey _tasksCardKey = GlobalKey();
+  final GlobalKey _azkarAddKey = GlobalKey();
+  final GlobalKey _azkarGridKey = GlobalKey();
+  final GlobalKey _tasbihPhraseKey = GlobalKey();
+  final GlobalKey _tasbihBtnKey = GlobalKey();
+  final GlobalKey _settingsFloatingKey = GlobalKey();
+  final GlobalKey _settingsFeedbackKey = GlobalKey();
   int _currentIndex = 0;
   String _searchQuery = '';
   bool _showSearch = false;
@@ -1188,6 +1194,82 @@ class _MainShellScreenState extends State<MainShellScreen> {
         });
       }
     });
+  }
+
+
+  void _checkTabSpotlightTour(int idx) {
+    final s = widget.appState;
+    final p = s.widget.prefs;
+    if (idx == 2 && !(p.getBool('seenAzkarTour') ?? false)) {
+      p.setBool('seenAzkarTour', true);
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (!mounted) return;
+        showSpotlightTour(
+          context,
+          nextLabel: s.tr('التالي', 'Next', 'İleri'),
+          finishLabel: s.tr('تم', 'Done', 'Tamam'),
+          skipLabel: s.tr('تخطي', 'Skip', 'Atla'),
+          steps: [
+            SpotlightStep(
+              targetKey: _azkarAddKey,
+              title: s.tr('إضافة ذكر جديد', 'Add Custom Zikr', 'Yeni Zikir Ekle'),
+              body: s.tr('أضف أذكارك وأدعيتك الخاصة في أي وقت.', 'Add your own custom Azkar and Duas anytime.', 'İstediğiniz zaman kendi zikirlerinizi ekleyin.'),
+            ),
+            SpotlightStep(
+              targetKey: _azkarGridKey,
+              title: s.tr('أقسام الأذكار', 'Azkar Categories', 'Zikir Kategorileri'),
+              body: s.tr('اضغط على أي قسم للقراءة مع العداد والتعديل والمشاركة.', 'Tap any category to read with counter, editing & sharing.', 'Sayaç, düzenleme ve paylaşım için herhangi bir kategoriye dokunun.'),
+            ),
+          ],
+        );
+      });
+    } else if (idx == 3 && !(p.getBool('seenTasbihTour') ?? false)) {
+      p.setBool('seenTasbihTour', true);
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (!mounted) return;
+        showSpotlightTour(
+          context,
+          nextLabel: s.tr('التالي', 'Next', 'İleri'),
+          finishLabel: s.tr('تم', 'Done', 'Tamam'),
+          skipLabel: s.tr('تخطي', 'Skip', 'Atla'),
+          steps: [
+            SpotlightStep(
+              targetKey: _tasbihPhraseKey,
+              title: s.tr('اختيار صيغة التسبيح', 'Choose Tasbih Phrase', 'Tesbih İfadesi Seç'),
+              body: s.tr('اختر من الأذكار الجاهزة أو أضف تسبيحك الخاص.', 'Pick from built-in phrases or add your own.', 'Hazır ifadelerden seçin veya kendiniz ekleyin.'),
+            ),
+            SpotlightStep(
+              targetKey: _tasbihBtnKey,
+              title: s.tr('العداد التفاعلي', 'Interactive Counter', 'Etkileşimli Sayaç'),
+              body: s.tr('اضغط للتسبيح باهتزاز لطيف بدون إيقاف تلاوة القرآن.', 'Tap to count with gentle haptics without pausing Quran audio.', 'Kur’an sesini durdurmadan nazik titreşimle sayın.'),
+            ),
+          ],
+        );
+      });
+    } else if (idx == 4 && !(p.getBool('seenSettingsTour') ?? false)) {
+      p.setBool('seenSettingsTour', true);
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (!mounted) return;
+        showSpotlightTour(
+          context,
+          nextLabel: s.tr('التالي', 'Next', 'İleri'),
+          finishLabel: s.tr('تم', 'Done', 'Tamam'),
+          skipLabel: s.tr('تخطي', 'Skip', 'Atla'),
+          steps: [
+            SpotlightStep(
+              targetKey: _settingsFloatingKey,
+              title: s.tr('الذكر العائم فوق التطبيقات', 'Floating Zikr Overlay', 'Uygulamalar Üzerinde Zikir'),
+              body: s.tr('فعّل الذكر العائم واختر مدة ظهوره من 5 دقائق إلى ساعة.', 'Enable floating Zikr and pick interval from 5 min to 1 hour.', 'Yüzen zikri etkinleştirin ve 5 dk - 1 saat arası seçin.'),
+            ),
+            SpotlightStep(
+              targetKey: _settingsFeedbackKey,
+              title: s.tr('نصيحة لتطوير التطبيق', 'Suggest Improvements', 'Geliştirme Önerisi'),
+              body: s.tr('شاركنا رأيك أو اقتراحك ليصلنا ونطور التطبيق باستمرار.', 'Send your feedback or ideas to help us improve the app.', 'Uygulamayı geliştirmemiz için fikirlerinizi gönderin.'),
+            ),
+          ],
+        );
+      });
+    }
   }
 
   void _startHomeSpotlightTour() {
@@ -1590,6 +1672,7 @@ class _MainShellScreenState extends State<MainShellScreen> {
                 onPageChanged: (idx) {
                   if (_currentIndex != idx) {
                     setState(() => _currentIndex = idx);
+                    _checkTabSpotlightTour(idx);
                   }
                 },
                 children: pages,
@@ -2097,6 +2180,11 @@ class _MainShellScreenState extends State<MainShellScreen> {
                 IconButton.filledTonal(
                   onPressed: () {
                                     setState(() => _showSearch = !_showSearch);
+                                    if (_showSearch && QuranDataRepository.surahs.isEmpty) {
+                                      QuranDataRepository.ensureLoaded().then((_) {
+                                        if (mounted) setState(() {});
+                                      });
+                                    }
                   },
                   icon: const Icon(Icons.search_rounded),
                 ),
@@ -2120,8 +2208,7 @@ class _MainShellScreenState extends State<MainShellScreen> {
           TextField(
             onChanged: (v) => setState(() => _searchQuery = v),
             decoration: InputDecoration(
-              hintText: s.tr('ابحث في الأذكار (بدون تشكيل)...',
-                  'Search Azkar...'),
+              hintText: s.tr('ابحث في الأذكار، السور، أو الآيات...', 'Search Azkar, Surahs, or Ayahs...', 'Zikir, Sure veya Ayet ara...'),
               prefixIcon: const Icon(Icons.search),
               filled: true,
               fillColor: cardColor,
@@ -2131,33 +2218,90 @@ class _MainShellScreenState extends State<MainShellScreen> {
               ),
             ),
           ),
-          if (normQuery.isNotEmpty)
-            ...s.azkarList
-                .where((z) =>
-                    normalizeArabicForSearch(z.text).contains(normQuery) ||
-                    normalizeArabicForSearch(z.source).contains(normQuery) ||
-                    normalizeArabicForSearch(z.categoryLabel).contains(normQuery))
-                .map(
-                  (item) => Card(
-                    color: cardColor,
-                    margin: const EdgeInsets.only(top: 8),
-                    child: ListTile(
+          if (normQuery.isNotEmpty) ...[
+            const SizedBox(height: 10),
+            ...QuranDataRepository.surahs
+                .where((sr) =>
+                    normalizeArabicForSearch((sr['name'] ?? '').toString()).contains(normQuery) ||
+                    normalizeLatinForSearch((sr['englishName'] ?? '').toString()).contains(normalizeLatinForSearch(_searchQuery)))
+                .take(4)
+                .map((sr) => ListTile(
+                      dense: true,
+                      leading: const Icon(Icons.menu_book_rounded, color: AppColors.skyBlue, size: 20),
                       title: Text(
-                        s.minimalTashkeel ? lightTashkeel(item.text) : item.text,
+                        s.appLang == 'ar' ? (sr['name'] ?? '').toString() : (sr['englishName'] ?? '').toString(),
+                        style: const TextStyle(fontWeight: FontWeight.bold),
+                      ),
+                      subtitle: Text(s.tr('سورة من القرآن الكريم', 'Quran Surah', 'Kur’an Suresi')),
+                      onTap: () => Navigator.of(context).push(MaterialPageRoute(
+                        builder: (_) => SurahReaderScreen(
+                          prefs: s.widget.prefs,
+                          initialSurahNumber: sr['number'] as int,
+                          isEnglish: s.isEnglish,
+                          appLang: s.appLang,
+                          isDarkMode: s.isDarkMode,
+                          initialFontScale: s.fontScale,
+                        ),
+                      )),
+                    )),
+            if (normQuery.length >= 2)
+              ...(() {
+                final ayahHits = <Map<String, dynamic>>[];
+                for (final sr in QuranDataRepository.surahs) {
+                  for (final ay in (sr['ayahs'] as List<dynamic>)) {
+                    final aTxt = (ay['text'] ?? '').toString();
+                    if (normalizeArabicForSearch(aTxt).contains(normQuery)) {
+                      ayahHits.add({
+                        'sNum': sr['number'],
+                        'sName': s.appLang == 'ar' ? sr['name'] : sr['englishName'],
+                        'aNum': ay['numberInSurah'],
+                        'text': aTxt,
+                      });
+                      if (ayahHits.length >= 4) break;
+                    }
+                  }
+                  if (ayahHits.length >= 4) break;
+                }
+                return ayahHits.map((ah) => ListTile(
+                      dense: true,
+                      leading: const Icon(Icons.auto_stories_rounded, color: Colors.amber, size: 20),
+                      title: Text(
+                        (ah['text'] ?? '').toString(),
                         maxLines: 2,
                         overflow: TextOverflow.ellipsis,
                       ),
-                      subtitle: Text('${item.categoryLabel} • ${item.source}'),
-                      onTap: () {
-                        final catItems = s.azkarList
-                            .where((z) => z.category == item.category)
-                            .toList();
-                        _openCategoryReader(item.category,
-                            initialIndex: catItems.indexOf(item));
-                      },
-                    ),
-                  ),
-                ),
+                      subtitle: Text('${ah['sName']} • ${s.tr('الآية', 'Ayah', 'Ayet')} ${ah['aNum']}'),
+                      onTap: () => Navigator.of(context).push(MaterialPageRoute(
+                        builder: (_) => SurahReaderScreen(
+                          prefs: s.widget.prefs,
+                          initialSurahNumber: ah['sNum'] as int,
+                          jumpToAyah: ah['aNum'] as int,
+                          isEnglish: s.isEnglish,
+                          appLang: s.appLang,
+                          isDarkMode: s.isDarkMode,
+                          initialFontScale: s.fontScale,
+                        ),
+                      )),
+                    ));
+              })(),
+            ...s.azkarList
+                .where((z) =>
+                    normalizeArabicForSearch(z.text).contains(normQuery) ||
+                    z.englishText.toLowerCase().contains(_searchQuery.trim().toLowerCase()) ||
+                    z.turkishText.toLowerCase().contains(_searchQuery.trim().toLowerCase()))
+                .take(5)
+                .map((z) => ListTile(
+                      dense: true,
+                      leading: const Icon(Icons.auto_awesome_rounded, color: AppColors.skyBlue, size: 19),
+                      title: Text(
+                        s.isTurkish ? z.turkishText : (s.isEnglish ? z.englishText : z.text),
+                        maxLines: 2,
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                      subtitle: Text(z.categoryForLang(s.appLang)),
+                      onTap: () => _openCategoryReader(z.category),
+                    )),
+          ],
         ],
         const SizedBox(height: 16),
         Container(
@@ -2872,6 +3016,7 @@ class _MainShellScreenState extends State<MainShellScreen> {
           ),
           const SizedBox(height: 22),
           RoundedSquareCounterButton(
+            key: _tasbihBtnKey,
             progress: cycleProgress,
             title: '${s.tasbihCount}',
             subtitle: s.tr('سبّح', 'Tap', 'Dokun'),
@@ -3001,6 +3146,7 @@ class _MainShellScreenState extends State<MainShellScreen> {
                 },
               ),
               SwitchListTile(
+                key: _settingsFloatingKey,
                 title: Text(s.tr('الذكر العائم فوق التطبيقات', 'Floating Zikr Overlay', 'Uygulamalar Üzerinde Zikir')),
                 value: s.floatingEnabled,
                 onChanged: (v) {
@@ -3090,6 +3236,9 @@ class _MainShellScreenState extends State<MainShellScreen> {
                   s.widget.prefs.setBool('seenHomeTour', false);
                   s.widget.prefs.setBool('seenQuranHomeTour', false);
                   s.widget.prefs.setBool('seenSurahTour', false);
+                  s.widget.prefs.setBool('seenAzkarTour', false);
+                  s.widget.prefs.setBool('seenTasbihTour', false);
+                  s.widget.prefs.setBool('seenSettingsTour', false);
                   setState(() => _currentIndex = 0);
                   if (_pageController.hasClients) {
                     _pageController.jumpToPage(0);
@@ -3108,13 +3257,57 @@ class _MainShellScreenState extends State<MainShellScreen> {
               ),
               const Divider(height: 1),
               ListTile(
-                leading: Icon(Icons.support_agent_rounded, color: primary),
-                title: Text(s.tr('تواصل معنا', 'Contact Us', 'Bize Ulaşın')),
-                subtitle: const Text('support@azkari.app'),
-                onTap: () => launchUrl(
-                  Uri.parse('mailto:support@azkari.app'),
-                  mode: LaunchMode.externalApplication,
-                ),
+                key: _settingsFeedbackKey,
+                leading: Icon(Icons.lightbulb_outline_rounded, color: primary),
+                title: Text(s.tr('نصيحة لتطوير التطبيق', 'Suggest App Improvements', 'Uygulama Geliştirme Önerisi')),
+                subtitle: Text(s.tr('شاركنا أفكارك وملاحظاتك', 'Share your ideas & feedback', 'Fikir ve önerilerinizi paylaşın')),
+                trailing: const Icon(Icons.arrow_forward_ios_rounded, size: 15),
+                onTap: () {
+                  final ctrl = TextEditingController();
+                  showDialog(
+                    context: context,
+                    builder: (fCtx) => AlertDialog(
+                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(22)),
+                      title: Text(s.tr('نصيحة لتطوير التطبيق', 'Suggest Improvements', 'Geliştirme Önerisi')),
+                      content: TextField(
+                        controller: ctrl,
+                        maxLines: 4,
+                        decoration: InputDecoration(
+                          hintText: s.tr('اكتب اقتراحك أو الملاحظة هنا...', 'Write your suggestion or feedback here...', 'Önerinizi veya geri bildiriminizi yazın...'),
+                          border: OutlineInputBorder(borderRadius: BorderRadius.circular(14)),
+                        ),
+                      ),
+                      actions: [
+                        TextButton(
+                          onPressed: () => Navigator.pop(fCtx),
+                          child: Text(s.tr('إلغاء', 'Cancel', 'İptal')),
+                        ),
+                        OutlinedButton(
+                          onPressed: () {
+                            final body = Uri.encodeComponent(ctrl.text.trim());
+                            Navigator.pop(fCtx);
+                            launchUrl(
+                              Uri.parse('mailto:support@azkari.app?subject=Azkari%20Suggestion&body=$body'),
+                              mode: LaunchMode.externalApplication,
+                            );
+                          },
+                          child: Text(s.tr('بالبريد', 'Email', 'E-posta')),
+                        ),
+                        FilledButton(
+                          onPressed: () {
+                            final body = Uri.encodeComponent(ctrl.text.trim());
+                            Navigator.pop(fCtx);
+                            launchUrl(
+                              Uri.parse('https://github.com/ahmfalcon00868-maker/azkari-app/issues/new?title=User%20Suggestion&body=$body'),
+                              mode: LaunchMode.externalApplication,
+                            );
+                          },
+                          child: Text(s.tr('إرسال للمطور', 'Send Feedback', 'Geliştiriciye Gönder')),
+                        ),
+                      ],
+                    ),
+                  );
+                },
               ),
               const Divider(height: 1),
               ListTile(
@@ -3160,8 +3353,10 @@ Future<void> showDoubleRewardShareDialog(
 
         final canTap = countdown == 0;
         return AlertDialog(
-          shape:
-              RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(24),
+            side: BorderSide(color: AppColors.skyBlue.withOpacity(0.45), width: 1.4),
+          ),
           title: Text(
             s.tr(
               'هل تريد مضاعفة أجرك؟ 😍',
@@ -3200,7 +3395,7 @@ Future<void> showDoubleRewardShareDialog(
           actions: [
             FilledButton(
               style: FilledButton.styleFrom(
-                backgroundColor: canTap ? Colors.red.shade600 : Colors.grey,
+                backgroundColor: canTap ? Colors.grey.shade700 : Colors.grey.shade800,
                 foregroundColor: Colors.white,
               ),
               onPressed: !canTap
@@ -3227,7 +3422,7 @@ Future<void> showDoubleRewardShareDialog(
                           actions: [
                             FilledButton(
                               style: FilledButton.styleFrom(
-                                backgroundColor: Colors.red.shade600,
+                                backgroundColor: Colors.grey.shade700,
                                 foregroundColor: Colors.white,
                               ),
                               onPressed: () => Navigator.pop(c2),
@@ -3235,7 +3430,7 @@ Future<void> showDoubleRewardShareDialog(
                             ),
                             FilledButton(
                               style: FilledButton.styleFrom(
-                                backgroundColor: Colors.green.shade600,
+                                backgroundColor: const Color(0xFF0288D1),
                                 foregroundColor: Colors.white,
                               ),
                               onPressed: () {
@@ -3262,7 +3457,7 @@ Future<void> showDoubleRewardShareDialog(
             ),
             FilledButton(
               style: FilledButton.styleFrom(
-                backgroundColor: canTap ? Colors.green.shade600 : Colors.grey,
+                backgroundColor: canTap ? const Color(0xFF0288D1) : Colors.grey.shade800,
                 foregroundColor: Colors.white,
               ),
               onPressed: !canTap
