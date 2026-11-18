@@ -2656,17 +2656,13 @@ class _SurahReaderScreenState extends State<SurahReaderScreen> {
             }
             if (mixedRef != null) {
               feedback = tr(
-                'تنبيه متشابهات: الآية التي قلتها قريبة من ($mixedRef).
-الآية الصحيحة هنا ($targetNum): $targetText',
-                'Similar-verse alert: What you recited matches ($mixedRef).
-Correct Ayah ($targetNum): $targetText',
+                'تنبيه متشابهات: الآية التي قلتها قريبة من ($mixedRef).\nالآية الصحيحة هنا ($targetNum): $targetText',
+                'Similar-verse alert: What you recited matches ($mixedRef).\nCorrect Ayah ($targetNum): $targetText',
               );
             } else {
               feedback = tr(
-                'يوجد اختلاف في التلاوة. الآية الصحيحة ($targetNum) هي:
-$targetText',
-                'Recitation mismatch. Correct Ayah ($targetNum):
-$targetText',
+                'يوجد اختلاف في التلاوة. الآية الصحيحة ($targetNum) هي:\n$targetText',
+                'Recitation mismatch. Correct Ayah ($targetNum):\n$targetText',
               );
             }
           }

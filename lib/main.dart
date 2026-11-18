@@ -505,7 +505,7 @@ Future<void> main() async {
       androidNotificationIcon: 'drawable/ic_notification',
       androidNotificationOngoing: false,
       androidStopForegroundOnPause: true,
-      notificationColor: const Color(0xFF0D47A1),
+      notificationColor: const Color(0xFF0288D1),
     );
   } catch (_) {}
   await SystemChrome.setPreferredOrientations([
@@ -1671,7 +1671,7 @@ class _MainShellScreenState extends State<MainShellScreen> {
   }
 
   void _openCategoryReader(String category,
-      {int initialIndex = 0, String? highlightZikrId}) {
+      {int initialIndex = 0, int? highlightZikrId}) {
     Navigator.of(context).push(
       MaterialPageRoute(
         builder: (_) => AzkarReaderScreen(
@@ -4645,7 +4645,7 @@ class AzkarReaderScreen extends StatefulWidget {
   final _AzkariAppState appState;
   final String category;
   final int initialIndex;
-  final String? highlightZikrId;
+  final int? highlightZikrId;
 
   const AzkarReaderScreen({
     super.key,
@@ -4663,7 +4663,7 @@ class _AzkarReaderScreenState extends State<AzkarReaderScreen> {
   bool _isEditMode = false;
   late DateTime _enteredAt;
   bool _celebrationShown = false;
-  String? _flashingZikrId;
+  int? _flashingZikrId;
   bool _flashOn = false;
   Timer? _flashTimer;
   final ScrollController _azkarScrollCtrl = ScrollController();
