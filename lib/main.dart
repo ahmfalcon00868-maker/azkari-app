@@ -5088,7 +5088,7 @@ class _AzkarReaderScreenState extends State<AzkarReaderScreen> {
                             ),
                             const SizedBox(height: 8),
                             Text(
-                              transliterateAzkar(body),
+                              toEnglishTranslit(body),
                               textAlign: TextAlign.center,
                               style: TextStyle(
                                 color: AppColors.skyBlue,
@@ -5104,7 +5104,7 @@ class _AzkarReaderScreenState extends State<AzkarReaderScreen> {
                               style: TextStyle(
                                 fontSize: 14.5 * s.fontScale,
                                 height: 1.6,
-                                color: textSecondary,
+                                color: isDark ? AppColors.textSecondaryDark : AppColors.textSecondaryLight,
                               ),
                             ),
                           ] else
