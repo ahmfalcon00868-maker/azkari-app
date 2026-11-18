@@ -349,14 +349,8 @@ void showSpotlightTour(
             children: [
               Positioned.fill(
                 child: GestureDetector(
-                  onTap: () {
-                    if (isLast) {
-                      entry?.remove();
-                      onComplete?.call();
-                    } else {
-                      setOState(() => idx += 1);
-                    }
-                  },
+                  behavior: HitTestBehavior.opaque,
+                  onTap: () {},
                   child: CustomPaint(
                     painter: _SpotlightHolePainter(hole),
                   ),
@@ -558,19 +552,29 @@ class _QuranHomeScreenState extends State<QuranHomeScreen> {
     final folder = Directory('${dir.path}/quran_audio/$reciterId');
     if (!await folder.exists()) await folder.create(recursive: true);
 
+    final reciter = kReciters.firstWhere((r) => r.id == reciterId, orElse: () => kReciters.first);
     for (int s = 1; s <= 114; s++) {
       if (!_downloadingAll || !mounted) break;
-      final f = File('${folder.path}/surah_$s.mp3');
-      if (!await f.exists()) {
-        try {
-          final url =
-              'https://cdn.islamic.network/quran/audio-surah/128/$reciterId/$s.mp3';
-          final res =
-              await http.get(Uri.parse(url)).timeout(const Duration(seconds: 60));
-          if (res.statusCode == 200) {
-            await f.writeAsBytes(res.bodyBytes);
+      final surahMap = QuranDataRepository.surahs.firstWhere((e) => e['number'] == s, orElse: () => null);
+      if (surahMap != null) {
+        final ayahs = (surahMap['ayahs'] as List<dynamic>?) ?? [];
+        final sStr = s.toString().padLeft(3, '0');
+        final docDir = await getApplicationDocumentsDirectory();
+        for (final a in ayahs) {
+          if (!_downloadingAll || !mounted) break;
+          final aNum = (a['numberInSurah'] as int?) ?? 1;
+          final f = File('${docDir.path}/azkari_ayah_${reciterId}_s${s}_a$aNum.mp3');
+          if (!await f.exists()) {
+            try {
+              final aStr = aNum.toString().padLeft(3, '0');
+              final url = 'https://everyayah.com/data/${reciter.everyAyahFolder}/$sStr$aStr.mp3';
+              final res = await http.get(Uri.parse(url)).timeout(const Duration(seconds: 25));
+              if (res.statusCode == 200 && res.bodyBytes.isNotEmpty) {
+                await f.writeAsBytes(res.bodyBytes);
+              }
+            } catch (_) {}
           }
-        } catch (_) {}
+        }
       }
       if (mounted) setState(() => _downloadDoneCount = s);
     }
