@@ -1852,52 +1852,6 @@ class _SurahReaderScreenState extends State<SurahReaderScreen> {
                     await _openReciterPicker();
                   },
                 ),
-                  items: kReciters
-                      .map((r) => DropdownMenuItem(
-                            value: r.id,
-                            child: Text(widget.appLang == 'ar' ? r.nameAr : r.nameEn),
-                          ))
-                      .toList(),
-                  onChanged: (v) async {
-                    if (v == null || v == _reciterId) return;
-                    if (_isPlaying) {
-                      final newName = kReciters
-                          .firstWhere((r) => r.id == v, orElse: () => kReciters.first)
-                          .nameAr;
-                      final confirm = await showDialog<bool>(
-                        context: ctx,
-                        builder: (dCtx) => AlertDialog(
-                          title: Text(tr('تغيير القارئ', 'Change Reciter')),
-                          content: Text(tr(
-                            'التلاوة تعمل حالياً. هل تريد التبديل إلى $newName؟',
-                            'Audio is playing. Switch to $newName?',
-                          )),
-                          actions: [
-                            TextButton(
-                              onPressed: () => Navigator.pop(dCtx, false),
-                              child: Text(tr('إلغاء', 'Cancel')),
-                            ),
-                            FilledButton(
-                              onPressed: () => Navigator.pop(dCtx, true),
-                              child: Text(tr('تبديل', 'Switch')),
-                            ),
-                          ],
-                        ),
-                      );
-                      if (confirm != true) return;
-                      widget.prefs.setString('quranReciterId', v);
-                      setState(() => _reciterId = v);
-                      setSheetState(() {});
-                      await _checkAudioCache();
-                      await _playFromAyah(_playingAyahIndex ?? 0);
-                    } else {
-                      widget.prefs.setString('quranReciterId', v);
-                      setState(() => _reciterId = v);
-                      setSheetState(() {});
-                      await _checkAudioCache();
-                    }
-                  },
-                ),
               ],
             ),
           ),
