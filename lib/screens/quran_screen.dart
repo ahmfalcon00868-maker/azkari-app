@@ -249,6 +249,203 @@ class QuranAudioManager {
   final Map<String, String> exactAudioUrls = {};
 }
 
+
+class SpotlightStep {
+  final GlobalKey targetKey;
+  final String title;
+  final String body;
+  const SpotlightStep({
+    required this.targetKey,
+    required this.title,
+    required this.body,
+  });
+}
+
+class _SpotlightHolePainter extends CustomPainter {
+  final Rect? holeRect;
+  _SpotlightHolePainter(this.holeRect);
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final full = Path()..addRect(Rect.fromLTWH(0, 0, size.width, size.height));
+    if (holeRect != null) {
+      final rr = RRect.fromRectAndRadius(holeRect!.inflate(6), const Radius.circular(14));
+      final hole = Path()..addRRect(rr);
+      final combined = Path.combine(PathOperation.difference, full, hole);
+      canvas.drawPath(combined, Paint()..color = Colors.black.withOpacity(0.78));
+      canvas.drawRRect(
+        rr,
+        Paint()
+          ..color = const Color(0xFF38BDF8)
+          ..style = PaintingStyle.stroke
+          ..strokeWidth = 2.4,
+      );
+    } else {
+      canvas.drawPath(full, Paint()..color = Colors.black.withOpacity(0.78));
+    }
+  }
+
+  @override
+  bool shouldRepaint(covariant _SpotlightHolePainter oldDelegate) =>
+      oldDelegate.holeRect != holeRect;
+}
+
+void showSpotlightTour(
+  BuildContext context, {
+  required List<SpotlightStep> steps,
+  required String nextLabel,
+  required String finishLabel,
+  required String skipLabel,
+  VoidCallback? onComplete,
+}) {
+  if (steps.isEmpty) return;
+  final overlay = Overlay.maybeOf(context);
+  if (overlay == null) return;
+  int idx = 0;
+  OverlayEntry? entry;
+
+  Rect? rectFor(GlobalKey k) {
+    final ctx = k.currentContext;
+    if (ctx == null) return null;
+    final box = ctx.findRenderObject() as RenderBox?;
+    if (box == null || !box.hasSize) return null;
+    final pos = box.localToGlobal(Offset.zero);
+    return pos & box.size;
+  }
+
+  entry = OverlayEntry(
+    builder: (ctx) => StatefulBuilder(
+      builder: (ctx, setOState) {
+        final step = steps[idx];
+        final hole = rectFor(step.targetKey);
+        final mq = MediaQuery.of(ctx);
+        final screenH = mq.size.height;
+        final showAbove = hole != null && hole.center.dy > screenH * 0.52;
+        final isLast = idx == steps.length - 1;
+
+        return Material(
+          color: Colors.transparent,
+          child: Stack(
+            children: [
+              Positioned.fill(
+                child: GestureDetector(
+                  onTap: () {
+                    if (isLast) {
+                      entry?.remove();
+                      onComplete?.call();
+                    } else {
+                      setOState(() => idx += 1);
+                    }
+                  },
+                  child: CustomPaint(
+                    painter: _SpotlightHolePainter(hole),
+                  ),
+                ),
+              ),
+              Positioned(
+                left: 18,
+                right: 18,
+                top: showAbove ? null : ((hole?.bottom ?? 120) + 18).clamp(48.0, screenH - 220),
+                bottom: showAbove ? (screenH - (hole?.top ?? screenH * 0.6) + 18).clamp(48.0, screenH - 220) : null,
+                child: Container(
+                  padding: const EdgeInsets.all(16),
+                  decoration: BoxDecoration(
+                    color: const Color(0xFF0A192F),
+                    borderRadius: BorderRadius.circular(20),
+                    border: Border.all(color: const Color(0xFF38BDF8), width: 1.6),
+                    boxShadow: [
+                      BoxShadow(
+                        color: const Color(0xFF0288D1).withOpacity(0.42),
+                        blurRadius: 18,
+                        offset: const Offset(0, 6),
+                      ),
+                    ],
+                  ),
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Row(
+                        children: [
+                          Container(
+                            padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 3),
+                            decoration: BoxDecoration(
+                              color: const Color(0xFF0288D1).withOpacity(0.28),
+                              borderRadius: BorderRadius.circular(999),
+                            ),
+                            child: Text(
+                              '${idx + 1} / ${steps.length}',
+                              style: const TextStyle(
+                                color: Color(0xFF38BDF8),
+                                fontSize: 11.5,
+                                fontWeight: FontWeight.bold,
+                              ),
+                            ),
+                          ),
+                          const SizedBox(width: 8),
+                          Expanded(
+                            child: Text(
+                              step.title,
+                              style: const TextStyle(
+                                color: Colors.white,
+                                fontSize: 15.5,
+                                fontWeight: FontWeight.bold,
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 8),
+                      Text(
+                        step.body,
+                        style: const TextStyle(
+                          color: Colors.white70,
+                          fontSize: 13.5,
+                          height: 1.5,
+                        ),
+                      ),
+                      const SizedBox(height: 14),
+                      Row(
+                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                        children: [
+                          TextButton(
+                            onPressed: () {
+                              entry?.remove();
+                              onComplete?.call();
+                            },
+                            child: Text(skipLabel, style: const TextStyle(color: Colors.white60)),
+                          ),
+                          FilledButton(
+                            style: FilledButton.styleFrom(
+                              backgroundColor: const Color(0xFF0288D1),
+                              foregroundColor: Colors.white,
+                              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(999)),
+                            ),
+                            onPressed: () {
+                              if (isLast) {
+                                entry?.remove();
+                                onComplete?.call();
+                              } else {
+                                setOState(() => idx += 1);
+                              }
+                            },
+                            child: Text(isLast ? finishLabel : nextLabel),
+                          ),
+                        ],
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            ],
+          ),
+        );
+      },
+    ),
+  );
+  overlay.insert(entry);
+}
+
 class QuranHomeScreen extends StatefulWidget {
   final SharedPreferences prefs;
   final bool isDarkMode;
@@ -276,6 +473,8 @@ class _QuranHomeScreenState extends State<QuranHomeScreen> {
   String _search = '';
   bool _downloadingAll = false;
   int _downloadDoneCount = 0;
+  final GlobalKey _surahsTabKey = GlobalKey();
+  final GlobalKey _juzTabKey = GlobalKey();
 
   String tr(String ar, String en, [String? trText]) {
     if (widget.appLang == 'tr') return trText ?? _kQuranEnToTr[en] ?? en;
@@ -293,7 +492,32 @@ class _QuranHomeScreenState extends State<QuranHomeScreen> {
     try {
       await QuranDataRepository.ensureLoaded();
     } catch (_) {}
-    if (mounted) setState(() => _loading = false);
+    if (!mounted) return;
+    setState(() => _loading = false);
+    if (!(widget.prefs.getBool('seenQuranHomeTour') ?? false)) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (!mounted) return;
+        widget.prefs.setBool('seenQuranHomeTour', true);
+        showSpotlightTour(
+          context,
+          nextLabel: tr('التالي', 'Next', 'İleri'),
+          finishLabel: tr('تم', 'Done', 'Tamam'),
+          skipLabel: tr('تخطي', 'Skip', 'Atla'),
+          steps: [
+            SpotlightStep(
+              targetKey: _surahsTabKey,
+              title: tr('السور (114)', 'Surahs (114)', 'Sureler (114)'),
+              body: tr('تصفح جميع سور القرآن الكريم أو ابحث بالاسم.', 'Browse all 114 Surahs or search by name.', 'Tüm 114 sureye göz atın veya arayın.'),
+            ),
+            SpotlightStep(
+              targetKey: _juzTabKey,
+              title: tr('الأجزاء (30)', 'Juz (30)', 'Cüzler (30)'),
+              body: tr('انتقل مباشرة إلى أي جزء أو حزب لمتابعة وردك.', 'Jump directly to any Juz to continue reading.', 'Okumaya devam etmek için doğrudan cüze gidin.'),
+            ),
+          ],
+        );
+      });
+    }
   }
 
   Future<void> _downloadAllSurahsForReciter() async {
@@ -470,8 +694,8 @@ class _QuranHomeScreenState extends State<QuranHomeScreen> {
           ],
           bottom: TabBar(
             tabs: [
-              Tab(text: tr('السور (114)', 'Surahs (114)', 'Sureler (114)')),
-              Tab(text: tr('الأجزاء (30)', 'Juz (30)', 'Cüzler (30)')),
+              Tab(key: _surahsTabKey, text: tr('السور (114)', 'Surahs (114)', 'Sureler (114)')),
+              Tab(key: _juzTabKey, text: tr('الأجزاء (30)', 'Juz (30)', 'Cüzler (30)')),
             ],
           ),
         ),
@@ -692,7 +916,8 @@ class _SurahReaderScreenState extends State<SurahReaderScreen> {
   int _syncOffsetMs = 0;
   final ScrollController _scrollController = ScrollController();
   final ScrollController _translitScrollCtrl = ScrollController();
-  bool _showSurahTip = false;
+  final GlobalKey _tajweedHelpKey = GlobalKey();
+  final GlobalKey _playerBarKey = GlobalKey();
   int? get _playingAyahIndex => QuranAudioManager.instance.playingAyahIndex;
   set _playingAyahIndex(int? v) => QuranAudioManager.instance.playingAyahIndex = v;
   int get _playStartAyahIndex => QuranAudioManager.instance.playStartAyahIndex;
@@ -731,7 +956,30 @@ class _SurahReaderScreenState extends State<SurahReaderScreen> {
     _tajweedColors = widget.prefs.getBool('quranTajweedColors') ?? true;
     _reciterId = widget.prefs.getString('quranReciterId') ?? 'ar.hudhaify';
     _syncOffsetMs = widget.prefs.getInt('quranSyncOffsetMs') ?? 0;
-    _showSurahTip = !(widget.prefs.getBool('seenSurahTip') ?? false);
+    if (!(widget.prefs.getBool('seenSurahTour') ?? false)) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (!mounted) return;
+        widget.prefs.setBool('seenSurahTour', true);
+        showSpotlightTour(
+          context,
+          nextLabel: tr('التالي', 'Next', 'İleri'),
+          finishLabel: tr('تم', 'Done', 'Tamam'),
+          skipLabel: tr('تخطي', 'Skip', 'Atla'),
+          steps: [
+            SpotlightStep(
+              targetKey: _tajweedHelpKey,
+              title: tr('دليل ألوان التجويد', 'Tajweed Color Guide', 'Tecvid Renk Rehberi'),
+              body: tr('اضغط هنا لمعرفة معاني ألوان التجويد والتشكيل.', 'Tap here to view Tajweed color & symbol meanings.', 'Tecvid renk ve işaret anlamlarını görmek için dokunun.'),
+            ),
+            SpotlightStep(
+              targetKey: _playerBarKey,
+              title: tr('مشغل التلاوة والتحميل', 'Recitation & Download Bar', 'Tilavet ve İndirme Çubuğu'),
+              body: tr('شغّل التلاوة، اضبط السرعة، أو حمّل السورة للاستماع بدون نت. واضغط على أي آية للتفسير والعلامة المرجعية.', 'Play audio, adjust speed, or download offline. Tap any Ayah for explanation & bookmark.', 'Sesli dinleyin, hızı ayarlayın veya çevrimdışı indirin.'),
+            ),
+          ],
+        );
+      });
+    }
     _isPlaying = _player.playing;
     _ensureMediaArtUri();
     _checkAudioCache();
@@ -863,17 +1111,26 @@ class _SurahReaderScreenState extends State<SurahReaderScreen> {
   List<dynamic> get _tafsirAyahs =>
       _currentTafsirSurah['ayahs'] as List<dynamic>;
 
-  Future<String> _audioFilePath() async {
+  Future<String> _ayahFilePath(int numInSurah) async {
     final dir = await getApplicationDocumentsDirectory();
-    final folder = Directory('${dir.path}/quran_audio/$_reciterId');
-    if (!await folder.exists()) await folder.create(recursive: true);
-    return '${folder.path}/surah_$_surahNumber.mp3';
+    return '${dir.path}/azkari_ayah_${_reciterId}_s${_surahNumber}_a$numInSurah.mp3';
   }
 
   Future<void> _checkAudioCache() async {
-    final path = await _audioFilePath();
-    final exists = await File(path).exists();
-    if (mounted) setState(() => _audioOfflineReady = exists);
+    if (_ayahs.isEmpty) {
+      if (mounted) setState(() => _audioOfflineReady = false);
+      return;
+    }
+    bool allExist = true;
+    for (final a in _ayahs) {
+      final numInSurah = (a['numberInSurah'] as int?) ?? 1;
+      final path = await _ayahFilePath(numInSurah);
+      if (!await File(path).exists()) {
+        allExist = false;
+        break;
+      }
+    }
+    if (mounted) setState(() => _audioOfflineReady = allExist);
   }
 
   QuranReciter get _currentReciter => kReciters.firstWhere(
@@ -920,17 +1177,6 @@ class _SurahReaderScreenState extends State<SurahReaderScreen> {
 
   Future<void> _playFullSurah() async {
     try {
-      final localPath = await _audioFilePath();
-      if (await File(localPath).exists()) {
-        await _player.setVolume(1.0);
-        await _player.setSpeed(_speed);
-        _playStartAyahIndex = 0;
-        _playingAyahIndex = 0;
-        await _player.setAudioSource(
-            AudioSource.file(localPath, tag: _surahMediaItem()));
-        await _player.play();
-        return;
-      }
       await _playFromAyah(0);
     } catch (_) {
       if (mounted) {
@@ -1003,11 +1249,17 @@ class _SurahReaderScreenState extends State<SurahReaderScreen> {
         QuranAudioManager.instance.currentPositionMs = 0;
       });
       final numInSurah = (_ayahs[ayahIndex]['numberInSurah'] as int?) ?? (ayahIndex + 1);
-      final exactUrl = QuranAudioManager.instance.exactAudioUrls[
-          '${_currentReciter.quranComId}_$_surahNumber:$numInSurah'];
-      final url = exactUrl ?? _ayahAudioUrl(numInSurah);
-      await _player.setAudioSource(
-          AudioSource.uri(Uri.parse(url), tag: _surahMediaItem(ayahNum: numInSurah)));
+      final localPath = await _ayahFilePath(numInSurah);
+      if (await File(localPath).exists()) {
+        await _player.setAudioSource(
+            AudioSource.file(localPath, tag: _surahMediaItem(ayahNum: numInSurah)));
+      } else {
+        final exactUrl = QuranAudioManager.instance.exactAudioUrls[
+            '${_currentReciter.quranComId}_$_surahNumber:$numInSurah'];
+        final url = exactUrl ?? _ayahAudioUrl(numInSurah);
+        await _player.setAudioSource(
+            AudioSource.uri(Uri.parse(url), tag: _surahMediaItem(ayahNum: numInSurah)));
+      }
       await _player.play();
     } catch (_) {}
   }
@@ -1031,15 +1283,24 @@ class _SurahReaderScreenState extends State<SurahReaderScreen> {
         _ayahProgress = 0.0;
         QuranAudioManager.instance.currentPositionMs = 0;
       });
-      final sources = _ayahs.sublist(startIndex).map((a) {
+      final sources = <AudioSource>[];
+      for (final a in _ayahs.sublist(startIndex)) {
         final numInSurah = a['numberInSurah'] as int;
-        final exactUrl = QuranAudioManager.instance.exactAudioUrls[
-            '${_currentReciter.quranComId}_$_surahNumber:$numInSurah'];
-        return AudioSource.uri(
-          Uri.parse(exactUrl ?? _ayahAudioUrl(numInSurah)),
-          tag: _surahMediaItem(ayahNum: numInSurah),
-        );
-      }).toList();
+        final localPath = await _ayahFilePath(numInSurah);
+        if (await File(localPath).exists()) {
+          sources.add(AudioSource.file(
+            localPath,
+            tag: _surahMediaItem(ayahNum: numInSurah),
+          ));
+        } else {
+          final exactUrl = QuranAudioManager.instance.exactAudioUrls[
+              '${_currentReciter.quranComId}_$_surahNumber:$numInSurah'];
+          sources.add(AudioSource.uri(
+            Uri.parse(exactUrl ?? _ayahAudioUrl(numInSurah)),
+            tag: _surahMediaItem(ayahNum: numInSurah),
+          ));
+        }
+      }
       await _player.setAudioSource(ConcatenatingAudioSource(children: sources));
       await _player.play();
     } catch (_) {}
@@ -1061,29 +1322,50 @@ class _SurahReaderScreenState extends State<SurahReaderScreen> {
   }
 
   Future<void> _downloadSurahAudio() async {
-    if (_isDownloadingAudio) return;
+    if (_isDownloadingAudio || _ayahs.isEmpty) return;
     setState(() => _isDownloadingAudio = true);
     try {
-      final res = await http
-          .get(Uri.parse(_surahAudioUrl))
-          .timeout(const Duration(seconds: 60));
-      if (res.statusCode == 200) {
-        final path = await _audioFilePath();
-        await File(path).writeAsBytes(res.bodyBytes);
-        if (mounted) {
-          setState(() => _audioOfflineReady = true);
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(
-              content: Text(tr('تم حفظ السورة للاستماع بدون نت ',
-                  'Surah audio saved offline ')),
-            ),
-          );
+      int okCount = 0;
+      for (final a in _ayahs) {
+        if (!mounted) return;
+        final numInSurah = (a['numberInSurah'] as int?) ?? 1;
+        final path = await _ayahFilePath(numInSurah);
+        if (!await File(path).exists()) {
+          final res = await http
+              .get(Uri.parse(_ayahAudioUrl(numInSurah)))
+              .timeout(const Duration(seconds: 30));
+          if (res.statusCode == 200 && res.bodyBytes.isNotEmpty) {
+            await File(path).writeAsBytes(res.bodyBytes);
+            okCount++;
+          } else {
+            throw Exception('HTTP ${res.statusCode}');
+          }
+        } else {
+          okCount++;
         }
       }
-    } catch (_) {
+      if (mounted && okCount == _ayahs.length) {
+        setState(() => _audioOfflineReady = true);
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(tr(
+              'تم حفظ السورة كاملة للاستماع بدون نت',
+              'Surah audio saved offline',
+              'Sure çevrimdışı dinleme için kaydedildi',
+            )),
+          ),
+        );
+      }
+    } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text(tr('فشل التحميل', 'Download failed'))),
+          SnackBar(
+            content: Text(tr(
+              'فشل التحميل: تأكد من الاتصال بالإنترنت',
+              'Download failed: check internet connection',
+              'İndirme başarısız: internet bağlantısını kontrol edin',
+            )),
+          ),
         );
       }
     } finally {
@@ -1561,10 +1843,13 @@ class _SurahReaderScreenState extends State<SurahReaderScreen> {
                               ? tr('إزالة العلامة', 'Remove Bookmark')
                               : tr('علامة مرجعية', 'Bookmark')),
                           onPressed: () async {
+                            final bList = (widget.prefs.getStringList('bookmarkedSurahs') ?? []).toSet();
                             if (isThisBookmarked) {
                               await widget.prefs.remove('lastQuranSurah');
                               await widget.prefs.remove('lastQuranAyah');
                               await widget.prefs.remove('lastQuranSurahName');
+                              bList.remove(_surahNumber.toString());
+                              await widget.prefs.setStringList('bookmarkedSurahs', bList.toList());
                             } else {
                               await widget.prefs
                                   .setInt('lastQuranSurah', _surahNumber);
@@ -1572,6 +1857,8 @@ class _SurahReaderScreenState extends State<SurahReaderScreen> {
                                   .setInt('lastQuranAyah', numInSurah);
                               await widget.prefs
                                   .setString('lastQuranSurahName', surahName);
+                              bList.add(_surahNumber.toString());
+                              await widget.prefs.setStringList('bookmarkedSurahs', bList.toList());
                             }
                             setState(() {});
                             if (ctx.mounted) Navigator.pop(ctx);
@@ -1739,6 +2026,7 @@ class _SurahReaderScreenState extends State<SurahReaderScreen> {
         ),
         actions: [
           IconButton(
+            key: _tajweedHelpKey,
             tooltip: tr('دليل الألوان والتجويد والتشكيل', 'Tajweed & Tashkeel Guide'),
             onPressed: _openTajweedGuide,
             icon: const Icon(Icons.help_outline_rounded),
@@ -1873,41 +2161,7 @@ class _SurahReaderScreenState extends State<SurahReaderScreen> {
               },
             ),
           ),
-          if (_showSurahTip)
-            Container(
-              margin: const EdgeInsets.fromLTRB(12, 4, 12, 4),
-              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-              decoration: BoxDecoration(
-                color: const Color(0xFF0D47A1).withOpacity(0.18),
-                borderRadius: BorderRadius.circular(14),
-                border: Border.all(color: const Color(0xFF38BDF8).withOpacity(0.4)),
-              ),
-              child: Row(
-                children: [
-                  const Icon(Icons.tips_and_updates_rounded,
-                      color: Color(0xFF38BDF8), size: 18),
-                  const SizedBox(width: 8),
-                  Expanded(
-                    child: Text(
-                      tr(
-                        'اضغط على أي آية للتفسير والعلامة المرجعية، وعلامة (?) لدليل التجويد.',
-                        'Tap any Ayah for explanation & bookmark, and (?) for Tajweed guide.',
-                        'Tefsir ve yer imi için ayete dokunun, Tecvid rehberi için (?) simgesine basın.',
-                      ),
-                      style: const TextStyle(fontSize: 12),
-                    ),
-                  ),
-                  IconButton(
-                    visualDensity: VisualDensity.compact,
-                    onPressed: () {
-                      widget.prefs.setBool('seenSurahTip', true);
-                      setState(() => _showSurahTip = false);
-                    },
-                    icon: const Icon(Icons.close_rounded, size: 16),
-                  ),
-                ],
-              ),
-            ),
+
           if (_isPlaying && _playingAyahIndex != null)
             Padding(
               padding: const EdgeInsets.only(bottom: 4),
@@ -1934,6 +2188,7 @@ class _SurahReaderScreenState extends State<SurahReaderScreen> {
           if (widget.appLang != 'ar' || _showTranslitBar)
             _buildBottomTranslitStrip(),
           Container(
+            key: _playerBarKey,
             margin: const EdgeInsets.fromLTRB(12, 6, 12, 6),
             padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
             decoration: BoxDecoration(
@@ -2081,11 +2336,14 @@ class _SurahReaderScreenState extends State<SurahReaderScreen> {
     }
 
     if (_isPlaying && _translitScrollCtrl.hasClients) {
-      final maxScroll = _translitScrollCtrl.position.maxScrollExtent;
-      if (maxScroll > 0) {
-        final target = (maxScroll * _ayahProgress).clamp(0.0, maxScroll);
-        _translitScrollCtrl.jumpTo(target);
-      }
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (!mounted || !_translitScrollCtrl.hasClients) return;
+        final maxScroll = _translitScrollCtrl.position.maxScrollExtent;
+        if (maxScroll > 0) {
+          final target = (maxScroll * _ayahProgress).clamp(0.0, maxScroll);
+          _translitScrollCtrl.jumpTo(target);
+        }
+      });
     }
 
     return Container(

@@ -166,9 +166,14 @@ class UpdateService {
       final client = http.Client();
       final req = http.Request('GET', Uri.parse(apkUrl));
       final streamed = await client.send(req);
+      if (streamed.statusCode != 200) {
+        client.close();
+        throw Exception('HTTP ${streamed.statusCode}');
+      }
       final total = streamed.contentLength ?? 0;
       final dir = await getTemporaryDirectory();
       final file = File('${dir.path}/azkari_update.apk');
+      if (await file.exists()) await file.delete();
       final sink = file.openWrite();
       int received = 0;
 
@@ -182,8 +187,16 @@ class UpdateService {
       await sink.close();
       client.close();
 
+      if (await file.length() < 5 * 1024 * 1024) {
+        await file.delete();
+        throw Exception('Invalid APK size');
+      }
+
       if (context.mounted) Navigator.pop(context);
-      final res = await OpenFilex.open(file.path);
+      final res = await OpenFilex.open(
+        file.path,
+        type: 'application/vnd.android.package-archive',
+      );
       if (res.type != ResultType.done) {
         final uri = Uri.parse(apkUrl);
         if (await canLaunchUrl(uri)) {

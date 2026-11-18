@@ -80,132 +80,9 @@ class SoundEffectsService {
   static final SoundEffectsService instance = SoundEffectsService._();
   SoundEffectsService._();
 
-  final List<ap.AudioPlayer> _tapPool = [
-    ap.AudioPlayer(),
-    ap.AudioPlayer(),
-    ap.AudioPlayer(),
-  ];
-  int _tapIdx = 0;
-  final ap.AudioPlayer _chimePlayer = ap.AudioPlayer();
-  String? _tapPath;
-  String? _chimePath;
-  bool _initialized = false;
-
-  Future<void> init() async {
-    if (_initialized && _tapPath != null) return;
-    try {
-      final dir = await getTemporaryDirectory();
-      _tapPath = '${dir.path}/azkari_bead_tap_v5.wav';
-      _chimePath = '${dir.path}/azkari_warm_chime_v5.wav';
-
-      if (!await File(_tapPath!).exists()) {
-        await File(_tapPath!).writeAsBytes(_buildSoftBeadClickWav());
-      }
-      if (!await File(_chimePath!).exists()) {
-        await File(_chimePath!).writeAsBytes(_buildWarmAcousticChimeWav());
-      }
-
-      for (final p in _tapPool) {
-        await p.setPlayerMode(ap.PlayerMode.mediaPlayer);
-        await p.setReleaseMode(ap.ReleaseMode.stop);
-        await p.setVolume(0.14);
-        await p.setSource(ap.DeviceFileSource(_tapPath!));
-      }
-      await _chimePlayer.setPlayerMode(ap.PlayerMode.mediaPlayer);
-      await _chimePlayer.setReleaseMode(ap.ReleaseMode.stop);
-      await _chimePlayer.setVolume(0.16);
-      await _chimePlayer.setSource(ap.DeviceFileSource(_chimePath!));
-      _initialized = true;
-    } catch (_) {}
-  }
-
-  Future<void> playTap() async {
-    try {
-      if (!_initialized || _tapPath == null) await init();
-      final player = _tapPool[_tapIdx % _tapPool.length];
-      _tapIdx++;
-      await player.seek(Duration.zero);
-      await player.resume();
-    } catch (_) {
-      try {
-        await _tapPool[0].play(ap.DeviceFileSource(_tapPath!), volume: 0.14);
-      } catch (_) {}
-    }
-  }
-
-  Future<void> playChime33() async {
-    try {
-      if (!_initialized || _chimePath == null) await init();
-      await _chimePlayer.seek(Duration.zero);
-      await _chimePlayer.resume();
-    } catch (_) {}
-  }
-
-  Uint8List _wrapWav(List<int> pcmSamples, int sampleRate) {
-    final dataSize = pcmSamples.length * 2;
-    final buffer = ByteData(44 + dataSize);
-    void writeStr(int offset, String str) {
-      for (int i = 0; i < str.length; i++) {
-        buffer.setUint8(offset + i, str.codeUnitAt(i));
-      }
-    }
-    writeStr(0, 'RIFF');
-    buffer.setUint32(4, 36 + dataSize, Endian.little);
-    writeStr(8, 'WAVE');
-    writeStr(12, 'fmt ');
-    buffer.setUint32(16, 16, Endian.little);
-    buffer.setUint16(20, 1, Endian.little);
-    buffer.setUint16(22, 1, Endian.little);
-    buffer.setUint32(24, sampleRate, Endian.little);
-    buffer.setUint32(28, sampleRate * 2, Endian.little);
-    buffer.setUint16(32, 2, Endian.little);
-    buffer.setUint16(34, 16, Endian.little);
-    writeStr(36, 'data');
-    buffer.setUint32(40, dataSize, Endian.little);
-    for (int i = 0; i < pcmSamples.length; i++) {
-      buffer.setInt16(44 + i * 2, pcmSamples[i], Endian.little);
-    }
-    return buffer.buffer.asUint8List();
-  }
-
-  Uint8List _buildSoftBeadClickWav() {
-    const sampleRate = 22050;
-    const durationMs = 16;
-    final numSamples = (sampleRate * durationMs / 1000).round();
-    final samples = List<int>.filled(numSamples, 0);
-    double phase = 0.0;
-    for (int i = 0; i < numSamples; i++) {
-      final t = i / sampleRate;
-      final fadeIn = (t / 0.0015).clamp(0.0, 1.0);
-      final env = fadeIn * exp(-210.0 * t);
-      final freq = 95.0 + 135.0 * exp(-260.0 * t);
-      phase += 2 * pi * freq / sampleRate;
-      final sample = sin(phase) * env * 0.72;
-      samples[i] = (sample * 32767).round().clamp(-32768, 32767);
-    }
-    return _wrapWav(samples, sampleRate);
-  }
-
-  Uint8List _buildWarmAcousticChimeWav() {
-    const sampleRate = 22050;
-    const durationMs = 340;
-    final numSamples = (sampleRate * durationMs / 1000).round();
-    final samples = List<int>.filled(numSamples, 0);
-    for (int i = 0; i < numSamples; i++) {
-      final t = i / sampleRate;
-      final fade1 = (t / 0.018).clamp(0.0, 1.0);
-      final n1 = sin(2 * pi * 523.25 * t) * fade1 * exp(-7.5 * t) * 0.45;
-      double n2 = 0.0;
-      if (t >= 0.09) {
-        final t2 = t - 0.09;
-        final fade2 = (t2 / 0.022).clamp(0.0, 1.0);
-        n2 = sin(2 * pi * 783.99 * t2) * fade2 * exp(-8.5 * t2) * 0.40;
-      }
-      final sample = (n1 + n2) * 0.65;
-      samples[i] = (sample * 32767).round().clamp(-32768, 32767);
-    }
-    return _wrapWav(samples, sampleRate);
-  }
+  Future<void> init() async {}
+  Future<void> playTap() async {}
+  Future<void> playChime33() async {}
 }
 
 String toEnglishTranslit(String ar) {
@@ -386,35 +263,75 @@ class _FloatingZikrOverlayWidgetState
           child: GestureDetector(
             onTap: () => FlutterOverlayWindow.closeOverlay(),
             child: Container(
-            padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
-            decoration: BoxDecoration(
-              gradient: const LinearGradient(
-                colors: [Color(0xFF0D47A1), Color(0xFF0288D1)],
-              ),
-              borderRadius: BorderRadius.circular(999),
-              border: Border.all(color: Colors.white, width: 1.8),
-              boxShadow: [
-                BoxShadow(
-                  color: Colors.black.withOpacity(0.38),
-                  blurRadius: 10,
-                  offset: const Offset(0, 4),
+              width: double.infinity,
+              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+              decoration: BoxDecoration(
+                gradient: const LinearGradient(
+                  colors: [Color(0xFF0A192F), Color(0xFF0D47A1), Color(0xFF0288D1)],
+                  begin: Alignment.topRight,
+                  end: Alignment.bottomLeft,
                 ),
-              ],
-            ),
-            child: Text(
-              _zikr,
-              textAlign: TextAlign.center,
-              maxLines: 2,
-              overflow: TextOverflow.ellipsis,
-              style: const TextStyle(
-                fontFamily: 'NotoKufi',
-                color: Colors.white,
-                fontSize: 15,
-                fontWeight: FontWeight.bold,
+                borderRadius: BorderRadius.circular(20),
+                border: Border.all(color: const Color(0xFF38BDF8), width: 1.8),
+                boxShadow: [
+                  BoxShadow(
+                    color: const Color(0xFF0288D1).withOpacity(0.45),
+                    blurRadius: 14,
+                    offset: const Offset(0, 5),
+                  ),
+                ],
+              ),
+              child: Row(
+                children: [
+                  ClipRRect(
+                    borderRadius: BorderRadius.circular(10),
+                    child: Image.asset(
+                      'assets/images/app_icon.png',
+                      width: 34,
+                      height: 34,
+                      errorBuilder: (_, __, ___) => const Icon(
+                        Icons.auto_awesome_rounded,
+                        color: Color(0xFF38BDF8),
+                        size: 26,
+                      ),
+                    ),
+                  ),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: Column(
+                      mainAxisSize: MainAxisSize.min,
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        const Text(
+                          'أذكاري • واذكر ربك إذا نسيت',
+                          style: TextStyle(
+                            color: Color(0xFFBAE6FD),
+                            fontSize: 10.5,
+                            fontWeight: FontWeight.bold,
+                          ),
+                        ),
+                        const SizedBox(height: 3),
+                        Text(
+                          _zikr,
+                          maxLines: 3,
+                          overflow: TextOverflow.ellipsis,
+                          style: const TextStyle(
+                            fontFamily: 'NotoKufi',
+                            color: Colors.white,
+                            fontSize: 14.5,
+                            fontWeight: FontWeight.bold,
+                            height: 1.45,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                  const SizedBox(width: 8),
+                  const Icon(Icons.close_rounded, color: Colors.white70, size: 18),
+                ],
               ),
             ),
           ),
-        ),
       ),
     ),
     );
@@ -455,11 +372,10 @@ Future<void> main() async {
     DeviceOrientation.portraitDown,
   ]);
   final prefs = await SharedPreferences.getInstance();
-  await SoundEffectsService.instance.init();
-  runApp(AzkariApp(prefs: prefs));
   try {
     await NotificationService.instance.init();
   } catch (_) {}
+  runApp(AzkariApp(prefs: prefs));
 }
 
 class AzkariApp extends StatefulWidget {
@@ -1230,6 +1146,13 @@ class MainShellScreen extends StatefulWidget {
 class _MainShellScreenState extends State<MainShellScreen> {
   final GlobalKey<ScaffoldState> _scaffoldKey = GlobalKey<ScaffoldState>();
   late final PageController _pageController = PageController(initialPage: 0);
+  final GlobalKey _navHomeKey = GlobalKey();
+  final GlobalKey _navQuranKey = GlobalKey();
+  final GlobalKey _navAzkarKey = GlobalKey();
+  final GlobalKey _navTasbihKey = GlobalKey();
+  final GlobalKey _navSettingsKey = GlobalKey();
+  final GlobalKey _fbBtnKey = GlobalKey();
+  final GlobalKey _tasksCardKey = GlobalKey();
   int _currentIndex = 0;
   String _searchQuery = '';
   bool _showSearch = false;
@@ -1255,9 +1178,64 @@ class _MainShellScreenState extends State<MainShellScreen> {
         widget.appState.widget.prefs.setString('lastDailyAyahDate', today);
         _showDailyAyahDialog();
       } else {
-        _maybeShowRareDoubleRewardDialog();
+        Future.delayed(const Duration(seconds: 2), () {
+          if (mounted) _maybeShowRareDoubleRewardDialog();
+        });
+      }
+      if (!(widget.appState.widget.prefs.getBool('seenHomeTour') ?? false)) {
+        Future.delayed(const Duration(milliseconds: 500), () {
+          if (mounted) _startHomeSpotlightTour();
+        });
       }
     });
+  }
+
+  void _startHomeSpotlightTour() {
+    final s = widget.appState;
+    s.widget.prefs.setBool('seenHomeTour', true);
+    showSpotlightTour(
+      context,
+      nextLabel: s.tr('التالي', 'Next', 'İleri'),
+      finishLabel: s.tr('تم', 'Done', 'Tamam'),
+      skipLabel: s.tr('تخطي', 'Skip', 'Atla'),
+      steps: [
+        SpotlightStep(
+          targetKey: _navHomeKey,
+          title: s.tr('الشاشة الرئيسية', 'Home', 'Ana Sayfa'),
+          body: s.tr('هنا تجد الذكر الموصى به الآن، ومهامك اليومية، والوصول السريع.', 'Find your recommended Azkar, daily tasks, and quick shortcuts here.', 'Önerilen zikirleri, günlük görevleri ve kısayolları burada bulun.'),
+        ),
+        SpotlightStep(
+          targetKey: _navQuranKey,
+          title: s.tr('القرآن الكريم', 'Noble Quran', 'Kur’an-ı Kerim'),
+          body: s.tr('قراءة، تلاوة صوتية، تتبع كلمة بكلمة، وتفسير بدون إنترنت.', 'Read, listen with word-by-word tracking, and view explanations offline.', 'Çevrimdışı okuyun, kelime takibiyle dinleyin ve tefsiri görün.'),
+        ),
+        SpotlightStep(
+          targetKey: _navAzkarKey,
+          title: s.tr('كل الأذكار', 'All Azkar', 'Tüm Zikirler'),
+          body: s.tr('أذكار الصباح والمساء والنوم والصلاة مع إمكانية التعديل والمشاركة.', 'Morning, Evening, Sleep & Prayer Azkar with editing and card sharing.', 'Sabah, Akşam, Uyku ve Namaz zikirlerini düzenleyin ve paylaşın.'),
+        ),
+        SpotlightStep(
+          targetKey: _navTasbihKey,
+          title: s.tr('السبحة الإلكترونية', 'Digital Tasbih', 'Dijital Tesbih'),
+          body: s.tr('سبّح باهتزاز لطيف بدون إيقاف التلاوة مع حفظ عداد كل ذكر.', 'Count effortlessly with gentle haptics without pausing Quran audio.', 'Kur’an sesini durdurmadan nazik titreşimle tesbih çekin.'),
+        ),
+        SpotlightStep(
+          targetKey: _navSettingsKey,
+          title: s.tr('الإعدادات', 'Settings', 'Ayarlar'),
+          body: s.tr('تحكم بالخطوط، الذكر العائم، والتحديثات من هنا.', 'Customize fonts, floating reminders, and app updates here.', 'Yazı tiplerini, yüzen zikri ve güncellemeleri buradan ayarlayın.'),
+        ),
+        SpotlightStep(
+          targetKey: _fbBtnKey,
+          title: s.tr('حسابك في أذكاري', 'Your Account', 'Hesabınız'),
+          body: s.tr('سجّل دخولك بفيسبوك لربط اسمك وإنجازاتك في التطبيق.', 'Sign in with Facebook to link your profile and achievements.', 'Profilinizi ve başarılarınızı bağlamak için Facebook ile giriş yapın.'),
+        ),
+        SpotlightStep(
+          targetKey: _tasksCardKey,
+          title: s.tr('المهام والإنجازات', 'Tasks & Achievements', 'Görevler ve Başarılar'),
+          body: s.tr('تابع مواظبتك اليومية، المستويات، وملصقات التفاعل المتحركة.', 'Track your daily streak, tiers, and animated progress stickers.', 'Günlük serinizi, seviyeleri ve animasyonlu rozetleri takip edin.'),
+        ),
+      ],
+    );
   }
 
   void _maybeShowRareDoubleRewardDialog() {
@@ -1759,32 +1737,34 @@ class _MainShellScreenState extends State<MainShellScreen> {
               selectedIndex: _currentIndex,
               onDestinationSelected: (idx) {
                 setState(() => _currentIndex = idx);
-                _pageController.animateToPage(
-                  idx,
-                  duration: const Duration(milliseconds: 280),
-                  curve: Curves.easeOutCubic,
-                );
+                if (_pageController.hasClients) {
+                  _pageController.animateToPage(
+                    idx,
+                    duration: const Duration(milliseconds: 280),
+                    curve: Curves.easeOutCubic,
+                  );
+                }
               },
               indicatorColor: primary.withOpacity(0.18),
               destinations: [
                 NavigationDestination(
-                  icon: const Icon(Icons.home_rounded),
+                  icon: Icon(Icons.home_rounded, key: _navHomeKey),
                   label: s.tr('الرئيسية', 'Home'),
                 ),
                 NavigationDestination(
-                  icon: const Icon(Icons.menu_book_rounded),
+                  icon: Icon(Icons.menu_book_rounded, key: _navQuranKey),
                   label: s.tr('القرآن', 'Quran'),
                 ),
                 NavigationDestination(
-                  icon: const Icon(Icons.grid_view_rounded),
+                  icon: Icon(Icons.grid_view_rounded, key: _navAzkarKey),
                   label: s.tr('الأذكار', 'Azkar'),
                 ),
                 NavigationDestination(
-                  icon: const Icon(Icons.scatter_plot_rounded),
+                  icon: Icon(Icons.scatter_plot_rounded, key: _navTasbihKey),
                   label: s.tr('السبحة', 'Tasbih'),
                 ),
                 NavigationDestination(
-                  icon: const Icon(Icons.settings_rounded),
+                  icon: Icon(Icons.settings_rounded, key: _navSettingsKey),
                   label: s.tr('الإعدادات', 'Settings'),
                 ),
               ],
@@ -2101,6 +2081,7 @@ class _MainShellScreenState extends State<MainShellScreen> {
                       s.loginWithFacebook(context);
                     }
                   },
+                  key: _fbBtnKey,
                   child: CircleAvatar(
                     radius: 17,
                     backgroundColor: primary.withOpacity(0.18),
@@ -2293,6 +2274,7 @@ class _MainShellScreenState extends State<MainShellScreen> {
         ),
         const SizedBox(height: 14),
         Container(
+          key: _tasksCardKey,
           padding: const EdgeInsets.all(14),
           decoration: BoxDecoration(
             color: cardColor,
@@ -3101,6 +3083,24 @@ class _MainShellScreenState extends State<MainShellScreen> {
           child: Column(
             children: [
               ListTile(
+                leading: Icon(Icons.route_rounded, color: primary),
+                title: Text(s.tr('إعادة الجولة التعليمية', 'Replay App Tour', 'Uygulama Turunu Tekrarla')),
+                trailing: const Icon(Icons.arrow_forward_ios_rounded, size: 15),
+                onTap: () {
+                  s.widget.prefs.setBool('seenHomeTour', false);
+                  s.widget.prefs.setBool('seenQuranHomeTour', false);
+                  s.widget.prefs.setBool('seenSurahTour', false);
+                  setState(() => _currentIndex = 0);
+                  if (_pageController.hasClients) {
+                    _pageController.jumpToPage(0);
+                  }
+                  WidgetsBinding.instance.addPostFrameCallback((_) {
+                    if (mounted) _startHomeSpotlightTour();
+                  });
+                },
+              ),
+              const Divider(height: 1),
+              ListTile(
                 leading: Icon(Icons.info_outline_rounded, color: primary),
                 title: Text(s.tr('إصدار التطبيق', 'App Version', 'Uygulama Sürümü')),
                 trailing: const Text('2.3.0',
@@ -3209,6 +3209,7 @@ Future<void> showDoubleRewardShareDialog(
                       disposed = true;
                       timer?.cancel();
                       Navigator.pop(ctx);
+                      if (!context.mounted) return;
                       showDialog(
                         context: context,
                         builder: (c2) => AlertDialog(
@@ -3315,24 +3316,24 @@ class AchievementsScreen extends StatelessWidget {
     return parts.join(' • ');
   }
 
-  (String, Color, int) _tierInfo(_AzkariAppState s) {
+  (String, Color, int, int) _tierInfo(_AzkariAppState s) {
     final score = s.totalAzkarCompleted + s.tasbihLifetime;
-    if (score >= 25000) {
-      return (s.tr('المستوى الألماسي', 'Diamond Tier', 'Elmas Seviye'), const Color(0xFF38BDF8), 50000);
+    if (score >= 100000) {
+      return (s.tr('المستوى الألماسي', 'Diamond Tier', 'Elmas Seviye'), const Color(0xFF38BDF8), 100000, 6);
+    }
+    if (score >= 35000) {
+      return (s.tr('المستوى البلاتيني', 'Platinum Tier', 'Platin Seviye'), const Color(0xFFCBD5E1), 100000, 5);
     }
     if (score >= 10000) {
-      return (s.tr('المستوى البلاتيني', 'Platinum Tier', 'Platin Seviye'), const Color(0xFFCBD5E1), 25000);
+      return (s.tr('المستوى الذهبي', 'Gold Tier', 'Altın Seviye'), const Color(0xFFFBBF24), 35000, 4);
     }
-    if (score >= 3000) {
-      return (s.tr('المستوى الذهبي', 'Gold Tier', 'Altın Seviye'), const Color(0xFFFBBF24), 10000);
+    if (score >= 2500) {
+      return (s.tr('المستوى الفضي', 'Silver Tier', 'Gümüş Seviye'), const Color(0xFF94A3B8), 10000, 3);
     }
-    if (score >= 1000) {
-      return (s.tr('المستوى الفضي', 'Silver Tier', 'Gümüş Seviye'), const Color(0xFF94A3B8), 3000);
+    if (score >= 500) {
+      return (s.tr('المستوى البرونزي', 'Bronze Tier', 'Bronz Seviye'), const Color(0xFFD97706), 2500, 2);
     }
-    if (score >= 250) {
-      return (s.tr('المستوى البرونزي', 'Bronze Tier', 'Bronz Seviye'), const Color(0xFFD97706), 1000);
-    }
-    return (s.tr('المستوى الخشبي', 'Wooden Tier', 'Ahşap Seviye'), const Color(0xFFA16207), 250);
+    return (s.tr('المستوى الخشبي', 'Wooden Tier', 'Ahşap Seviye'), const Color(0xFFA16207), 500, 1);
   }
 
   @override
@@ -3341,7 +3342,7 @@ class AchievementsScreen extends StatelessWidget {
     final isDark = s.isDarkMode;
     final cardColor = isDark ? AppColors.surfaceDark : AppColors.surfaceLight;
     final borderColor = isDark ? AppColors.borderDark : AppColors.borderLight;
-    final (tierName, tierColor, nextGoal) = _tierInfo(s);
+    final (tierName, tierColor, nextGoal, tierLevel) = _tierInfo(s);
     final score = s.totalAzkarCompleted + s.tasbihLifetime;
     final tierProgress = (score / nextGoal).clamp(0.0, 1.0);
     final now = DateTime.now();
@@ -3451,7 +3452,16 @@ class AchievementsScreen extends StatelessWidget {
               children: [
                 Row(
                   children: [
-                    const Icon(Icons.local_fire_department_rounded, color: Colors.amber, size: 32),
+                    Image.asset(
+                      'assets/images/flame_$tierLevel.gif',
+                      width: 52,
+                      height: 52,
+                      errorBuilder: (_, __, ___) => const Icon(
+                        Icons.local_fire_department_rounded,
+                        color: Colors.amber,
+                        size: 36,
+                      ),
+                    ),
                     const SizedBox(width: 12),
                     Expanded(
                       child: Column(
@@ -3637,9 +3647,9 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
                   s.reminderMode = mode;
                   s.floatingEnabled = mode == 'overlay';
                   s.floatingIntervalMinutes = opt.$3;
-                  s.onboardingDone = true;
                   s.saveAllState();
                   Navigator.pop(ctx);
+                  if (mounted) setState(() => _step = 3);
                 },
               ),
             );
@@ -3827,7 +3837,106 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
                         ),
                       ],
                     )
-                  : SingleChildScrollView(
+                  : _step == 3
+                      ? Column(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          children: [
+                            ClipRRect(
+                              borderRadius: BorderRadius.circular(24),
+                              child: Image.asset(
+                                'assets/images/app_icon.png',
+                                width: 88,
+                                height: 88,
+                                errorBuilder: (_, __, ___) => const Icon(
+                                  Icons.account_circle_rounded,
+                                  size: 72,
+                                  color: AppColors.skyBlue,
+                                ),
+                              ),
+                            ),
+                            const SizedBox(height: 24),
+                            Text(
+                              s.tr(
+                                'ربط الحساب أم الدخول كزائر؟',
+                                'Sign in or Continue as Guest?',
+                                'Giriş Yap veya Misafir Devam Et?',
+                              ),
+                              textAlign: TextAlign.center,
+                              style: const TextStyle(
+                                fontSize: 22,
+                                fontWeight: FontWeight.bold,
+                              ),
+                            ),
+                            const SizedBox(height: 12),
+                            Text(
+                              s.tr(
+                                'اربط حسابك لحفظ ملفك أو تابع كزائر فوراً وابدأ جولتك في التطبيق.',
+                                'Link your account or jump right in as a guest.',
+                                'Hesabınızı bağlayın veya misafir olarak hemen başlayın.',
+                              ),
+                              textAlign: TextAlign.center,
+                              style: TextStyle(
+                                fontSize: 14.5,
+                                height: 1.6,
+                                color: isDark ? Colors.white70 : Colors.black54,
+                              ),
+                            ),
+                            const SizedBox(height: 28),
+                            SizedBox(
+                              width: double.infinity,
+                              height: 54,
+                              child: FilledButton.icon(
+                                style: FilledButton.styleFrom(
+                                  backgroundColor: const Color(0xFF1877F2),
+                                  foregroundColor: Colors.white,
+                                  shape: RoundedRectangleBorder(
+                                      borderRadius: BorderRadius.circular(999)),
+                                ),
+                                onPressed: () async {
+                                  await s.loginWithFacebook(context);
+                                  s.onboardingDone = true;
+                                  s.saveAllState();
+                                },
+                                icon: const Icon(Icons.facebook_rounded),
+                                label: Text(
+                                  s.tr(
+                                    'تسجيل الدخول بفيسبوك',
+                                    'Sign in with Facebook',
+                                    'Facebook ile Giriş Yap',
+                                  ),
+                                  style: const TextStyle(
+                                      fontSize: 16, fontWeight: FontWeight.bold),
+                                ),
+                              ),
+                            ),
+                            const SizedBox(height: 14),
+                            SizedBox(
+                              width: double.infinity,
+                              height: 54,
+                              child: OutlinedButton.icon(
+                                style: OutlinedButton.styleFrom(
+                                  shape: RoundedRectangleBorder(
+                                      borderRadius: BorderRadius.circular(999)),
+                                ),
+                                onPressed: () {
+                                  s.onboardingDone = true;
+                                  s.saveAllState();
+                                },
+                                icon: const Icon(Icons.person_outline_rounded),
+                                label: Text(
+                                  s.tr(
+                                    'المتابعة كزائر',
+                                    'Continue as Guest',
+                                    'Misafir Olarak Devam Et',
+                                  ),
+                                  style: const TextStyle(
+                                      fontSize: 16, fontWeight: FontWeight.bold),
+                                ),
+                              ),
+                            ),
+                          ],
+                        )
+                      : SingleChildScrollView(
                   child: Column(
                     mainAxisAlignment: MainAxisAlignment.center,
                     children: [
@@ -4186,45 +4295,244 @@ class _AzkarReaderScreenState extends State<AzkarReaderScreen> {
   }
 
   Future<void> _shareZikrAsImage(String zikrText, String catLabel) async {
-    try {
-      final recorder = ui.PictureRecorder();
-      final canvas = Canvas(recorder);
-      const w = 900.0;
-      const h = 620.0;
-      final bgPaint = Paint()
-        ..shader = ui.Gradient.linear(
-          const Offset(0, 0),
-          const Offset(w, h),
-          const [Color(0xFF0A192F), Color(0xFF0D47A1)],
-        );
-      canvas.drawRRect(
-        RRect.fromRectAndRadius(const Rect.fromLTWH(0, 0, w, h), const Radius.circular(32)),
-        bgPaint,
-      );
-      final tp = TextPainter(
-        text: TextSpan(
-          text: zikrText,
-          style: const TextStyle(color: Colors.white, fontSize: 30, height: 1.6),
-        ),
-        textAlign: TextAlign.center,
-        textDirection: widget.appState.appLang == 'ar'
-            ? TextDirection.rtl
-            : TextDirection.ltr,
-      )..layout(maxWidth: w - 100);
-      tp.paint(canvas, Offset((w - tp.width) / 2, (h - tp.height) / 2));
+    final s = widget.appState;
+    final themes = <(String, List<Color>, Color)>[
+      (s.tr('أزرق ليلي', 'Midnight', 'Gece'), const [Color(0xFF0A192F), Color(0xFF0D47A1)], Colors.white),
+      (s.tr('سماوي', 'Sky Blue', 'Gökyüzü'), const [Color(0xFF0284C7), Color(0xFF38BDF8)], Colors.white),
+      (s.tr('أسود نقي', 'Pure Black', 'Siyah'), const [Color(0xFF09090B), Color(0xFF1E293B)], Colors.white),
+      (s.tr('زمردي', 'Emerald', 'Zümrüt'), const [Color(0xFF064E3B), Color(0xFF10B981)], Colors.white),
+      (s.tr('ذهبي داكن', 'Royal Gold', 'Altın'), const [Color(0xFF451A03), Color(0xFFB45309)], Colors.white),
+      (s.tr('أبيض نقي', 'Clean White', 'Beyaz'), const [Color(0xFFF8FAFC), Color(0xFFE2E8F0)], const Color(0xFF0F172A)),
+    ];
+    int selectedTheme = 0;
+    final cardKey = GlobalKey();
 
-      final pic = recorder.endRecording();
-      final img = await pic.toImage(w.toInt(), h.toInt());
-      final bytes = await img.toByteData(format: ui.ImageByteFormat.png);
-      if (bytes != null) {
-        final dir = await getTemporaryDirectory();
-        final file = File('${dir.path}/azkari_card.png');
-        await file.writeAsBytes(bytes.buffer.asUint8List());
-        await Share.shareXFiles([XFile(file.path)], text: catLabel);
-      }
-    } catch (_) {
-      Share.share(zikrText);
-    }
+    await showDialog(
+      context: context,
+      builder: (ctx) => StatefulBuilder(
+        builder: (ctx, setDState) {
+          final theme = themes[selectedTheme];
+          final textColor = theme.$3;
+          final isLightCard = textColor != Colors.white;
+          return Dialog(
+            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
+            child: SingleChildScrollView(
+              padding: const EdgeInsets.all(16),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Text(
+                    s.tr('تخصيص بطاقة الذكر', 'Customize Zikr Card', 'Zikir Kartını Özelleştir'),
+                    style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
+                  ),
+                  const SizedBox(height: 12),
+                  RepaintBoundary(
+                    key: cardKey,
+                    child: Container(
+                      width: double.infinity,
+                      padding: const EdgeInsets.fromLTRB(18, 22, 18, 16),
+                      decoration: BoxDecoration(
+                        gradient: LinearGradient(
+                          colors: theme.$2,
+                          begin: Alignment.topLeft,
+                          end: Alignment.bottomRight,
+                        ),
+                        borderRadius: BorderRadius.circular(22),
+                        border: Border.all(
+                          color: isLightCard ? Colors.black12 : Colors.white24,
+                        ),
+                      ),
+                      child: Column(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Text(
+                            catLabel,
+                            style: TextStyle(
+                              color: textColor.withOpacity(0.75),
+                              fontSize: 11.5,
+                              fontWeight: FontWeight.bold,
+                            ),
+                          ),
+                          const SizedBox(height: 14),
+                          Text(
+                            zikrText,
+                            textAlign: TextAlign.center,
+                            textDirection: s.appLang == 'ar' ? TextDirection.rtl : TextDirection.ltr,
+                            style: TextStyle(
+                              fontFamily: s.appLang == 'ar' ? s.azkarFontFamily : null,
+                              color: textColor,
+                              fontSize: 17.5,
+                              height: 1.75,
+                              fontWeight: FontWeight.w600,
+                            ),
+                          ),
+                          const SizedBox(height: 18),
+                          Divider(color: textColor.withOpacity(0.18), height: 1),
+                          const SizedBox(height: 10),
+                          Row(
+                            children: [
+                              ClipRRect(
+                                borderRadius: BorderRadius.circular(8),
+                                child: Image.asset(
+                                  'assets/images/app_icon.png',
+                                  width: 28,
+                                  height: 28,
+                                  errorBuilder: (_, __, ___) => Icon(
+                                    Icons.mosque_rounded,
+                                    color: textColor,
+                                    size: 22,
+                                  ),
+                                ),
+                              ),
+                              const SizedBox(width: 8),
+                              Expanded(
+                                child: Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    Text(
+                                      'أذكاري - واذكر ربك إذا نسيت (Azkari)',
+                                      maxLines: 1,
+                                      overflow: TextOverflow.ellipsis,
+                                      style: TextStyle(
+                                        color: textColor,
+                                        fontSize: 10.5,
+                                        fontWeight: FontWeight.bold,
+                                      ),
+                                    ),
+                                    const SizedBox(height: 3),
+                                    Row(
+                                      children: [
+                                        Container(
+                                          padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                                          decoration: BoxDecoration(
+                                            color: Colors.black87,
+                                            borderRadius: BorderRadius.circular(5),
+                                          ),
+                                          child: const Row(
+                                            mainAxisSize: MainAxisSize.min,
+                                            children: [
+                                              Icon(Icons.play_arrow_rounded, color: Color(0xFF38BDF8), size: 11),
+                                              SizedBox(width: 2),
+                                              Text('Google Play', style: TextStyle(color: Colors.white, fontSize: 8.5, fontWeight: FontWeight.bold)),
+                                            ],
+                                          ),
+                                        ),
+                                        const SizedBox(width: 5),
+                                        Container(
+                                          padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                                          decoration: BoxDecoration(
+                                            color: Colors.black87,
+                                            borderRadius: BorderRadius.circular(5),
+                                          ),
+                                          child: const Row(
+                                            mainAxisSize: MainAxisSize.min,
+                                            children: [
+                                              Icon(Icons.apple_rounded, color: Colors.white, size: 11),
+                                              SizedBox(width: 2),
+                                              Text('App Store', style: TextStyle(color: Colors.white, fontSize: 8.5, fontWeight: FontWeight.bold)),
+                                            ],
+                                          ),
+                                        ),
+                                      ],
+                                    ),
+                                  ],
+                                ),
+                              ),
+                              Container(
+                                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                                decoration: BoxDecoration(
+                                  color: AppColors.skyBlue.withOpacity(0.22),
+                                  borderRadius: BorderRadius.circular(999),
+                                  border: Border.all(color: AppColors.skyBlue.withOpacity(0.6)),
+                                ),
+                                child: Text(
+                                  s.tr('شارك تؤجر', 'Share for Reward', 'Paylaş Kazan'),
+                                  style: TextStyle(
+                                    color: isLightCard ? AppColors.primaryBlue : Colors.white,
+                                    fontSize: 9.5,
+                                    fontWeight: FontWeight.bold,
+                                  ),
+                                ),
+                              ),
+                            ],
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                  const SizedBox(height: 12),
+                  Wrap(
+                    spacing: 8,
+                    children: List.generate(themes.length, (idx) {
+                      final isSel = idx == selectedTheme;
+                      return GestureDetector(
+                        onTap: () => setDState(() => selectedTheme = idx),
+                        child: Container(
+                          width: 30,
+                          height: 30,
+                          decoration: BoxDecoration(
+                            gradient: LinearGradient(colors: themes[idx].$2),
+                            shape: BoxShape.circle,
+                            border: Border.all(
+                              color: isSel ? AppColors.skyBlue : Colors.grey,
+                              width: isSel ? 3 : 1,
+                            ),
+                          ),
+                        ),
+                      );
+                    }),
+                  ),
+                  const SizedBox(height: 14),
+                  Row(
+                    children: [
+                      Expanded(
+                        child: OutlinedButton.icon(
+                          onPressed: () {
+                            Navigator.pop(ctx);
+                            Share.share('$zikrText\n\nأذكاري - واذكر ربك إذا نسيت (Azkari)\n$kAppDownloadLink');
+                          },
+                          icon: const Icon(Icons.text_fields_rounded, size: 18),
+                          label: Text(s.tr('نص', 'Text', 'Metin')),
+                        ),
+                      ),
+                      const SizedBox(width: 10),
+                      Expanded(
+                        child: FilledButton.icon(
+                          onPressed: () async {
+                            try {
+                              final boundary = cardKey.currentContext?.findRenderObject() as RenderRepaintBoundary?;
+                              if (boundary != null) {
+                                final img = await boundary.toImage(pixelRatio: 2.5);
+                                final bytes = await img.toByteData(format: ui.ImageByteFormat.png);
+                                if (bytes != null) {
+                                  final dir = await getTemporaryDirectory();
+                                  final file = File('${dir.path}/azkari_card.png');
+                                  await file.writeAsBytes(bytes.buffer.asUint8List());
+                                  if (ctx.mounted) Navigator.pop(ctx);
+                                  await Share.shareXFiles(
+                                    [XFile(file.path)],
+                                    text: '$catLabel • أذكاري (Azkari)\n$kAppDownloadLink',
+                                  );
+                                  return;
+                                }
+                              }
+                            } catch (_) {}
+                            if (ctx.mounted) Navigator.pop(ctx);
+                            Share.share('$zikrText\n$kAppDownloadLink');
+                          },
+                          icon: const Icon(Icons.image_rounded, size: 18),
+                          label: Text(s.tr('صورة', 'Image', 'Görsel')),
+                        ),
+                      ),
+                    ],
+                  ),
+                ],
+              ),
+            ),
+          );
+        },
+      ),
+    );
   }
 
   void _confirmResetAll(List<ZikrItem> items) {
@@ -4766,20 +5074,50 @@ class _AzkarReaderScreenState extends State<AzkarReaderScreen> {
                             ),
                             const SizedBox(height: 8),
                           ],
-                          Text(
-                            s.isTurkish
-                                ? item.turkishText
-                                : (s.isEnglish ? item.englishText : body),
-                            textAlign: TextAlign.center,
-                            style: TextStyle(
-                              fontFamily: (s.isEnglish || s.isTurkish)
-                                  ? null
-                                  : s.azkarFontFamily,
-                              fontSize: 19 * s.fontScale,
-                              height: 1.9,
-                              fontWeight: FontWeight.w500,
+                          if (s.isEnglish || s.isTurkish) ...[
+                            Text(
+                              body,
+                              textAlign: TextAlign.center,
+                              textDirection: TextDirection.rtl,
+                              style: TextStyle(
+                                fontFamily: 'AmiriQuran',
+                                fontSize: 19 * s.fontScale,
+                                height: 1.85,
+                                fontWeight: FontWeight.w500,
+                              ),
                             ),
-                          ),
+                            const SizedBox(height: 8),
+                            Text(
+                              transliterateAzkar(body),
+                              textAlign: TextAlign.center,
+                              style: TextStyle(
+                                color: AppColors.skyBlue,
+                                fontSize: 13.5 * s.fontScale,
+                                height: 1.5,
+                                fontStyle: FontStyle.italic,
+                              ),
+                            ),
+                            const SizedBox(height: 8),
+                            Text(
+                              s.isTurkish ? item.turkishText : item.englishText,
+                              textAlign: TextAlign.center,
+                              style: TextStyle(
+                                fontSize: 14.5 * s.fontScale,
+                                height: 1.6,
+                                color: textSecondary,
+                              ),
+                            ),
+                          ] else
+                            Text(
+                              body,
+                              textAlign: TextAlign.center,
+                              style: TextStyle(
+                                fontFamily: s.azkarFontFamily,
+                                fontSize: 19 * s.fontScale,
+                                height: 1.9,
+                                fontWeight: FontWeight.w500,
+                              ),
+                            ),
                           if (s.showSource && item.source.isNotEmpty && !s.isEnglish && !s.isTurkish) ...[
                             const SizedBox(height: 10),
                             Text(
