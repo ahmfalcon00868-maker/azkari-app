@@ -386,10 +386,17 @@ class AppColors {
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
+  FlutterError.onError = (details) {
+    FlutterError.presentError(details);
+  };
+  ui.PlatformDispatcher.instance.onError = (error, stack) {
+    return true;
+  };
   try {
     await JustAudioBackground.init(
-      androidNotificationChannelId: 'com.azkari.azkari.channel.audio',
+      androidNotificationChannelId: 'com.flc.azkari.channel.audio',
       androidNotificationChannelName: 'تلاوة القرآن الكريم • أذكاري',
+      androidNotificationIcon: 'drawable/ic_notification',
       androidNotificationOngoing: true,
       notificationColor: const Color(0xFF0D47A1),
     );

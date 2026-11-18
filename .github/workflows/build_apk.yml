@@ -1,4 +1,4 @@
-name: Build Azkari v2.0 Android APK
+name: Build Azkari v1.0.0 Android APK
 
 on:
   push:
@@ -7,7 +7,7 @@ on:
 
 jobs:
   build-android-apk:
-    name: Build Azkari v2.0 APK
+    name: Build Azkari v1.0.0 APK
     runs-on: ubuntu-latest
     steps:
       - name: Checkout code
@@ -44,10 +44,10 @@ jobs:
           m = open(mp, encoding="utf-8").read()
           m = re.sub("android:label=\"[^\"]*\"", "android:label=\"أذكاري\"", m, count=1)
           m = m.replace("android:name=\".MainActivity\"", "android:name=\"com.ryanheise.audioservice.AudioServiceActivity\"", 1)
-          perms = "\n    <uses-permission android:name=\"android.permission.RECEIVE_BOOT_COMPLETED\"/>\n    <uses-permission android:name=\"android.permission.VIBRATE\"/>\n    <uses-permission android:name=\"android.permission.POST_NOTIFICATIONS\"/>\n    <uses-permission android:name=\"android.permission.SCHEDULE_EXACT_ALARM\"/>\n    <uses-permission android:name=\"android.permission.USE_EXACT_ALARM\"/>\n    <uses-permission android:name=\"android.permission.SYSTEM_ALERT_WINDOW\"/>\n    <uses-permission android:name=\"android.permission.WAKE_LOCK\"/>\n    <uses-permission android:name=\"android.permission.FOREGROUND_SERVICE\"/>\n    <uses-permission android:name=\"android.permission.FOREGROUND_SERVICE_MEDIA_PLAYBACK\"/>\n    <uses-permission android:name=\"android.permission.REQUEST_INSTALL_PACKAGES\"/>\n"
+          perms = "\n    <uses-permission android:name=\"android.permission.RECEIVE_BOOT_COMPLETED\"/>\n    <uses-permission android:name=\"android.permission.VIBRATE\"/>\n    <uses-permission android:name=\"android.permission.POST_NOTIFICATIONS\"/>\n    <uses-permission android:name=\"android.permission.SCHEDULE_EXACT_ALARM\"/>\n    <uses-permission android:name=\"android.permission.USE_EXACT_ALARM\"/>\n    <uses-permission android:name=\"android.permission.SYSTEM_ALERT_WINDOW\"/>\n    <uses-permission android:name=\"android.permission.WAKE_LOCK\"/>\n    <uses-permission android:name=\"android.permission.FOREGROUND_SERVICE\"/>\n    <uses-permission android:name=\"android.permission.FOREGROUND_SERVICE_MEDIA_PLAYBACK\"/>\n    <uses-permission android:name=\"android.permission.FOREGROUND_SERVICE_SPECIAL_USE\"/>\n    <uses-permission android:name=\"android.permission.REQUEST_INSTALL_PACKAGES\"/>\n"
           if "SYSTEM_ALERT_WINDOW" not in m:
               m = m.replace("<application", perms + "<application", 1)
-          svcs = "\n        <service android:name=\"flutter.overlay.window.flutter_overlay_window.OverlayService\" android:exported=\"false\" />\n        <service android:name=\"com.ryanheise.audioservice.AudioService\" android:foregroundServiceType=\"mediaPlayback\" android:exported=\"true\"><intent-filter><action android:name=\"android.media.browse.MediaBrowserService\" /></intent-filter></service>\n        <receiver android:name=\"com.ryanheise.audioservice.MediaButtonReceiver\" android:exported=\"true\"><intent-filter><action android:name=\"android.intent.action.MEDIA_BUTTON\" /></intent-filter></receiver>\n        <receiver android:exported=\"false\" android:name=\"com.dexterous.flutterlocalnotifications.ScheduledNotificationReceiver\" />\n        <receiver android:exported=\"false\" android:name=\"com.dexterous.flutterlocalnotifications.ScheduledNotificationBootReceiver\"><intent-filter><action android:name=\"android.intent.action.BOOT_COMPLETED\"/><action android:name=\"android.intent.action.MY_PACKAGE_REPLACED\"/></intent-filter></receiver>\n"
+          svcs = "\n        <service android:name=\"flutter.overlay.window.flutter_overlay_window.OverlayService\" android:foregroundServiceType=\"specialUse\" android:exported=\"false\" />\n        <service android:name=\"com.ryanheise.audioservice.AudioService\" android:foregroundServiceType=\"mediaPlayback\" android:exported=\"true\"><intent-filter><action android:name=\"android.media.browse.MediaBrowserService\" /></intent-filter></service>\n        <receiver android:name=\"com.ryanheise.audioservice.MediaButtonReceiver\" android:exported=\"true\"><intent-filter><action android:name=\"android.intent.action.MEDIA_BUTTON\" /></intent-filter></receiver>\n        <receiver android:exported=\"false\" android:name=\"com.dexterous.flutterlocalnotifications.ScheduledNotificationReceiver\" />\n        <receiver android:exported=\"false\" android:name=\"com.dexterous.flutterlocalnotifications.ScheduledNotificationBootReceiver\"><intent-filter><action android:name=\"android.intent.action.BOOT_COMPLETED\"/><action android:name=\"android.intent.action.MY_PACKAGE_REPLACED\"/></intent-filter></receiver>\n"
           if "OverlayService" not in m:
               m = m.replace("</application>", svcs + "</application>", 1)
           open(mp, "w", encoding="utf-8").write(m)
@@ -146,5 +146,5 @@ jobs:
       - name: Upload APK Artifact
         uses: actions/upload-artifact@v4
         with:
-          name: Azkari-v2-Release-APK
+          name: Azkari-v1-Release-APK
           path: build/app/outputs/flutter-apk/app-release.apk
