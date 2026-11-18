@@ -310,6 +310,8 @@ class _SpotlightHolePainter extends CustomPainter {
       oldDelegate.holeRect != holeRect;
 }
 
+bool isSpotlightTourActive = false;
+
 void showSpotlightTour(
   BuildContext context, {
   required List<SpotlightStep> steps,
@@ -318,9 +320,10 @@ void showSpotlightTour(
   required String skipLabel,
   VoidCallback? onComplete,
 }) {
-  if (steps.isEmpty) return;
+  if (steps.isEmpty || isSpotlightTourActive) return;
   final overlay = Overlay.maybeOf(context);
   if (overlay == null) return;
+  isSpotlightTourActive = true;
   int idx = 0;
   OverlayEntry? entry;
 
@@ -425,6 +428,7 @@ void showSpotlightTour(
                           TextButton(
                             onPressed: () {
                               entry?.remove();
+                              isSpotlightTourActive = false;
                               onComplete?.call();
                             },
                             child: Text(skipLabel, style: const TextStyle(color: Colors.white60)),
@@ -1102,6 +1106,7 @@ class _SurahReaderScreenState extends State<SurahReaderScreen> {
   bool _audioOfflineReady = false;
   bool _repeatSurah = false;
   bool _autoNextSurah = true;
+  bool _advancingSurah = false;
   double _speed = 1.0;
 
   Timer? _sleepTimer;
@@ -1196,19 +1201,32 @@ class _SurahReaderScreenState extends State<SurahReaderScreen> {
           _ayahProgress = 0.0;
         }
       });
-      if (state.processingState == ProcessingState.completed) {
-        widget.onSurahCompleted?.call();
-        if (_stopAfterSurah) {
-          _cancelSleepTimer();
-          return;
-        }
-        if (_repeatSurah) {
-          await _player.seek(Duration.zero);
-          await _player.play();
-        } else if (_autoNextSurah && _surahNumber < 114) {
-          setState(() => _surahNumber += 1);
-          await _checkAudioCache();
-          await _playFullSurah();
+      if (state.processingState == ProcessingState.completed && !_advancingSurah) {
+        _advancingSurah = true;
+        try {
+          widget.onSurahCompleted?.call();
+          if (_stopAfterSurah) {
+            _cancelSleepTimer();
+            return;
+          }
+          if (_repeatSurah) {
+            await _player.seek(Duration.zero, index: 0);
+            await _player.play();
+          } else if (_autoNextSurah && _surahNumber < 114) {
+            await _player.stop();
+            if (!mounted) return;
+            setState(() {
+              _surahNumber += 1;
+              _playingAyahIndex = 0;
+              _playStartAyahIndex = 0;
+              _ayahProgress = 0.0;
+            });
+            await _checkAudioCache();
+            await _playFromAyah(0);
+            _scrollToAyahNumber(1, flash: false);
+          }
+        } finally {
+          _advancingSurah = false;
         }
       }
     });
@@ -1547,16 +1565,12 @@ class _SurahReaderScreenState extends State<SurahReaderScreen> {
 
   void _cancelSleepTimer() {
     _sleepTimer?.cancel();
-    _flashTimer?.cancel();
-    _idxSub?.cancel();
-    _posSub?.cancel();
-    _stateSub?.cancel();
-    _scrollController.dispose();
-    _translitScrollCtrl.dispose();
-    setState(() {
-      _sleepSecondsRemaining = 0;
-      _stopAfterSurah = false;
-    });
+    if (mounted) {
+      setState(() {
+        _sleepSecondsRemaining = 0;
+        _stopAfterSurah = false;
+      });
+    }
   }
 
   void _startSleepTimerSeconds(int totalSeconds) {
@@ -2250,6 +2264,12 @@ class _SurahReaderScreenState extends State<SurahReaderScreen> {
   @override
   void dispose() {
     _sleepTimer?.cancel();
+    _flashTimer?.cancel();
+    _idxSub?.cancel();
+    _posSub?.cancel();
+    _stateSub?.cancel();
+    _scrollController.dispose();
+    _translitScrollCtrl.dispose();
     super.dispose();
   }
 

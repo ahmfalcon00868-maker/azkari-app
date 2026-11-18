@@ -222,33 +222,54 @@ class _FloatingZikrOverlayWidget extends StatefulWidget {
 }
 
 class _FloatingZikrOverlayWidgetState
-    extends State<_FloatingZikrOverlayWidget> {
-  String _zikr = kRandomShortAzkar[0];
+    extends State<_FloatingZikrOverlayWidget>
+    with SingleTickerProviderStateMixin {
+  String _zikr = stripAllTashkeel(kFloatingAzkarPool[0]);
   Timer? _autoHideTimer;
+  late final AnimationController _animCtrl = AnimationController(
+    vsync: this,
+    duration: const Duration(milliseconds: 340),
+  );
+  late final Animation<Offset> _slideAnim = Tween<Offset>(
+    begin: const Offset(0, -0.35),
+    end: Offset.zero,
+  ).animate(CurvedAnimation(parent: _animCtrl, curve: Curves.easeOutCubic));
 
   @override
   void initState() {
     super.initState();
-    _zikr = kRandomShortAzkar[Random().nextInt(kRandomShortAzkar.length)];
+    _zikr = stripAllTashkeel(
+        kFloatingAzkarPool[Random().nextInt(kFloatingAzkarPool.length)]);
+    _animCtrl.forward();
     _resetAutoHide();
     FlutterOverlayWindow.overlayListener.listen((event) {
       if (event is String && event.trim().isNotEmpty && mounted) {
-        setState(() => _zikr = event);
+        setState(() => _zikr = stripAllTashkeel(event));
+        _animCtrl.forward(from: 0);
         _resetAutoHide();
       }
     });
   }
 
+  Future<void> _closeSmoothly() async {
+    _autoHideTimer?.cancel();
+    if (mounted) {
+      await _animCtrl.reverse();
+    }
+    try {
+      await FlutterOverlayWindow.closeOverlay();
+    } catch (_) {}
+  }
+
   void _resetAutoHide() {
     _autoHideTimer?.cancel();
-    _autoHideTimer = Timer(const Duration(seconds: 6), () {
-      FlutterOverlayWindow.closeOverlay();
-    });
+    _autoHideTimer = Timer(const Duration(seconds: 7), _closeSmoothly);
   }
 
   @override
   void dispose() {
     _autoHideTimer?.cancel();
+    _animCtrl.dispose();
     super.dispose();
   }
 
@@ -260,8 +281,12 @@ class _FloatingZikrOverlayWidgetState
         padding: const EdgeInsets.only(top: 38, left: 16, right: 16),
         child: Align(
           alignment: Alignment.topCenter,
-          child: GestureDetector(
-            onTap: () => FlutterOverlayWindow.closeOverlay(),
+          child: SlideTransition(
+            position: _slideAnim,
+            child: FadeTransition(
+              opacity: _animCtrl,
+              child: GestureDetector(
+                onTap: _closeSmoothly,
             child: Container(
               width: double.infinity,
               padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
@@ -329,6 +354,8 @@ class _FloatingZikrOverlayWidgetState
                   const SizedBox(width: 8),
                   const Icon(Icons.close_rounded, color: Colors.white70, size: 18),
                 ],
+              ),
+            ),
               ),
             ),
           ),
@@ -1172,7 +1199,7 @@ class _MainShellScreenState extends State<MainShellScreen> {
   @override
   void initState() {
     super.initState();
-    WidgetsBinding.instance.addPostFrameCallback((_) {
+    WidgetsBinding.instance.addPostFrameCallback((_) async {
       UpdateService.checkForUpdate(
         context,
         isEnglish: widget.appState.isEnglish,
@@ -1182,15 +1209,15 @@ class _MainShellScreenState extends State<MainShellScreen> {
           widget.appState.lastDailyAyahDate != today) {
         widget.appState.lastDailyAyahDate = today;
         widget.appState.widget.prefs.setString('lastDailyAyahDate', today);
-        _showDailyAyahDialog();
+        await _showDailyAyahDialog();
       } else {
         Future.delayed(const Duration(seconds: 2), () {
-          if (mounted) _maybeShowRareDoubleRewardDialog();
+          if (mounted && !isSpotlightTourActive) _maybeShowRareDoubleRewardDialog();
         });
       }
-      if (!(widget.appState.widget.prefs.getBool('seenHomeTour') ?? false)) {
-        Future.delayed(const Duration(milliseconds: 500), () {
-          if (mounted) _startHomeSpotlightTour();
+      if (mounted && !(widget.appState.widget.prefs.getBool('seenHomeTour') ?? false)) {
+        Future.delayed(const Duration(milliseconds: 450), () {
+          if (mounted && !isSpotlightTourActive) _startHomeSpotlightTour();
         });
       }
     });
@@ -1672,7 +1699,11 @@ class _MainShellScreenState extends State<MainShellScreen> {
                 onPageChanged: (idx) {
                   if (_currentIndex != idx) {
                     setState(() => _currentIndex = idx);
-                    _checkTabSpotlightTour(idx);
+                    Future.delayed(const Duration(milliseconds: 420), () {
+                      if (mounted && _currentIndex == idx && !isSpotlightTourActive) {
+                        _checkTabSpotlightTour(idx);
+                      }
+                    });
                   }
                 },
                 children: pages,
@@ -3152,6 +3183,9 @@ class _MainShellScreenState extends State<MainShellScreen> {
                 onChanged: (v) {
                   s.floatingEnabled = v;
                   s.saveAllState();
+                  if (v) {
+                    s.showFloatingZikrNow();
+                  }
                 },
               ),
               if (s.floatingEnabled)
@@ -4584,17 +4618,19 @@ class _AzkarReaderScreenState extends State<AzkarReaderScreen> {
                                 child: Column(
                                   crossAxisAlignment: CrossAxisAlignment.start,
                                   children: [
-                                    Text(
-                                      'أذكاري - واذكر ربك إذا نسيت (Azkari)',
-                                      maxLines: 1,
-                                      overflow: TextOverflow.ellipsis,
-                                      style: TextStyle(
-                                        color: textColor,
-                                        fontSize: 10.5,
-                                        fontWeight: FontWeight.bold,
+                                    FittedBox(
+                                      fit: BoxFit.scaleDown,
+                                      alignment: AlignmentDirectional.centerStart,
+                                      child: Text(
+                                        'أذكاري - واذكر ربك إذا نسيت (Azkari)',
+                                        style: TextStyle(
+                                          color: textColor,
+                                          fontSize: 10.5,
+                                          fontWeight: FontWeight.bold,
+                                        ),
                                       ),
                                     ),
-                                    const SizedBox(height: 3),
+                                    const SizedBox(height: 4),
                                     Row(
                                       children: [
                                         Container(
@@ -4606,8 +4642,8 @@ class _AzkarReaderScreenState extends State<AzkarReaderScreen> {
                                           child: const Row(
                                             mainAxisSize: MainAxisSize.min,
                                             children: [
-                                              Icon(Icons.play_arrow_rounded, color: Color(0xFF38BDF8), size: 11),
-                                              SizedBox(width: 2),
+                                              GooglePlayIcon(size: 12),
+                                              SizedBox(width: 4),
                                               Text('Google Play', style: TextStyle(color: Colors.white, fontSize: 8.5, fontWeight: FontWeight.bold)),
                                             ],
                                           ),
