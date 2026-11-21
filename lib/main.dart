@@ -2237,7 +2237,61 @@ class _MainShellScreenState extends State<MainShellScreen> {
                             Icons.audiotrack_rounded,
                             size: 28),
                       ),
-                      IconButton(
+                      InkWell(
+                  borderRadius: BorderRadius.circular(99),
+                  onTap: () async {
+                    await Navigator.of(context).push(
+                      MaterialPageRoute(
+                        builder: (_) => Sha7nawyPaymentScreen(
+                          prefs: s.widget.prefs,
+                          appLang: s.appLang,
+                          isDarkMode: s.isDarkMode,
+                          initialProMode: true,
+                        ),
+                      ),
+                    );
+                    if (mounted) setState(() {});
+                  },
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+                    decoration: BoxDecoration(
+                      gradient: AzkariProManager.isPro(s.widget.prefs)
+                          ? const LinearGradient(colors: [Color(0xFFFDE047), Color(0xFFF59E0B)])
+                          : null,
+                      color: AzkariProManager.isPro(s.widget.prefs)
+                          ? null
+                          : const Color(0xFFF59E0B).withOpacity(0.14),
+                      borderRadius: BorderRadius.circular(99),
+                      border: Border.all(
+                        color: const Color(0xFFF59E0B).withOpacity(0.65),
+                      ),
+                    ),
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Icon(
+                          Icons.workspace_premium_rounded,
+                          size: 14,
+                          color: AzkariProManager.isPro(s.widget.prefs)
+                              ? Colors.black
+                              : const Color(0xFFF59E0B),
+                        ),
+                        const SizedBox(width: 4),
+                        Text(
+                          'PRO',
+                          style: TextStyle(
+                            fontSize: 11,
+                            fontWeight: FontWeight.w900,
+                            color: AzkariProManager.isPro(s.widget.prefs)
+                                ? Colors.black
+                                : const Color(0xFFF59E0B),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+                IconButton(
                         tooltip: 'Email',
                         onPressed: () => launchUrl(
                             Uri.parse('mailto:support@azkari.app'),
@@ -3273,6 +3327,125 @@ class _MainShellScreenState extends State<MainShellScreen> {
       children: [
         Text(s.tr('الإعدادات', 'Settings', 'Ayarlar'),
             style: const TextStyle(fontSize: 22, fontWeight: FontWeight.bold)),
+        const SizedBox(height: 14),
+        Container(
+          padding: const EdgeInsets.all(18),
+          decoration: BoxDecoration(
+            gradient: const LinearGradient(
+              colors: [Color(0xFF0A192F), Color(0xFF0D47A1), Color(0xFF0288D1)],
+              begin: Alignment.topRight,
+              end: Alignment.bottomLeft,
+            ),
+            borderRadius: BorderRadius.circular(24),
+          ),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                    decoration: BoxDecoration(
+                      gradient: const LinearGradient(
+                        colors: [Color(0xFFFDE047), Color(0xFFF59E0B)],
+                      ),
+                      borderRadius: BorderRadius.circular(99),
+                    ),
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        const Icon(Icons.workspace_premium_rounded, size: 14, color: Colors.black),
+                        const SizedBox(width: 4),
+                        Text(
+                          AzkariProManager.isPro(s.widget.prefs)
+                              ? s.tr('أذكاري PRO مُفعّل', 'AZKARI PRO ACTIVE')
+                              : 'AZKARI PRO',
+                          style: const TextStyle(
+                            color: Colors.black,
+                            fontSize: 11,
+                            fontWeight: FontWeight.w900,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                  Text(
+                    s.tr('خالٍ من الإعلانات', 'Ad-Free'),
+                    style: const TextStyle(color: Color(0xFFBAE6FD), fontSize: 11),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 10),
+              Text(
+                AzkariProManager.isPro(s.widget.prefs)
+                    ? s.tr('شكراً لمساهمتك! جميع مزايا الحفظ الذكي متاحة لك.', 'Thank you! All smart Hifz features are active.')
+                    : s.tr('التسميع الذكي، وضع الحفظ، وتوقيت الكلمات بالمللي ثانية.', 'Smart Recitation, Hifz Mode & QUL Word Timings.'),
+                style: const TextStyle(color: Colors.white, fontSize: 13, fontWeight: FontWeight.w600, height: 1.45),
+              ),
+              const SizedBox(height: 14),
+              Row(
+                children: [
+                  Expanded(
+                    child: FilledButton(
+                      style: FilledButton.styleFrom(
+                        backgroundColor: const Color(0xFFF59E0B),
+                        foregroundColor: Colors.black,
+                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+                      ),
+                      onPressed: () async {
+                        await Navigator.of(context).push(
+                          MaterialPageRoute(
+                            builder: (_) => Sha7nawyPaymentScreen(
+                              prefs: s.widget.prefs,
+                              appLang: s.appLang,
+                              isDarkMode: s.isDarkMode,
+                              initialProMode: true,
+                            ),
+                          ),
+                        );
+                        if (mounted) setState(() {});
+                      },
+                      child: Text(
+                        AzkariProManager.isPro(s.widget.prefs)
+                            ? s.tr('إدارة PRO', 'Manage PRO')
+                            : s.tr('تفعيل PRO', 'Unlock PRO'),
+                        style: const TextStyle(fontWeight: FontWeight.w900, fontSize: 12.5),
+                      ),
+                    ),
+                  ),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: OutlinedButton(
+                      style: OutlinedButton.styleFrom(
+                        foregroundColor: Colors.white,
+                        side: BorderSide(color: Colors.white.withOpacity(0.35)),
+                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+                      ),
+                      onPressed: () async {
+                        await Navigator.of(context).push(
+                          MaterialPageRoute(
+                            builder: (_) => Sha7nawyPaymentScreen(
+                              prefs: s.widget.prefs,
+                              appLang: s.appLang,
+                              isDarkMode: s.isDarkMode,
+                              initialProMode: false,
+                            ),
+                          ),
+                        );
+                        if (mounted) setState(() {});
+                      },
+                      child: Text(
+                        s.tr('المساهمة في التطوير', 'Support Dev'),
+                        style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 12),
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ],
+          ),
+        ),
         const SizedBox(height: 16),
         Container(
           decoration: BoxDecoration(
@@ -3392,29 +3565,6 @@ class _MainShellScreenState extends State<MainShellScreen> {
           ),
           child: Column(
             children: [
-              ListTile(
-                leading: const Icon(Icons.workspace_premium_rounded, color: Color(0xFF0288D1)),
-                title: Text(s.tr('دعم التطبيق وأذكاري برو (شحناوي)', 'Support & Azkari Pro (Sha7nawy)', 'Destek ve Azkari Pro')),
-                subtitle: Text(
-                  AzkariProManager.isPro(s.widget.prefs)
-                      ? s.tr('أذكاري برو مُفعّل • شكراً لدعمك', 'Azkari Pro Active • Thank you', 'Azkari Pro Aktif')
-                      : s.tr('ادعم المطورين (10 - 10,000 ج.م) أو فعّل برو', 'Support devs or unlock Pro features', 'Geliştiricileri destekle'),
-                ),
-                trailing: const Icon(Icons.arrow_forward_ios_rounded, size: 15),
-                onTap: () async {
-                  await Navigator.of(context).push(
-                    MaterialPageRoute(
-                      builder: (_) => Sha7nawyPaymentScreen(
-                        prefs: s.widget.prefs,
-                        appLang: s.appLang,
-                        isDarkMode: s.isDarkMode,
-                      ),
-                    ),
-                  );
-                  if (mounted) setState(() {});
-                },
-              ),
-              const Divider(height: 1),
               ListTile(
                 leading: Icon(Icons.cloud_sync_rounded, color: primary),
                 title: Text(s.tr('المزامنة السحابية والنسخ الاحتياطي (مجاني)', 'Free Cloud Sync & Backup', 'Ücretsiz Bulut Senkronizasyonu')),
