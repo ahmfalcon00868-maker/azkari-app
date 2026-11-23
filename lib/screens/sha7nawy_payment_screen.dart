@@ -2320,10 +2320,7 @@ class _Sha7nawyPaymentScreenState extends State<Sha7nawyPaymentScreen> {
                       path: 'ahmfalcon00868@gmail.com',
                       queryParameters: {
                         'subject': 'مساعدة في الدفع - أذكاري PRO',
-                        'body': 'معرّف الحساب: $fbId
-آخر رقم مرجعي: ${lastRef.isEmpty ? "لا يوجد" : lastRef}
-
-وصف المشكلة:',
+                        'body': 'معرّف الحساب: $fbId\nآخر رقم مرجعي: ${lastRef.isEmpty ? "لا يوجد" : lastRef}\n\nوصف المشكلة:',
                       },
                     );
                     try {
