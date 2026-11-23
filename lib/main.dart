@@ -252,7 +252,57 @@ String translateShortZikr(String ar, String lang) {
 }
 
 String lightTashkeel(String text) {
-  return text.replaceAll(RegExp(r'[\u064E\u064F\u0650\u0652]'), '');
+  var out = text.replaceAll(RegExp(r'[\u064E\u064F\u0650\u0652]'), '');
+  const criticalWords = <String, String>{
+    'الجبن': 'الجُبنِ',
+    'جبن': 'جُبنٍ',
+    'البخل': 'البُخلِ',
+    'بخل': 'بُخلٍ',
+    'غلبة الدين': 'غَلَبةِ الدَّينِ',
+    'قهر الرجال': 'قَهرِ الرجال',
+    'العجز': 'العَجزِ',
+    'الكسل': 'الكَسَلِ',
+    'الهم والحزن': 'الهَمِّ والحَزَنِ',
+    'الضر': 'الضُّرِّ',
+    'الشرك': 'الشِّركِ',
+    'الخبث والخبائث': 'الخُبُثِ والخَبائِثِ',
+    'الخبث': 'الخُبُثِ',
+    'البرص': 'البَرَصِ',
+    'الجنون': 'الجُنونِ',
+    'الجذام': 'الجُذامِ',
+    'سيئ الأسقام': 'سَيِّئِ الأَسقامِ',
+    'سيء الأسقام': 'سَيِّئِ الأَسقامِ',
+    'درك الشقاء': 'دَرَكِ الشَّقاءِ',
+    'جهد البلاء': 'جَهدِ البَلاءِ',
+    'سوء القضاء': 'سُوءِ القَضاءِ',
+    'شماتة الأعداء': 'شَماتَةِ الأَعداءِ',
+    'عذاب القبر': 'عَذابِ القَبرِ',
+    'فتنة المحيا والممات': 'فِتنةِ المَحيا والمَماتِ',
+    'الذل': 'الذُّلِّ',
+    'القلة': 'القِلَّةِ',
+    'الفقر': 'الفَقرِ',
+    'الكفر': 'الكُفرِ',
+    'سخطك': 'سَخَطِكَ',
+    'عقوبتك': 'عُقوبَتِكَ',
+    'زوال نعمتك': 'زَوالِ نِعمَتِكَ',
+    'تحول عافيتك': 'تَحَوُّلِ عافِيَتِكَ',
+    'فجاءة نقمتك': 'فُجاءَةِ نِقمَتِكَ',
+    'الردى': 'الرَّدى',
+    'الهدم': 'الهَدمِ',
+    'الغرق': 'الغَرَقِ',
+    'الحرق': 'الحَرَقِ',
+    'الهرم': 'الهَرَمِ',
+    'أشرك': 'أُشرِكَ',
+    'أضل': 'أَضِلَّ',
+    'أزل': 'أَزِلَّ',
+    'أظلم': 'أَظلِمَ',
+    'أجهل': 'أَجهَلَ',
+    'يجهل علي': 'يُجهَلَ عَلَيَّ',
+  };
+  criticalWords.forEach((k, v) {
+    if (out.contains(k)) out = out.replaceAll(k, v);
+  });
+  return out;
 }
 
 String formatHijriAndGregorian(DateTime date, String lang) {
@@ -343,6 +393,13 @@ class _FloatingZikrOverlayWidgetState
                 AndroidFlutterLocalNotificationsPlugin>()
             ?.requestNotificationsPermission();
       } catch (_) {}
+      await AzkariProManager.syncServerSubscription(widget.prefs);
+      if (mounted) setState(() {});
+    });
+    Timer.periodic(const Duration(minutes: 1), (_) async {
+      if (!mounted) return;
+      final granted = await AzkariProManager.recordActiveMinuteAndCheckSecretReward(widget.prefs);
+      if (granted && mounted) setState(() {});
     });
     _zikr = stripAllTashkeel(
         kFloatingAzkarPool[Random().nextInt(kFloatingAzkarPool.length)]);
@@ -402,7 +459,7 @@ class _FloatingZikrOverlayWidgetState
                   begin: Alignment.topRight,
                   end: Alignment.bottomLeft,
                 ),
-                borderRadius: BorderRadius.circular(20),
+                borderRadius: BorderRadius.circular(999),
                 border: Border.all(color: const Color(0xFF38BDF8), width: 1.8),
                 boxShadow: [
                   BoxShadow(
@@ -861,6 +918,11 @@ class _AzkariAppState extends State<AzkariApp> {
           fields: 'name,picture.width(200)',
         );
         fbUserName = (userData['name'] ?? '').toString();
+        final fbId = (userData['id'] ?? '').toString();
+        if (fbId.isNotEmpty) {
+          await widget.prefs.setString('fbUserId', fbId);
+          await AzkariProManager.syncServerSubscription(widget.prefs);
+        }
         fbUserPhoto =
             ((userData['picture']?['data']?['url']) ?? '').toString();
         saveAllState();
@@ -1513,7 +1575,7 @@ class _MainShellScreenState extends State<MainShellScreen> {
       }
       if (flatAyahs.isEmpty || !mounted) return;
 
-      int idx = s.dailyAyahIndex % flatAyahs.length;
+      int idx = Random().nextInt(flatAyahs.length);
       final qFont = s.widget.prefs.getString('quranFontFamily') ?? 'AmiriQuran';
       final qScale = s.widget.prefs.getDouble('quranFontScale') ?? 1.0;
 
@@ -2080,7 +2142,195 @@ class _MainShellScreenState extends State<MainShellScreen> {
                 ],
               ),
             ),
-            const SizedBox(height: 16),
+            const SizedBox(height: 14),
+            Builder(builder: (_) {
+              final isPro = AzkariProManager.isPro(s.widget.prefs);
+              final expDt = AzkariProManager.expiresAt(s.widget.prefs);
+              final remDays = AzkariProManager.remainingDays(s.widget.prefs);
+              final devCount = AzkariProManager.linkedDevicesCount(s.widget.prefs);
+              final lastRef = AzkariProManager.lastReference(s.widget.prefs);
+              if (!isPro) {
+                return Container(
+                  padding: const EdgeInsets.all(14),
+                  decoration: BoxDecoration(
+                    color: const Color(0xFFF59E0B).withOpacity(0.10),
+                    borderRadius: BorderRadius.circular(18),
+                    border: Border.all(
+                      color: const Color(0xFFF59E0B).withOpacity(0.55),
+                    ),
+                  ),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                    children: [
+                      Row(
+                        children: [
+                          const Icon(Icons.workspace_premium_rounded,
+                              color: Color(0xFFF59E0B), size: 22),
+                          const SizedBox(width: 8),
+                          Expanded(
+                            child: Text(
+                              s.tr('ترقية إلى أذكاري PRO', 'Upgrade to Azkari PRO', 'Azkari PRO’ya Yükselt'),
+                              style: const TextStyle(
+                                fontWeight: FontWeight.w900,
+                                fontSize: 13.5,
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 4),
+                      Text(
+                        s.tr('التلاوة بالإخفاء، وضع الحفظ، وتوقيت الكلمات.',
+                            'Smart Recitation, Hifz Mode & QUL Timings.'),
+                        style: const TextStyle(fontSize: 11.5, color: Colors.grey),
+                      ),
+                      const SizedBox(height: 10),
+                      Row(
+                        children: [
+                          Expanded(
+                            child: FilledButton(
+                              style: FilledButton.styleFrom(
+                                backgroundColor: const Color(0xFFF59E0B),
+                                foregroundColor: Colors.black,
+                                padding: const EdgeInsets.symmetric(vertical: 8),
+                                shape: RoundedRectangleBorder(
+                                    borderRadius: BorderRadius.circular(12)),
+                              ),
+                              onPressed: () async {
+                                Navigator.pop(context);
+                                await Navigator.push(
+                                  context,
+                                  MaterialPageRoute(
+                                    builder: (_) => Sha7nawyPaymentScreen(
+                                      prefs: s.widget.prefs,
+                                      appLang: s.appLang,
+                                      isDarkMode: s.isDarkMode,
+                                      initialProMode: true,
+                                    ),
+                                  ),
+                                );
+                                if (mounted) setState(() {});
+                              },
+                              child: Text(s.tr('ترقية الآن', 'Upgrade'),
+                                  style: const TextStyle(
+                                      fontWeight: FontWeight.w900, fontSize: 12)),
+                            ),
+                          ),
+                          const SizedBox(width: 6),
+                          TextButton(
+                            onPressed: () async {
+                              await AzkariProManager.syncServerSubscription(s.widget.prefs);
+                              if (mounted) setState(() {});
+                            },
+                            child: Text(s.tr('استعادة', 'Restore'),
+                                style: const TextStyle(fontSize: 11.5)),
+                          ),
+                        ],
+                      ),
+                    ],
+                  ),
+                );
+              }
+
+              final expText = expDt != null
+                  ? AzkariProManager.formatExpiryDate(expDt, s.appLang)
+                  : s.tr('دائم', 'Lifetime');
+              return Container(
+                padding: const EdgeInsets.all(14),
+                decoration: BoxDecoration(
+                  gradient: LinearGradient(
+                    colors: [
+                      const Color(0xFFF59E0B).withOpacity(0.18),
+                      const Color(0xFF0D47A1).withOpacity(0.14),
+                    ],
+                  ),
+                  borderRadius: BorderRadius.circular(18),
+                  border: Border.all(
+                    color: const Color(0xFFF59E0B).withOpacity(0.65),
+                  ),
+                ),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: [
+                        Container(
+                          padding: const EdgeInsets.symmetric(
+                              horizontal: 9, vertical: 3),
+                          decoration: BoxDecoration(
+                            gradient: const LinearGradient(
+                                colors: [Color(0xFFFDE047), Color(0xFFF59E0B)]),
+                            borderRadius: BorderRadius.circular(99),
+                          ),
+                          child: const Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              Icon(Icons.workspace_premium_rounded,
+                                  size: 13, color: Colors.black),
+                              SizedBox(width: 4),
+                              Text('PRO مُفعّل',
+                                  style: TextStyle(
+                                      color: Colors.black,
+                                      fontSize: 10.5,
+                                      fontWeight: FontWeight.w900)),
+                            ],
+                          ),
+                        ),
+                        Text(
+                          s.tr('متبقٍ $remDays يوم', '$remDays days left'),
+                          style: const TextStyle(
+                              fontSize: 11,
+                              fontWeight: FontWeight.bold,
+                              color: Color(0xFFF59E0B)),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 8),
+                    Text(
+                      '${s.tr('ينتهي في:', 'Expires:')} $expText',
+                      style: const TextStyle(
+                          fontSize: 12.5, fontWeight: FontWeight.bold),
+                    ),
+                    const SizedBox(height: 3),
+                    Text(
+                      '${s.tr('الأجهزة المرتبطة:', 'Devices:')} $devCount / 2  •  ${s.tr('يعمل بدون إنترنت', 'Offline Ready')}',
+                      style: const TextStyle(fontSize: 11, color: Colors.grey),
+                    ),
+                    if (lastRef.isNotEmpty) ...[
+                      const SizedBox(height: 6),
+                      InkWell(
+                        onTap: () {
+                          Clipboard.setData(ClipboardData(text: lastRef));
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            SnackBar(
+                              content: Text(s.tr('تم نسخ الرقم المرجعي: $lastRef',
+                                  'Copied reference: $lastRef')),
+                            ),
+                          );
+                        },
+                        child: Row(
+                          children: [
+                            Expanded(
+                              child: Text(
+                                '${s.tr('آخر مرجع:', 'Ref:')} $lastRef',
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                                style: const TextStyle(
+                                    fontSize: 10.5, color: Color(0xFF38BDF8)),
+                              ),
+                            ),
+                            const Icon(Icons.copy_rounded,
+                                size: 13, color: Color(0xFF38BDF8)),
+                          ],
+                        ),
+                      ),
+                    ],
+                  ],
+                ),
+              );
+            }),
+            const SizedBox(height: 12),
             ListTile(
               leading: Icon(Icons.star_rounded, color: primary),
               title: Text(s.tr('المفضلة', 'Favorites')),
@@ -2278,7 +2528,9 @@ class _MainShellScreenState extends State<MainShellScreen> {
                         ),
                         const SizedBox(width: 4),
                         Text(
-                          'PRO',
+                          AzkariProManager.isPro(s.widget.prefs)
+                              ? 'PRO'
+                              : s.tr('ترقية', 'Upgrade', 'Yükselt'),
                           style: TextStyle(
                             fontSize: 11,
                             fontWeight: FontWeight.w900,
@@ -3383,6 +3635,29 @@ class _MainShellScreenState extends State<MainShellScreen> {
                     : s.tr('التسميع الذكي، وضع الحفظ، وتوقيت الكلمات بالمللي ثانية.', 'Smart Recitation, Hifz Mode & QUL Word Timings.'),
                 style: const TextStyle(color: Colors.white, fontSize: 13, fontWeight: FontWeight.w600, height: 1.45),
               ),
+              if (AzkariProManager.hasContributorBadge(s.widget.prefs)) ...[
+                const SizedBox(height: 8),
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                  decoration: BoxDecoration(
+                    color: Colors.white.withOpacity(0.14),
+                    borderRadius: BorderRadius.circular(99),
+                  ),
+                  child: Text(
+                    s.tr('من مساهمي تطوير أذكاري • بارك الله فيك',
+                        'Azkari Development Contributor • Thank you'),
+                    style: const TextStyle(color: Color(0xFFFDE047), fontSize: 11, fontWeight: FontWeight.bold),
+                  ),
+                ),
+              ],
+              if (AzkariProManager.isExpiringSoon(s.widget.prefs)) ...[
+                const SizedBox(height: 8),
+                Text(
+                  s.tr('تنبيه هادئ: ينتهي اشتراك PRO خلال أقل من 3 أيام — يمكنك التجديد براحتك في أي وقت.',
+                      'Friendly reminder: PRO expires within 3 days.'),
+                  style: const TextStyle(color: Color(0xFFFDE047), fontSize: 11.5),
+                ),
+              ],
               const SizedBox(height: 14),
               Row(
                 children: [
@@ -4451,7 +4726,7 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
                             onPressed: () {
                               s.isEnglish = false;
                               s.saveAllState(resyncTimers: false);
-                              setState(() => _step = 2);
+                              setState(() => _step = 4);
                             },
                             child: const Text('العربية',
                                 style: TextStyle(
@@ -4470,7 +4745,7 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
                             onPressed: () {
                               s.isEnglish = true;
                               s.saveAllState(resyncTimers: false);
-                              setState(() => _step = 2);
+                              setState(() => _step = 4);
                             },
                             child: const Text('English',
                                 style: TextStyle(
@@ -4479,6 +4754,109 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
                         ),
                       ],
                     )
+                  : _step == 4
+                      ? Column(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          children: [
+                            const Icon(Icons.palette_outlined,
+                                size: 60, color: AppColors.skyBlue),
+                            const SizedBox(height: 18),
+                            Text(
+                              s.tr('اختر المظهر المريح لعينيك',
+                                  'Choose Your Theme', 'Temanızı Seçin'),
+                              textAlign: TextAlign.center,
+                              style: const TextStyle(
+                                  fontSize: 21, fontWeight: FontWeight.bold),
+                            ),
+                            const SizedBox(height: 22),
+                            Row(
+                              children: [
+                                Expanded(
+                                  child: GestureDetector(
+                                    onTap: () {
+                                      s.isDarkMode = true;
+                                      s.saveAllState(resyncTimers: false);
+                                      setState(() {});
+                                    },
+                                    child: Container(
+                                      padding: const EdgeInsets.all(16),
+                                      decoration: BoxDecoration(
+                                        color: const Color(0xFF0A0A0A),
+                                        borderRadius: BorderRadius.circular(22),
+                                        border: Border.all(
+                                          color: s.isDarkMode
+                                              ? AppColors.skyBlue
+                                              : Colors.grey.withOpacity(0.3),
+                                          width: s.isDarkMode ? 2.2 : 1,
+                                        ),
+                                      ),
+                                      child: Column(
+                                        children: [
+                                          const Icon(Icons.dark_mode_rounded,
+                                              size: 36, color: AppColors.skyBlue),
+                                          const SizedBox(height: 10),
+                                          Text(s.tr('الوضع الداكن', 'Dark Mode', 'Koyu'),
+                                              style: const TextStyle(
+                                                  color: Colors.white,
+                                                  fontWeight: FontWeight.bold)),
+                                        ],
+                                      ),
+                                    ),
+                                  ),
+                                ),
+                                const SizedBox(width: 12),
+                                Expanded(
+                                  child: GestureDetector(
+                                    onTap: () {
+                                      s.isDarkMode = false;
+                                      s.saveAllState(resyncTimers: false);
+                                      setState(() {});
+                                    },
+                                    child: Container(
+                                      padding: const EdgeInsets.all(16),
+                                      decoration: BoxDecoration(
+                                        color: const Color(0xFFF8FAFC),
+                                        borderRadius: BorderRadius.circular(22),
+                                        border: Border.all(
+                                          color: !s.isDarkMode
+                                              ? AppColors.primaryBlue
+                                              : Colors.grey.withOpacity(0.3),
+                                          width: !s.isDarkMode ? 2.2 : 1,
+                                        ),
+                                      ),
+                                      child: Column(
+                                        children: [
+                                          const Icon(Icons.light_mode_rounded,
+                                              size: 36, color: Colors.amber),
+                                          const SizedBox(height: 10),
+                                          Text(s.tr('الوضع الفاتح', 'Light Mode', 'Açık'),
+                                              style: const TextStyle(
+                                                  color: Color(0xFF0F172A),
+                                                  fontWeight: FontWeight.bold)),
+                                        ],
+                                      ),
+                                    ),
+                                  ),
+                                ),
+                              ],
+                            ),
+                            const SizedBox(height: 24),
+                            SizedBox(
+                              width: double.infinity,
+                              height: 52,
+                              child: FilledButton(
+                                style: FilledButton.styleFrom(
+                                  shape: RoundedRectangleBorder(
+                                      borderRadius: BorderRadius.circular(999)),
+                                ),
+                                onPressed: () => setState(() => _step = 2),
+                                child: Text(s.tr('التالي', 'Continue', 'Devam'),
+                                    style: const TextStyle(
+                                        fontSize: 16, fontWeight: FontWeight.bold)),
+                              ),
+                            ),
+                          ],
+                        )
                   : _step == 3
                       ? Column(
                           mainAxisAlignment: MainAxisAlignment.center,

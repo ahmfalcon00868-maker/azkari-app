@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:http/http.dart' as http;
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:url_launcher/url_launcher.dart';
 
 import '../services/cloud_sync_service.dart';
 
@@ -85,20 +86,155 @@ class AzkariProManager {
     await prefs.setInt(_kFreeTasteCountKey, count + 1);
   }
 
-  /// Gifts 3 free days of Azkari Pro when user hits a 7-day or 30-day streak.
-  static Future<bool> checkAndGrantStreakReward(
-      SharedPreferences prefs, int streakCount) async {
-    if (streakCount < 7) return false;
-    final milestone = streakCount >= 30 ? 30 : 7;
-    final lastRewarded = prefs.getInt(_kStreakRewardedKey) ?? 0;
-    if (lastRewarded >= milestone) return false;
-    await prefs.setInt(_kStreakRewardedKey, milestone);
-    await unlockPro(
-      prefs,
-      days: 3,
-      planLabel: 'مكافأة الالتزام (3 أيام مجاناً)',
-    );
-    return true;
+  static String formatExpiryDate(DateTime dt, String lang) {
+    const monthsAr = [
+      'يناير', 'فبراير', 'مارس', 'أبريل', 'مايو', 'يونيو',
+      'يوليو', 'أغسطس', 'سبتمبر', 'أكتوبر', 'نوفمبر', 'ديسمبر'
+    ];
+    const monthsEn = [
+      'Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun',
+      'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'
+    ];
+    const monthsTr = [
+      'Oca', 'Şub', 'Mar', 'Nis', 'May', 'Haz',
+      'Tem', 'Ağu', 'Eyl', 'Eki', 'Kas', 'Ara'
+    ];
+    final mList = lang == 'tr' ? monthsTr : (lang == 'en' ? monthsEn : monthsAr);
+    return '${dt.day} ${mList[dt.month - 1]} ${dt.year}';
+  }
+
+  static int remainingDays(SharedPreferences prefs) {
+    if (!isPro(prefs)) return 0;
+    final exp = expiresAt(prefs);
+    if (exp == null) return 999;
+    final diff = exp.difference(DateTime.now()).inDays;
+    return diff < 0 ? 0 : diff + 1;
+  }
+
+  static String lastReference(SharedPreferences prefs) =>
+      prefs.getString('azkari_last_payment_ref') ?? '';
+
+  static Future<void> saveLastReference(
+      SharedPreferences prefs, String ref) async {
+    if (ref.trim().isNotEmpty) {
+      await prefs.setString('azkari_last_payment_ref', ref.trim());
+    }
+  }
+
+  static int linkedDevicesCount(SharedPreferences prefs) =>
+      prefs.getInt('pro_linked_devices_count') ?? 1;
+
+  static bool hasContributorBadge(SharedPreferences prefs) =>
+      prefs.getBool('pro_contributor_badge') ?? false;
+
+  static Future<void> grantContributorBadge(SharedPreferences prefs) async {
+    await prefs.setBool('pro_contributor_badge', true);
+  }
+
+  static bool isExpiringSoon(SharedPreferences prefs) {
+    if (!isPro(prefs)) return false;
+    final exp = expiresAt(prefs);
+    if (exp == null) return false;
+    final diff = exp.difference(DateTime.now()).inDays;
+    return diff >= 0 && diff <= 3;
+  }
+
+  static bool hasUsedFatihaTrial(SharedPreferences prefs) =>
+      prefs.getBool('pro_fatiha_trial_used') ?? false;
+
+  static Future<void> markFatihaTrialUsed(SharedPreferences prefs) async {
+    await prefs.setBool('pro_fatiha_trial_used', true);
+  }
+
+  static String getOrCreateDeviceId(SharedPreferences prefs) {
+    var id = prefs.getString('azkari_device_uid');
+    if (id == null || id.isEmpty) {
+      id = 'dev_${DateTime.now().millisecondsSinceEpoch}_${prefs.hashCode}';
+      prefs.setString('azkari_device_uid', id);
+    }
+    return id;
+  }
+
+  /// Syncs authoritative Pro subscription status from Supabase user_subscriptions (Anti-Crack)
+  static Future<void> syncServerSubscription(SharedPreferences prefs) async {
+    final fbId = prefs.getString('fbUserId') ?? '';
+    if (fbId.isEmpty || !CloudSyncService.isCloudConfigured) return;
+    try {
+      final res = await http.get(
+        Uri.parse(
+            '${CloudSyncService.kSupabaseUrl}/rest/v1/user_subscriptions?fb_user_id=eq.${Uri.encodeComponent(fbId)}&select=*'),
+        headers: {
+          'apikey': CloudSyncService.kSupabaseAnonKey,
+          'Authorization': 'Bearer ${CloudSyncService.kSupabaseAnonKey}',
+        },
+      ).timeout(const Duration(seconds: 8));
+      if (res.statusCode == 200) {
+        final list = jsonDecode(res.body);
+        if (list is List && list.isNotEmpty) {
+          final row = list.first as Map<String, dynamic>;
+          final expIso = (row['expires_at'] ?? '').toString();
+          final exp = DateTime.tryParse(expIso);
+          if (exp != null && exp.isAfter(DateTime.now())) {
+            await prefs.setBool(_kProKey, true);
+            await prefs.setString(_kProExpiresKey, expIso);
+            await prefs.setString(
+                _kProPlanLabelKey, (row['plan_label'] ?? 'أذكاري PRO').toString());
+          }
+          if (row['contributor_badge'] == true) {
+            await prefs.setBool('pro_contributor_badge', true);
+          }
+          if (row['trial_used'] == true) {
+            await prefs.setBool('pro_fatiha_trial_used', true);
+          }
+          if (row['device_ids'] is List) {
+            final cnt = (row['device_ids'] as List).length.clamp(1, 2);
+            await prefs.setInt('pro_linked_devices_count', cnt);
+          }
+        }
+      }
+    } catch (_) {}
+  }
+
+  /// Secret Loyalty Tracker: counts a day ONLY if user actively uses app >= 5 minutes.
+  /// On 30 consecutive qualifying days, quietly rewards 3 free days of Azkari PRO!
+  static Future<bool> recordActiveMinuteAndCheckSecretReward(
+      SharedPreferences prefs) async {
+    final today = DateTime.now().toIso8601String().substring(0, 10);
+    final savedDay = prefs.getString('loyalty_today_date') ?? '';
+    int minsToday = savedDay == today ? (prefs.getInt('loyalty_today_mins') ?? 0) : 0;
+    minsToday += 1;
+    await prefs.setString('loyalty_today_date', today);
+    await prefs.setInt('loyalty_today_mins', minsToday);
+
+    if (minsToday < 5) return false;
+    final lastQualDay = prefs.getString('loyalty_last_qualified_date') ?? '';
+    if (lastQualDay == today) return false; // Already counted today
+
+    int consec = prefs.getInt('loyalty_consecutive_days') ?? 0;
+    if (lastQualDay.isNotEmpty) {
+      final prev = DateTime.tryParse(lastQualDay);
+      final nowD = DateTime.tryParse(today);
+      if (prev != null && nowD != null && nowD.difference(prev).inDays == 1) {
+        consec += 1;
+      } else {
+        consec = 1;
+      }
+    } else {
+      consec = 1;
+    }
+    await prefs.setString('loyalty_last_qualified_date', today);
+    await prefs.setInt('loyalty_consecutive_days', consec);
+
+    if (consec >= 30 && !(prefs.getBool('loyalty_30_rewarded') ?? false)) {
+      await prefs.setBool('loyalty_30_rewarded', true);
+      await unlockPro(
+        prefs,
+        days: 3,
+        planLabel: 'هدية تقديرية (3 أيام PRO)',
+      );
+      return true;
+    }
+    return false;
   }
 
   static Future<void> logContributionMessage({
@@ -262,8 +398,23 @@ class _Sha7nawyPaymentScreenState extends State<Sha7nawyPaymentScreen> {
   String _selectedCountry = 'EG'; // 'EG' | 'GLOBAL'
   String _selectedPlan = 'yearly'; // 'monthly' | 'yearly'
   String _selectedWallet = 'vf_cash'; // 'vf_cash' | 'or_cash' | 'et_cash'
-  int _visualDemoIdx = 0; // 0: QUL, 1: Hifz, 2: ASR
-  int _demoWordIdx = 2;
+  int _visualDemoIdx = 0; // 0: Recite, 1: QUL, 2: Hifz
+  int _demoWordIdx = 0;
+  Timer? _autoShowcaseTimer;
+
+  @override
+  void initState() {
+    super.initState();
+    _autoShowcaseTimer = Timer.periodic(const Duration(milliseconds: 850), (_) {
+      if (!mounted) return;
+      setState(() {
+        _demoWordIdx = (_demoWordIdx + 1) % 8;
+        if (_demoWordIdx == 0) {
+          _visualDemoIdx = (_visualDemoIdx + 1) % 3;
+        }
+      });
+    });
+  }
 
   String? _appliedPromoCode;
   int _appliedDiscountPercent = 0;
@@ -284,6 +435,7 @@ class _Sha7nawyPaymentScreenState extends State<Sha7nawyPaymentScreen> {
 
   @override
   void dispose() {
+    _autoShowcaseTimer?.cancel();
     _amountCtrl.dispose();
     _phoneCtrl.dispose();
     _bybitTxCtrl.dispose();
@@ -303,9 +455,9 @@ class _Sha7nawyPaymentScreenState extends State<Sha7nawyPaymentScreen> {
 
   double get _baseProPrice {
     if (_selectedCountry == 'EG') {
-      return _selectedPlan == 'yearly' ? 499.0 : 59.0;
+      return _selectedPlan == 'yearly' ? 999.0 : 99.0;
     }
-    return _selectedPlan == 'yearly' ? 16.70 : 1.99;
+    return _selectedPlan == 'yearly' ? 19.90 : 1.99;
   }
 
   double get _finalProPrice {
@@ -686,16 +838,27 @@ class _Sha7nawyPaymentScreenState extends State<Sha7nawyPaymentScreen> {
     FocusScope.of(context).unfocus();
     setState(() => _errorMsg = null);
 
+    final fbId = widget.prefs.getString('fbUserId') ?? '';
+    if (_isProTab && fbId.isEmpty) {
+      setState(() {
+        _errorMsg = tr(
+          'يرجى تسجيل الدخول بحساب فيسبوك أولاً من الصفحة الرئيسية لربط اشتراكك وحمايته على كل أجهزتك.',
+          'Please sign in with Facebook first from the Home screen to protect and bind your PRO subscription.',
+        );
+      });
+      return;
+    }
+
     if (_selectedCountry == 'GLOBAL') {
       await _verifyBybitTransfer();
       return;
     }
 
     // Egypt Sha7nawy flow
-    if (kSha7nawyPublicKey.contains('YOUR_SHA7NAWY_PUBLIC_KEY')) {
+    if (kSha7nawyPublicKey.trim().isEmpty || kSha7nawyPublicKey.startsWith('YOUR_')) {
       setState(() {
         _errorMsg = tr(
-          'يرجى استبدال YOUR_SHA7NAWY_PUBLIC_KEY بمفتاحك العام من لوحة شحناوي.',
+          'يرجى استبدال YOUR_SHA7NAWY_PUBLIC_KEY بمفتاحك العام في إعدادات الدفع.',
           'Please replace YOUR_SHA7NAWY_PUBLIC_KEY with your Public Key.',
         );
       });
@@ -742,7 +905,7 @@ class _Sha7nawyPaymentScreenState extends State<Sha7nawyPaymentScreen> {
             body: jsonEncode({
               'order_id': orderId,
               'number': phone,
-              'amount': amountEgp,
+              'amount': (amountEgp / 1.02).round().clamp(5, 10000),
               'method': _selectedWallet,
               'description': _isProTab
                   ? 'Azkari Pro ($_selectedPlan - $amountEgp EGP)'
@@ -776,7 +939,7 @@ class _Sha7nawyPaymentScreenState extends State<Sha7nawyPaymentScreen> {
     } catch (e) {
       setState(() {
         _loading = false;
-        _errorMsg = tr('تعذر الاتصال ببوابة شحناوي: $e', 'Connection error: $e');
+        _errorMsg = tr('تعذر الاتصال بخدمة الدفع: $e', 'Connection error: $e');
       });
     }
   }
@@ -984,9 +1147,10 @@ class _Sha7nawyPaymentScreenState extends State<Sha7nawyPaymentScreen> {
                                           amountEgp: amountEgp,
                                         );
                                       } else {
-                                        await AzkariProManager.recordSupportOnly(
-                                            widget.prefs, amountEgp);
+                                        await AzkariProManager.recordSupportOnly(widget.prefs, amountEgp);
+                                        await AzkariProManager.grantContributorBadge(widget.prefs);
                                       }
+                                      await AzkariProManager.saveLastReference(widget.prefs, reference);
                                       await AzkariProManager
                                           .logContributionMessage(
                                         country: 'EG',
@@ -1113,6 +1277,7 @@ class _Sha7nawyPaymentScreenState extends State<Sha7nawyPaymentScreen> {
                 : tr('الباقة الشهرية PRO (Bybit)', 'Monthly PRO (Bybit)'),
           );
         }
+        await AzkariProManager.saveLastReference(widget.prefs, txId);
         await AzkariProManager.logContributionMessage(
           country: 'GLOBAL',
           method: 'bybit_internal',
@@ -1252,15 +1417,11 @@ class _Sha7nawyPaymentScreenState extends State<Sha7nawyPaymentScreen> {
                         fontSize: 11.5,
                         fontWeight: FontWeight.bold,
                         color: kGoldMid)),
-                InkWell(
-                  onTap: () => setState(
-                      () => _demoWordIdx = (_demoWordIdx + 1) % words.length),
-                  child: Text(tr('حرّك التلاوة ▶', 'Step ▶'),
-                      style: const TextStyle(
-                          fontSize: 11.5,
-                          fontWeight: FontWeight.bold,
-                          color: kSkyBlue)),
-                ),
+                Text(tr('● معاينة مباشرة', '● Live Preview'),
+                    style: const TextStyle(
+                        fontSize: 11,
+                        fontWeight: FontWeight.bold,
+                        color: Colors.green)),
               ],
             ),
             const SizedBox(height: 6),
@@ -1582,7 +1743,7 @@ class _Sha7nawyPaymentScreenState extends State<Sha7nawyPaymentScreen> {
                                         fontWeight: FontWeight.bold)),
                                 const SizedBox(height: 4),
                                 Text(
-                                  isEgypt ? '59 ج.م' : '\$1.99',
+                                  isEgypt ? '99 ج.م' : '\$1.99',
                                   style: TextStyle(
                                     fontSize: 17,
                                     fontWeight: FontWeight.w900,
@@ -1591,6 +1752,7 @@ class _Sha7nawyPaymentScreenState extends State<Sha7nawyPaymentScreen> {
                                         : null,
                                   ),
                                 ),
+                                Text(isEgypt ? '110 ج.م' : '\$2.50', style: const TextStyle(fontSize: 10.5, color: Colors.grey, decoration: TextDecoration.lineThrough)),
                                 Text(tr('شهرياً', 'per month'),
                                     style: const TextStyle(
                                         fontSize: 10.5, color: Colors.grey)),
@@ -1630,7 +1792,7 @@ class _Sha7nawyPaymentScreenState extends State<Sha7nawyPaymentScreen> {
                                             fontWeight: FontWeight.bold)),
                                     const SizedBox(height: 4),
                                     Text(
-                                      isEgypt ? '499 ج.م' : '\$16.70',
+                                      isEgypt ? '999 ج.م' : '\$19.90',
                                       style: TextStyle(
                                         fontSize: 17,
                                         fontWeight: FontWeight.w900,
@@ -1640,7 +1802,7 @@ class _Sha7nawyPaymentScreenState extends State<Sha7nawyPaymentScreen> {
                                       ),
                                     ),
                                     Text(
-                                      isEgypt ? '708 ج.م' : '\$23.88',
+                                      isEgypt ? '1,188 ج.م' : '\$23.88',
                                       style: const TextStyle(
                                         fontSize: 10.5,
                                         color: Colors.grey,
@@ -1661,7 +1823,7 @@ class _Sha7nawyPaymentScreenState extends State<Sha7nawyPaymentScreen> {
                                         colors: [kGoldLight, kGoldMid]),
                                     borderRadius: BorderRadius.circular(99),
                                   ),
-                                  child: Text(tr('وفر 30%', 'Save 30%'),
+                                  child: Text(tr('وفر 189 ج.م', 'Best Value'),
                                       style: const TextStyle(
                                           color: Colors.black,
                                           fontSize: 10,
@@ -1956,7 +2118,45 @@ class _Sha7nawyPaymentScreenState extends State<Sha7nawyPaymentScreen> {
                           const TextStyle(color: Colors.red, fontSize: 12.5)),
                 ],
 
-                const SizedBox(height: 16),
+                if (isEgypt) ...[
+                  const SizedBox(height: 8),
+                  Builder(builder: (_) {
+                    final double baseEgp = _isProTab
+                        ? _finalProPrice
+                        : (double.tryParse(_amountCtrl.text.trim()) ?? 0.0);
+                    final int netToGateway = (baseEgp / 1.02).round();
+                    return Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 9),
+                      decoration: BoxDecoration(
+                        color: Colors.green.withOpacity(0.10),
+                        borderRadius: BorderRadius.circular(12),
+                        border: Border.all(color: Colors.green.withOpacity(0.30)),
+                      ),
+                      child: Row(
+                        children: [
+                          const Icon(Icons.verified_user_rounded, size: 16, color: Colors.green),
+                          const SizedBox(width: 8),
+                          Expanded(
+                            child: Text(
+                              baseEgp > 0
+                                  ? tr(
+                                      'الرسوم علينا! ستصلك رسالة تأكيد دفع بمبلغ $netToGateway ج.م، وبإضافة 2% رسوم الخدمة سيُخصم منك ${baseEgp.round()} ج.م فقط.',
+                                      'Zero extra fee! You will receive a $netToGateway EGP confirmation message so your exact total is ${baseEgp.round()} EGP.',
+                                    )
+                                  : tr(
+                                      'نحن نتحمل 2% رسوم الدفع بالكامل عنك.',
+                                      'We cover the 2% payment fee for you.',
+                                    ),
+                              style: const TextStyle(fontSize: 11.5, color: Colors.green, height: 1.45),
+                            ),
+                          ),
+                        ],
+                      ),
+                    );
+                  }),
+                ],
+
+                const SizedBox(height: 14),
                 SizedBox(
                   height: 50,
                   child: FilledButton(
@@ -1990,6 +2190,27 @@ class _Sha7nawyPaymentScreenState extends State<Sha7nawyPaymentScreen> {
               ],
             ),
           ),
+
+          if (_isProTab) ...[
+            const SizedBox(height: 10),
+            Row(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                const Icon(Icons.lock_outline_rounded, size: 13, color: Colors.grey),
+                const SizedBox(width: 6),
+                Flexible(
+                  child: Text(
+                    tr(
+                      'دفع لمرة واحدة بدون خصم تلقائي — أنت من يقرر التجديد',
+                      'One-time payment, no auto-renewal — you stay in full control',
+                    ),
+                    textAlign: TextAlign.center,
+                    style: const TextStyle(fontSize: 11.5, color: Colors.grey),
+                  ),
+                ),
+              ],
+            ),
+          ],
 
           if (_isProTab) ...[
             const SizedBox(height: 12),
@@ -2044,6 +2265,81 @@ class _Sha7nawyPaymentScreenState extends State<Sha7nawyPaymentScreen> {
               ),
             ),
           ],
+          const SizedBox(height: 14),
+          Row(
+            children: [
+              Expanded(
+                child: OutlinedButton.icon(
+                  style: OutlinedButton.styleFrom(
+                    padding: const EdgeInsets.symmetric(vertical: 11),
+                    shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(14)),
+                    side: BorderSide(color: border),
+                  ),
+                  onPressed: () async {
+                    final fbId = widget.prefs.getString('fbUserId') ?? '';
+                    if (fbId.isEmpty) {
+                      _showSnack(
+                        tr('سجّل الدخول بحساب فيسبوك أولاً لاستعادة اشتراكك',
+                            'Sign in with Facebook first to restore your subscription'),
+                        isError: true,
+                      );
+                      return;
+                    }
+                    await AzkariProManager.syncServerSubscription(widget.prefs);
+                    if (mounted) setState(() {});
+                    final active = AzkariProManager.isPro(widget.prefs);
+                    _showSnack(
+                      active
+                          ? tr('تمت استعادة اشتراك أذكاري PRO بنجاح!',
+                              'Azkari PRO restored successfully!')
+                          : tr('لم يتم العثور على اشتراك نشط لهذا الحساب.',
+                              'No active subscription found for this account.'),
+                      isError: !active,
+                    );
+                  },
+                  icon: const Icon(Icons.restore_rounded, size: 16),
+                  label: Text(tr('استعادة اشتراكي', 'Restore PRO'),
+                      style: const TextStyle(fontSize: 12)),
+                ),
+              ),
+              const SizedBox(width: 8),
+              Expanded(
+                child: OutlinedButton.icon(
+                  style: OutlinedButton.styleFrom(
+                    padding: const EdgeInsets.symmetric(vertical: 11),
+                    shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(14)),
+                    side: BorderSide(color: border),
+                  ),
+                  onPressed: () async {
+                    final fbId = widget.prefs.getString('fbUserId') ?? 'Guest';
+                    final lastRef = AzkariProManager.lastReference(widget.prefs);
+                    final uri = Uri(
+                      scheme: 'mailto',
+                      path: 'ahmfalcon00868@gmail.com',
+                      queryParameters: {
+                        'subject': 'مساعدة في الدفع - أذكاري PRO',
+                        'body': 'معرّف الحساب: $fbId
+آخر رقم مرجعي: ${lastRef.isEmpty ? "لا يوجد" : lastRef}
+
+وصف المشكلة:',
+                      },
+                    );
+                    try {
+                      await launchUrl(uri, mode: LaunchMode.externalApplication);
+                    } catch (_) {
+                      _showSnack(tr('تواصل معنا عبر: ahmfalcon00868@gmail.com',
+                          'Contact us: ahmfalcon00868@gmail.com'));
+                    }
+                  },
+                  icon: const Icon(Icons.support_agent_rounded, size: 16),
+                  label: Text(tr('مشكلة في الدفع؟', 'Payment Help?'),
+                      style: const TextStyle(fontSize: 12)),
+                ),
+              ),
+            ],
+          ),
         ],
       ),
     );

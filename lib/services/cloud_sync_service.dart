@@ -10,14 +10,13 @@ class CloudSyncService {
   static final CloudSyncService instance = CloudSyncService._();
 
   // TODO: Replace with your own Supabase URL & Anon Key (optional; local JSON backup works offline without keys)
-  static const String kSupabaseUrl = 'YOUR_SUPABASE_URL';
+  static const String kSupabaseUrl = 'https://knwtqvzwojywtascbeil.supabase.co/functions/v1/verify-bybit';
   static const String kSupabaseAnonKey = 'sb_publishable_COpqQQHx_d5P4TxnCTbO-w_dB2O-5gZ';
 
   static bool get isCloudConfigured =>
       kSupabaseUrl.startsWith('https://') &&
-      !kSupabaseUrl.contains('YOUR_SUPABASE_URL') &&
-      kSupabaseAnonKey.isNotEmpty &&
-      !kSupabaseAnonKey.contains('YOUR_SUPABASE_ANON_KEY');
+      kSupabaseUrl.contains('.supabase.co') &&
+      kSupabaseAnonKey.trim().length > 20;
 
   static const List<String> _syncKeys = [
     'totalTasbihCount',
