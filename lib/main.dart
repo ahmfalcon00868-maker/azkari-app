@@ -385,22 +385,6 @@ class _FloatingZikrOverlayWidgetState
   @override
   void initState() {
     super.initState();
-    WidgetsBinding.instance.addPostFrameCallback((_) async {
-      try {
-        final plugin = FlutterLocalNotificationsPlugin();
-        await plugin
-            .resolvePlatformSpecificImplementation<
-                AndroidFlutterLocalNotificationsPlugin>()
-            ?.requestNotificationsPermission();
-      } catch (_) {}
-      await AzkariProManager.syncServerSubscription(widget.prefs);
-      if (mounted) setState(() {});
-    });
-    Timer.periodic(const Duration(minutes: 1), (_) async {
-      if (!mounted) return;
-      final granted = await AzkariProManager.recordActiveMinuteAndCheckSecretReward(widget.prefs);
-      if (granted && mounted) setState(() {});
-    });
     _zikr = stripAllTashkeel(
         kFloatingAzkarPool[Random().nextInt(kFloatingAzkarPool.length)]);
     _animCtrl.forward();
@@ -718,6 +702,22 @@ class _AzkariAppState extends State<AzkariApp> {
   @override
   void initState() {
     super.initState();
+    WidgetsBinding.instance.addPostFrameCallback((_) async {
+      try {
+        final plugin = FlutterLocalNotificationsPlugin();
+        await plugin
+            .resolvePlatformSpecificImplementation<
+                AndroidFlutterLocalNotificationsPlugin>()
+            ?.requestNotificationsPermission();
+      } catch (_) {}
+      await AzkariProManager.syncServerSubscription(widget.prefs);
+      if (mounted) setState(() {});
+    });
+    Timer.periodic(const Duration(minutes: 1), (_) async {
+      if (!mounted) return;
+      final granted = await AzkariProManager.recordActiveMinuteAndCheckSecretReward(widget.prefs);
+      if (granted && mounted) setState(() {});
+    });
     SoundEffectsService.instance.init();
     _loadPrefsFromDisk();
     _rebuildAzkarList();
