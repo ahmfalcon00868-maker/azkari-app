@@ -27,6 +27,16 @@ jobs:
       - name: Create Android platform files
         run: flutter create --org com.flc --project-name azkari --platforms=android .
 
+      - name: Ensure speech_to_text dependency in pubspec.yaml
+        run: |
+          python3 -c '
+          p = "pubspec.yaml"
+          txt = open(p, encoding="utf-8").read()
+          if "speech_to_text:" not in txt:
+              txt = txt.replace("dependencies:\n", "dependencies:\n  speech_to_text: ^7.0.0\n", 1)
+              open(p, "w", encoding="utf-8").write(txt)
+          '
+
       - name: Get dependencies
         run: flutter pub get
 
@@ -37,6 +47,8 @@ jobs:
           if os.path.exists("assets/audio/splash_ayah.mp3"):
               os.makedirs("android/app/src/main/res/raw", exist_ok=True)
               shutil.copy("assets/audio/splash_ayah.mp3", "android/app/src/main/res/raw/splash_ayah.mp3")
+          os.makedirs("android/app/src/main/res/raw", exist_ok=True)
+          open("android/app/src/main/res/raw/keep.xml", "w", encoding="utf-8").write("<?xml version=\"1.0\" encoding=\"utf-8\"?>\n<resources xmlns:tools=\"http://schemas.android.com/tools\" tools:keep=\"@drawable/ic_notification,@raw/splash_ayah\" />\n")
           if os.path.exists("assets/images/ic_notification.png"):
               os.makedirs("android/app/src/main/res/drawable", exist_ok=True)
               shutil.copy("assets/images/ic_notification.png", "android/app/src/main/res/drawable/ic_notification.png")
@@ -44,10 +56,15 @@ jobs:
           m = open(mp, encoding="utf-8").read()
           m = re.sub("android:label=\"[^\"]*\"", "android:label=\"أذكاري\"", m, count=1)
           m = m.replace("android:name=\".MainActivity\"", "android:name=\"com.ryanheise.audioservice.AudioServiceActivity\"", 1)
-          perms = "\n    <uses-permission android:name=\"android.permission.RECEIVE_BOOT_COMPLETED\"/>\n    <uses-permission android:name=\"android.permission.VIBRATE\"/>\n    <uses-permission android:name=\"android.permission.POST_NOTIFICATIONS\"/>\n    <uses-permission android:name=\"android.permission.SCHEDULE_EXACT_ALARM\"/>\n    <uses-permission android:name=\"android.permission.USE_EXACT_ALARM\"/>\n    <uses-permission android:name=\"android.permission.SYSTEM_ALERT_WINDOW\"/>\n    <uses-permission android:name=\"android.permission.WAKE_LOCK\"/>\n    <uses-permission android:name=\"android.permission.FOREGROUND_SERVICE\"/>\n    <uses-permission android:name=\"android.permission.FOREGROUND_SERVICE_MEDIA_PLAYBACK\"/>\n    <uses-permission android:name=\"android.permission.FOREGROUND_SERVICE_SPECIAL_USE\"/>\n    <uses-permission android:name=\"android.permission.REQUEST_INSTALL_PACKAGES\"/>\n"
+          if "android:usesCleartextTraffic" not in m:
+              m = m.replace("<application", "<application\n        android:usesCleartextTraffic=\"true\"", 1)
+          perms = "\n    <uses-permission android:name=\"android.permission.RECEIVE_BOOT_COMPLETED\"/>\n    <uses-permission android:name=\"android.permission.VIBRATE\"/>\n    <uses-permission android:name=\"android.permission.POST_NOTIFICATIONS\"/>\n    <uses-permission android:name=\"android.permission.SCHEDULE_EXACT_ALARM\"/>\n    <uses-permission android:name=\"android.permission.USE_EXACT_ALARM\"/>\n    <uses-permission android:name=\"android.permission.SYSTEM_ALERT_WINDOW\"/>\n    <uses-permission android:name=\"android.permission.WAKE_LOCK\"/>\n    <uses-permission android:name=\"android.permission.RECORD_AUDIO\"/>\n    <uses-permission android:name=\"android.permission.FOREGROUND_SERVICE\"/>\n    <uses-permission android:name=\"android.permission.FOREGROUND_SERVICE_MEDIA_PLAYBACK\"/>\n    <uses-permission android:name=\"android.permission.FOREGROUND_SERVICE_SPECIAL_USE\"/>\n    <uses-permission android:name=\"android.permission.REQUEST_INSTALL_PACKAGES\"/>\n"
           if "SYSTEM_ALERT_WINDOW" not in m:
               m = m.replace("<application", perms + "<application", 1)
-          svcs = "\n        <service android:name=\"flutter.overlay.window.flutter_overlay_window.OverlayService\" android:foregroundServiceType=\"specialUse\" android:exported=\"false\" />\n        <service android:name=\"com.ryanheise.audioservice.AudioService\" android:foregroundServiceType=\"mediaPlayback\" android:exported=\"true\"><intent-filter><action android:name=\"android.media.browse.MediaBrowserService\" /></intent-filter></service>\n        <receiver android:name=\"com.ryanheise.audioservice.MediaButtonReceiver\" android:exported=\"true\"><intent-filter><action android:name=\"android.intent.action.MEDIA_BUTTON\" /></intent-filter></receiver>\n        <receiver android:exported=\"false\" android:name=\"com.dexterous.flutterlocalnotifications.ScheduledNotificationReceiver\" />\n        <receiver android:exported=\"false\" android:name=\"com.dexterous.flutterlocalnotifications.ScheduledNotificationBootReceiver\"><intent-filter><action android:name=\"android.intent.action.BOOT_COMPLETED\"/><action android:name=\"android.intent.action.MY_PACKAGE_REPLACED\"/></intent-filter></receiver>\n"
+          if "android.speech.RecognitionService" not in m:
+              q_tag = "\n    <queries><intent><action android:name=\"android.speech.RecognitionService\" /></intent></queries>\n"
+              m = m.replace("<application", q_tag + "<application", 1)
+          svcs = "\n        <service android:name=\"flutter.overlay.window.flutter_overlay_window.OverlayService\" android:foregroundServiceType=\"specialUse\" android:exported=\"false\"><property android:name=\"android.app.PROPERTY_SPECIAL_USE_FGS_SUBTYPE\" android:value=\"Floating Zikr Reminder Overlay\"/></service>\n        <service android:name=\"com.ryanheise.audioservice.AudioService\" android:foregroundServiceType=\"mediaPlayback\" android:stopWithTask=\"false\" android:exported=\"true\"><intent-filter><action android:name=\"android.media.browse.MediaBrowserService\" /></intent-filter></service>\n        <receiver android:name=\"com.ryanheise.audioservice.MediaButtonReceiver\" android:exported=\"true\"><intent-filter><action android:name=\"android.intent.action.MEDIA_BUTTON\" /></intent-filter></receiver>\n        <receiver android:exported=\"false\" android:name=\"com.dexterous.flutterlocalnotifications.ScheduledNotificationReceiver\" />\n        <receiver android:exported=\"false\" android:name=\"com.dexterous.flutterlocalnotifications.ScheduledNotificationBootReceiver\"><intent-filter><action android:name=\"android.intent.action.BOOT_COMPLETED\"/><action android:name=\"android.intent.action.MY_PACKAGE_REPLACED\"/></intent-filter></receiver>\n"
           if "OverlayService" not in m:
               m = m.replace("</application>", svcs + "</application>", 1)
           open(mp, "w", encoding="utf-8").write(m)
@@ -64,7 +81,7 @@ jobs:
           elif os.path.exists(grv):
               g = open(grv, encoding="utf-8").read()
               if "coreLibraryDesugaringEnabled" not in g:
-                  g = g.replace("compileOptions {", "compileOptions {\n        coreLibraryDesugaringEnabled true", 1)
+                  g = g.replace("compileOptions {", "coreLibraryDesugaringEnabled true", 1)
               g = re.sub(r"minSdkVersion\s+flutter\.minSdkVersion", "minSdkVersion 23", g)
               if "desugar_jdk_libs" not in g:
                   g += "\ndependencies {\n    coreLibraryDesugaring \"com.android.tools:desugar_jdk_libs:2.0.4\"\n}\n"

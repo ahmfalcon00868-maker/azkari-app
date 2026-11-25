@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
 import 'package:flutter/material.dart';
@@ -13,11 +14,29 @@ class UpdateService {
   static const String _releasesApiUrl =
       'https://api.github.com/repos/ahmfalcon00868-maker/azkari-app/releases/latest';
 
+  // Background & Pause/Resume download controller state
+  static bool _isDownloading = false;
+  static bool _isPaused = false;
+  static bool _isCancelled = false;
+  static bool _isInBackground = false;
+  static double _progress = 0.0;
+  static int _receivedBytes = 0;
+  static int _totalBytes = 0;
+  static String? _activeApkUrl;
+  static http.Client? _activeClient;
+  static StreamSubscription<List<int>>? _activeSub;
+  static StateSetter? _dialogSetState;
+
   static Future<void> checkForUpdate(
     BuildContext context, {
     bool isEnglish = false,
     bool showNoUpdateMessage = false,
   }) async {
+    if (_isDownloading && _isInBackground && context.mounted) {
+      _showDownloadDialog(context, isEnglish);
+      return;
+    }
+
     try {
       final info = await PackageInfo.fromPlatform();
       final int localBuild = int.tryParse(info.buildNumber) ?? 0;
@@ -53,7 +72,7 @@ class UpdateService {
           if (relRes.statusCode == 200) {
             final rel = jsonDecode(utf8.decode(relRes.bodyBytes))
                 as Map<String, dynamic>;
-            final tag = (rel['tag_name'] ?? '').toString(); // e.g. v2.2.0 or v2.2.0+4
+            final tag = (rel['tag_name'] ?? '').toString();
             final assets = (rel['assets'] as List<dynamic>?) ?? [];
             String? releaseApk;
             for (final a in assets) {
@@ -81,6 +100,8 @@ class UpdateService {
           context: context,
           barrierDismissible: true,
           builder: (ctx) => AlertDialog(
+            shape:
+                RoundedRectangleBorder(borderRadius: BorderRadius.circular(22)),
             title: Text(
               isEnglish
                   ? 'New Update Available ($remoteVersion)'
@@ -98,10 +119,11 @@ class UpdateService {
                 onPressed: () => Navigator.pop(ctx),
                 child: Text(isEnglish ? 'Later' : 'لاحقاً'),
               ),
-              ElevatedButton(
+              FilledButton(
                 onPressed: () {
                   Navigator.pop(ctx);
-                  _downloadAndInstallApk(context, apkUrl, isEnglish);
+                  _startOrResumeDownload(context, apkUrl, isEnglish,
+                      reset: true);
                 },
                 child: Text(isEnglish ? 'Update Now' : 'تحديث الآن'),
               ),
@@ -130,81 +152,258 @@ class UpdateService {
     }
   }
 
-  static Future<void> _downloadAndInstallApk(
+  static void _refreshDialog() {
+    try {
+      _dialogSetState?.call(() {});
+    } catch (_) {}
+  }
+
+  static void _showDownloadDialog(BuildContext context, bool isEnglish) {
+    _isInBackground = false;
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (ctx) => StatefulBuilder(
+        builder: (ctx, setS) {
+          _dialogSetState = setS;
+          final mbDone = (_receivedBytes / (1024 * 1024)).toStringAsFixed(1);
+          final mbTotal = _totalBytes > 0
+              ? (_totalBytes / (1024 * 1024)).toStringAsFixed(1)
+              : '--';
+          return AlertDialog(
+            shape:
+                RoundedRectangleBorder(borderRadius: BorderRadius.circular(22)),
+            title: Text(
+              _isPaused
+                  ? (isEnglish ? 'Download Paused' : 'التحميل متوقف مؤقتاً')
+                  : (isEnglish
+                      ? 'Downloading Update...'
+                      : 'جاري تحميل التحديث...'),
+            ),
+            content: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                ClipRRect(
+                  borderRadius: BorderRadius.circular(8),
+                  child: LinearProgressIndicator(
+                    minHeight: 8,
+                    value: _progress > 0 ? _progress : null,
+                  ),
+                ),
+                const SizedBox(height: 10),
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    Text('${(_progress * 100).round()}%',
+                        style: const TextStyle(fontWeight: FontWeight.bold)),
+                    Text('$mbDone / $mbTotal MB',
+                        style:
+                            const TextStyle(fontSize: 12, color: Colors.grey)),
+                  ],
+                ),
+              ],
+            ),
+            actions: [
+              TextButton(
+                onPressed: () async {
+                  _isCancelled = true;
+                  _isDownloading = false;
+                  _isPaused = false;
+                  await _activeSub?.cancel();
+                  _activeClient?.close();
+                  _dialogSetState = null;
+                  if (ctx.mounted) Navigator.pop(ctx);
+                },
+                child: Text(isEnglish ? 'Cancel' : 'إلغاء',
+                    style: const TextStyle(color: Colors.redAccent)),
+              ),
+              OutlinedButton(
+                onPressed: () async {
+                  if (_isPaused) {
+                    _isPaused = false;
+                    _refreshDialog();
+                    if (_activeApkUrl != null) {
+                      _runChunkedDownload(context, _activeApkUrl!, isEnglish);
+                    }
+                  } else {
+                    _isPaused = true;
+                    await _activeSub?.cancel();
+                    _activeClient?.close();
+                    _refreshDialog();
+                  }
+                },
+                child: Text(
+                  _isPaused
+                      ? (isEnglish ? 'Resume' : 'استئناف')
+                      : (isEnglish ? 'Pause' : 'إيقاف مؤقت'),
+                ),
+              ),
+              FilledButton(
+                onPressed: () {
+                  _isInBackground = true;
+                  _dialogSetState = null;
+                  Navigator.pop(ctx);
+                  if (context.mounted) {
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      SnackBar(
+                        content: Text(
+                          isEnglish
+                              ? 'Downloading update in background...'
+                              : 'جاري استكمال تحميل التحديث في الخلفية...',
+                        ),
+                      ),
+                    );
+                  }
+                },
+                child: Text(isEnglish ? 'Background' : 'في الخلفية'),
+              ),
+            ],
+          );
+        },
+      ),
+    );
+  }
+
+  static Future<void> _startOrResumeDownload(
+    BuildContext context,
+    String apkUrl,
+    bool isEnglish, {
+    bool reset = false,
+  }) async {
+    _activeApkUrl = apkUrl;
+    _isCancelled = false;
+    _isPaused = false;
+    _isDownloading = true;
+    if (reset) {
+      _receivedBytes = 0;
+      _totalBytes = 0;
+      _progress = 0.0;
+      final dir = await getTemporaryDirectory();
+      final f = File('${dir.path}/azkari_update.apk');
+      if (await f.exists()) await f.delete();
+    }
+    if (context.mounted) {
+      _showDownloadDialog(context, isEnglish);
+    }
+    await _runChunkedDownload(context, apkUrl, isEnglish);
+  }
+
+  static Future<void> _runChunkedDownload(
     BuildContext context,
     String apkUrl,
     bool isEnglish,
   ) async {
-    double progress = 0;
-    StateSetter? setDialogState;
-
-    if (context.mounted) {
-      showDialog(
-        context: context,
-        barrierDismissible: false,
-        builder: (ctx) => StatefulBuilder(
-          builder: (ctx, setS) {
-            setDialogState = setS;
-            return AlertDialog(
-              title: Text(
-                  isEnglish ? 'Downloading Update...' : 'جاري تحميل التحديث...'),
-              content: Column(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  LinearProgressIndicator(value: progress > 0 ? progress : null),
-                  const SizedBox(height: 10),
-                  Text('${(progress * 100).round()}%'),
-                ],
-              ),
-            );
-          },
-        ),
-      );
-    }
-
     try {
+      final dir = await getTemporaryDirectory();
+      final file = File('${dir.path}/azkari_update.apk');
+      final existingLen = await file.exists() ? await file.length() : 0;
+      _receivedBytes = existingLen;
+
       final client = http.Client();
+      _activeClient = client;
       final req = http.Request('GET', Uri.parse(apkUrl));
+      if (existingLen > 0) {
+        req.headers['Range'] = 'bytes=$existingLen-';
+      }
       final streamed = await client.send(req);
-      if (streamed.statusCode != 200) {
+
+      if (streamed.statusCode != 200 && streamed.statusCode != 206) {
         client.close();
         throw Exception('HTTP ${streamed.statusCode}');
       }
-      final total = streamed.contentLength ?? 0;
-      final dir = await getTemporaryDirectory();
-      final file = File('${dir.path}/azkari_update.apk');
-      if (await file.exists()) await file.delete();
-      final sink = file.openWrite();
-      int received = 0;
 
-      await for (final chunk in streamed.stream) {
-        sink.add(chunk);
-        received += chunk.length;
-        if (total > 0 && setDialogState != null) {
-          setDialogState!(() => progress = received / total);
-        }
+      final isPartial = streamed.statusCode == 206;
+      if (!isPartial && existingLen > 0) {
+        await file.delete();
+        _receivedBytes = 0;
       }
-      await sink.close();
-      client.close();
+      final contentLen = streamed.contentLength ?? 0;
+      if (contentLen > 0) {
+        _totalBytes = isPartial ? existingLen + contentLen : contentLen;
+      }
+
+      final sink = file.openWrite(
+          mode: isPartial ? FileMode.append : FileMode.write);
+      final completer = Completer<void>();
+
+      _activeSub = streamed.stream.listen(
+        (chunk) {
+          sink.add(chunk);
+          _receivedBytes += chunk.length;
+          if (_totalBytes > 0) {
+            _progress = (_receivedBytes / _totalBytes).clamp(0.0, 1.0);
+          }
+          _refreshDialog();
+        },
+        onDone: () async {
+          await sink.close();
+          client.close();
+          if (!completer.isCompleted) completer.complete();
+        },
+        onError: (e) async {
+          await sink.close();
+          client.close();
+          if (!completer.isCompleted) completer.completeError(e);
+        },
+        cancelOnError: true,
+      );
+
+      await completer.future;
+
+      if (_isPaused || _isCancelled) {
+        if (_isCancelled && await file.exists()) {
+          await file.delete();
+        }
+        return;
+      }
+
+      _isDownloading = false;
 
       if (await file.length() < 5 * 1024 * 1024) {
         await file.delete();
         throw Exception('Invalid APK size');
       }
 
-      if (context.mounted) Navigator.pop(context);
-      final res = await OpenFilex.open(
-        file.path,
-        type: 'application/vnd.android.package-archive',
-      );
-      if (res.type != ResultType.done) {
-        final uri = Uri.parse(apkUrl);
-        if (await canLaunchUrl(uri)) {
-          await launchUrl(uri, mode: LaunchMode.externalApplication);
+      if (!_isInBackground && _dialogSetState != null && context.mounted) {
+        _dialogSetState = null;
+        Navigator.pop(context);
+      }
+
+      if (_isInBackground && context.mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            duration: const Duration(seconds: 8),
+            content: Text(isEnglish
+                ? 'Update downloaded and ready to install!'
+                : 'اكتمل تحميل التحديث وجاهز للتثبيت!'),
+            action: SnackBarAction(
+              label: isEnglish ? 'Install' : 'تثبيت الآن',
+              onPressed: () => OpenFilex.open(
+                file.path,
+                type: 'application/vnd.android.package-archive',
+              ),
+            ),
+          ),
+        );
+      } else {
+        final res = await OpenFilex.open(
+          file.path,
+          type: 'application/vnd.android.package-archive',
+        );
+        if (res.type != ResultType.done) {
+          final uri = Uri.parse(apkUrl);
+          if (await canLaunchUrl(uri)) {
+            await launchUrl(uri, mode: LaunchMode.externalApplication);
+          }
         }
       }
     } catch (_) {
-      if (context.mounted) Navigator.pop(context);
+      if (_isPaused || _isCancelled) return;
+      _isDownloading = false;
+      if (!_isInBackground && _dialogSetState != null && context.mounted) {
+        _dialogSetState = null;
+        Navigator.pop(context);
+      }
       final uri = Uri.parse(apkUrl);
       if (await canLaunchUrl(uri)) {
         await launchUrl(uri, mode: LaunchMode.externalApplication);
