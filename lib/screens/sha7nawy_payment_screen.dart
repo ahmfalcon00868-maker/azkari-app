@@ -161,12 +161,9 @@ class AzkariProManager {
     if (fbId.isEmpty || !CloudSyncService.isCloudConfigured) return;
     try {
       final res = await http.get(
-        Uri.parse(
-            '${CloudSyncService.kSupabaseUrl}/rest/v1/user_subscriptions?fb_user_id=eq.${Uri.encodeComponent(fbId)}&select=*'),
-        headers: {
-          'apikey': CloudSyncService.kSupabaseAnonKey,
-          'Authorization': 'Bearer ${CloudSyncService.kSupabaseAnonKey}',
-        },
+        Uri.parse(CloudSyncService.rest(
+            'user_subscriptions?fb_user_id=eq.${Uri.encodeComponent(fbId)}&select=*')),
+        headers: CloudSyncService.authHeaders,
       ).timeout(const Duration(seconds: 8));
       if (res.statusCode == 200) {
         final list = jsonDecode(res.body);
@@ -249,12 +246,8 @@ class AzkariProManager {
     try {
       await http
           .post(
-            Uri.parse('${CloudSyncService.kSupabaseUrl}/rest/v1/developer_contributions'),
-            headers: {
-              'Content-Type': 'application/json',
-              'apikey': CloudSyncService.kSupabaseAnonKey,
-              'Authorization': 'Bearer ${CloudSyncService.kSupabaseAnonKey}',
-            },
+            Uri.parse(CloudSyncService.rest('developer_contributions')),
+            headers: CloudSyncService.jsonAuthHeaders,
             body: jsonEncode({
               'country': country,
               'method': method,
@@ -740,13 +733,9 @@ class _Sha7nawyPaymentScreenState extends State<Sha7nawyPaymentScreen> {
                             });
                             try {
                               final res = await http.get(
-                                Uri.parse(
-                                    '${CloudSyncService.kSupabaseUrl}/rest/v1/pro_promo_codes?code=eq.${Uri.encodeComponent(code)}&active=eq.true&select=*'),
-                                headers: {
-                                  'apikey': CloudSyncService.kSupabaseAnonKey,
-                                  'Authorization':
-                                      'Bearer ${CloudSyncService.kSupabaseAnonKey}',
-                                },
+                                Uri.parse(CloudSyncService.rest(
+                                    'pro_promo_codes?code=eq.${Uri.encodeComponent(code)}&active=eq.true&select=*')),
+                                headers: CloudSyncService.authHeaders,
                               ).timeout(const Duration(seconds: 10));
                               final list = jsonDecode(res.body);
                               if (res.statusCode == 200 &&
@@ -766,14 +755,9 @@ class _Sha7nawyPaymentScreenState extends State<Sha7nawyPaymentScreen> {
                                 }
                                 // Increment usage count
                                 await http.patch(
-                                  Uri.parse(
-                                      '${CloudSyncService.kSupabaseUrl}/rest/v1/pro_promo_codes?code=eq.${Uri.encodeComponent(code)}'),
-                                  headers: {
-                                    'Content-Type': 'application/json',
-                                    'apikey': CloudSyncService.kSupabaseAnonKey,
-                                    'Authorization':
-                                        'Bearer ${CloudSyncService.kSupabaseAnonKey}',
-                                  },
+                                  Uri.parse(CloudSyncService.rest(
+                                      'pro_promo_codes?code=eq.${Uri.encodeComponent(code)}')),
+                                  headers: CloudSyncService.jsonAuthHeaders,
                                   body: jsonEncode({'used_count': used + 1}),
                                 );
 
@@ -919,7 +903,13 @@ class _Sha7nawyPaymentScreenState extends State<Sha7nawyPaymentScreen> {
           )
           .timeout(const Duration(seconds: 15));
 
-      final body = jsonDecode(res.body) as Map<String, dynamic>;
+      Map<String, dynamic> body = const {};
+      try {
+        final decoded = jsonDecode(res.body);
+        if (decoded is Map<String, dynamic>) body = decoded;
+      } catch (_) {
+        // Non-JSON response (e.g. gateway error page) — handled below.
+      }
       if (res.statusCode == 200 && body['success'] == true) {
         final data = body['data'] as Map<String, dynamic>? ?? {};
         final ref = (data['reference'] ?? '').toString();
@@ -1248,13 +1238,8 @@ class _Sha7nawyPaymentScreenState extends State<Sha7nawyPaymentScreen> {
     try {
       final res = await http
           .post(
-            Uri.parse(
-                '${CloudSyncService.kSupabaseUrl}/functions/v1/verify-bybit'),
-            headers: {
-              'Content-Type': 'application/json',
-              'apikey': CloudSyncService.kSupabaseAnonKey,
-              'Authorization': 'Bearer ${CloudSyncService.kSupabaseAnonKey}',
-            },
+            Uri.parse(CloudSyncService.function('verify-bybit')),
+            headers: CloudSyncService.jsonAuthHeaders,
             body: jsonEncode({
               'tx_id': txId,
               'plan': _isProTab ? _selectedPlan : 'contribution',
@@ -1264,7 +1249,13 @@ class _Sha7nawyPaymentScreenState extends State<Sha7nawyPaymentScreen> {
           )
           .timeout(const Duration(seconds: 18));
 
-      final body = jsonDecode(res.body) as Map<String, dynamic>;
+      Map<String, dynamic> body = const {};
+      try {
+        final decoded = jsonDecode(res.body);
+        if (decoded is Map<String, dynamic>) body = decoded;
+      } catch (_) {
+        // Non-JSON response (e.g. gateway error page) — handled below.
+      }
       if (res.statusCode == 200 && body['success'] == true) {
         if (_isProTab) {
           final days = (body['days'] as num?)?.toInt() ??
@@ -1291,7 +1282,12 @@ class _Sha7nawyPaymentScreenState extends State<Sha7nawyPaymentScreen> {
       } else {
         setState(() {
           _loading = false;
-          _errorMsg = (body['message'] ?? 'Verification failed').toString();
+          _errorMsg = res.statusCode == 200
+              ? (body['message'] ?? 'Verification failed').toString()
+              : tr(
+                  CloudSyncService.describeHttpFailure(res.statusCode),
+                  'Verification server error (HTTP ${res.statusCode}).',
+                );
         });
       }
     } catch (e) {
