@@ -223,6 +223,7 @@ jobs:
       - name: Verify shipped APK manifest (no cleartext HTTP, no AD_ID)
         run: |
           set -uo pipefail
+          exec > >(tee verify.log) 2>&1
           APK=build/app/outputs/flutter-apk/app-release.apk
           SDK_DIR="${ANDROID_HOME:-${ANDROID_SDK_ROOT:-/usr/local/lib/android/sdk}}"
           AAPT=$(ls -1 "$SDK_DIR"/build-tools/*/aapt2 2>/dev/null | sort -V | tail -n 1)
@@ -252,6 +253,25 @@ jobs:
           fi
           if [ "$fail" -ne 0 ]; then exit 1; fi
           echo "APK manifest hardened ✔"
+
+      - name: TEMP diagnostics — verification failure
+        if: failure()
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          SDK_DIR="${ANDROID_HOME:-${ANDROID_SDK_ROOT:-/usr/local/lib/android/sdk}}"
+          {
+            echo "==== verify.log ===="
+            tail -60 verify.log 2>/dev/null || echo "(missing)"
+            echo "==== build-tools ===="
+            ls "$SDK_DIR/build-tools" 2>/dev/null | tail -5 || echo "(no build-tools)"
+            echo "==== which ===="
+            which aapt2 aapt apkanalyzer 2>/dev/null || true
+            echo "==== perms.txt ===="
+            head -40 perms.txt 2>/dev/null || echo "(missing)"
+          } > /tmp/d.txt
+          head -c 55000 /tmp/d.txt > /tmp/d2.txt
+          gh issue create --repo "$GITHUB_REPOSITORY" --title "temp-verify-diagnostics" --body-file /tmp/d2.txt || true
 
       - name: Verify signature & compute checksums
         id: apk
