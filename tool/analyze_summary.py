@@ -15,6 +15,7 @@ LINE = re.compile(r"^\s*(error|warning|info)\s+•")
 
 def summarize(path: str) -> dict[str, int]:
     counts = {"error": 0, "warning": 0, "info": 0}
+    errors: list[str] = []
     first: dict[str, list[str]] = {"error": [], "warning": [], "info": []}
     with open(path, encoding="utf-8", errors="replace") as fh:
         for raw in fh:
@@ -25,10 +26,15 @@ def summarize(path: str) -> dict[str, int]:
             counts[kind] += 1
             if len(first[kind]) < 10:
                 first[kind].append(raw.strip())
+            if kind == "error":
+                errors.append(raw.strip())
     for kind in ("error", "warning", "info"):
         for line in first[kind]:
             prefix = "::error::" if kind == "error" else "::notice::"
             print(f"{prefix}analyze {kind}: {line[:220]}")
+    if errors:
+        with open("analyze_errors.txt", "w", encoding="utf-8") as out:
+            out.write("\n".join(errors))
     return counts
 
 

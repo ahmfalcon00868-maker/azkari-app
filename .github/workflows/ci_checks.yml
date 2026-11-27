@@ -6,6 +6,10 @@ on:
   pull_request:
   workflow_dispatch:
 
+permissions:
+  contents: read
+  issues: write
+
 jobs:
   analyze-and-test:
     name: Analyze & Test
@@ -30,6 +34,16 @@ jobs:
           set -uo pipefail
           flutter analyze --no-fatal-warnings --no-fatal-infos > analyze.log 2>&1 || true
           python3 tool/analyze_summary.py analyze.log
+
+      - name: TEMP diagnostics — analyzer errors
+        if: failure()
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          if [ -f analyze_errors.txt ]; then
+            head -c 55000 analyze_errors.txt > /tmp/errs.txt
+            gh issue create --repo "$GITHUB_REPOSITORY" --title "temp-analyze-errors" --body-file /tmp/errs.txt || true
+          fi
 
       - name: Run tests
         run: flutter test --reporter expanded
