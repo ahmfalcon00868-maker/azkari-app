@@ -22,7 +22,6 @@ import 'package:url_launcher/url_launcher.dart';
 import 'data/azkar_data.dart';
 import 'screens/explore_islamic_screen.dart';
 import 'screens/quran_screen.dart';
-import 'screens/tools_screen.dart';
 import 'screens/more_screen.dart';
 import 'widgets/tasbih_skins.dart';
 import 'services/volume_button_service.dart';

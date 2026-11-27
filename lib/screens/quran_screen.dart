@@ -456,8 +456,10 @@ void showSpotlightTour(
               Positioned(
                 left: 18,
                 right: 18,
-                top: showAbove ? null : ((hole.bottom ?? 120) + 18).clamp(48.0, screenH - 220),
-                bottom: showAbove ? (screenH - (hole?.top ?? screenH * 0.6) + 18).clamp(48.0, screenH - 220) : null,
+                top: showAbove ? null : ((hole?.bottom ?? 120) + 18).clamp(48.0, screenH - 220),
+                bottom: showAbove
+                    ? (screenH - hole.top + 18).clamp(48.0, screenH - 220)
+                    : null,
                 child: Container(
                   padding: const EdgeInsets.all(16),
                   decoration: BoxDecoration(
