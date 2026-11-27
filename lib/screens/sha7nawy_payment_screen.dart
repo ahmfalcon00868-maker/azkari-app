@@ -1329,8 +1329,8 @@ class _Sha7nawyPaymentScreenState extends State<Sha7nawyPaymentScreen> {
         content: Text(
           unlockedPro
               ? tr(
-                  'تم تفعيل الشارة الذهبية وفتح التسميع الذكي ووضع الحفظ وتوقيت الكلمات بالمللي ثانية على جهازك.',
-                  'Golden PRO badge active! Smart Recitation, Hifz Mode & QUL Word Timings are now unlocked.',
+                  'تم تفعيل الشارة الذهبية وفتح تلاوة وردد واحفظ وتوقيت الكلمات بالمللي ثانية على جهازك.',
+                  'Golden PRO badge active! Tilawa, Repeat & Memorize & QUL Word Timings are now unlocked.',
                 )
               : tr(
                   'تم استلام مساهمتك ورسالتك بنجاح. بارك الله فيك ونفع بك.',
@@ -1364,8 +1364,8 @@ class _Sha7nawyPaymentScreenState extends State<Sha7nawyPaymentScreen> {
     final words = ['وَبَشِّرِ', 'الَّذِينَ', 'آمَنُوا', 'وَعَمِلُوا', 'الصَّالِحَاتِ', 'أَنَّ', 'لَهُمْ', 'جَنَّاتٍ'];
     final tabs = [
       tr('توقيت الكلمات', 'Word Sync'),
-      tr('وضع الحفظ', 'Hifz Mode'),
-      tr('التسميع الذكي', 'Smart Recite'),
+      tr('ردد واحفظ', 'Repeat & Memorize'),
+      tr('تلاوة', 'Tilawa'),
     ];
     return Container(
       padding: const EdgeInsets.all(14),

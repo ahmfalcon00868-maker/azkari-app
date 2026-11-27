@@ -75,6 +75,9 @@ jobs:
               if "isCoreLibraryDesugaringEnabled" not in g:
                   g = g.replace("compileOptions {", "compileOptions {\n        isCoreLibraryDesugaringEnabled = true", 1)
               g = re.sub(r"minSdk\s*=\s*flutter\.minSdkVersion", "minSdk = 23", g)
+              # منع R8 من حذف موارد الإشعارات (ic_notification / splash_ayah)
+              if "isShrinkResources" not in g and "buildTypes {" in g:
+                  g = g.replace("buildTypes {", "buildTypes {\n        release {\n            isShrinkResources = false\n        }\n", 1)
               if "desugar_jdk_libs" not in g:
                   g += "\ndependencies {\n    coreLibraryDesugaring(\"com.android.tools:desugar_jdk_libs:2.0.4\")\n}\n"
               open(kts, "w", encoding="utf-8").write(g)
@@ -83,6 +86,8 @@ jobs:
               if "coreLibraryDesugaringEnabled" not in g:
                   g = g.replace("compileOptions {", "coreLibraryDesugaringEnabled true", 1)
               g = re.sub(r"minSdkVersion\s+flutter\.minSdkVersion", "minSdkVersion 23", g)
+              if "shrinkResources" not in g and "buildTypes {" in g:
+                  g = g.replace("buildTypes {", "buildTypes {\n        release {\n            shrinkResources false\n        }\n", 1)
               if "desugar_jdk_libs" not in g:
                   g += "\ndependencies {\n    coreLibraryDesugaring \"com.android.tools:desugar_jdk_libs:2.0.4\"\n}\n"
               open(grv, "w", encoding="utf-8").write(g)

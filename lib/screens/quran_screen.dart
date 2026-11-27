@@ -1206,6 +1206,11 @@ class _SurahReaderScreenState extends State<SurahReaderScreen> {
   bool _repeatSurah = false;
   bool _autoNextSurah = true;
   bool _advancingSurah = false;
+
+  /// جلسة «ردد واحفظ» نشطة: تمنع تماماً الانتقال التلقائي للسورة التالية
+  /// الذي كان يقطع الترديد بعد الآية الأولى.
+  bool _isHifzSessionActive = false;
+  int _hifzSessionToken = 0;
   double _speed = 1.0;
 
   Timer? _sleepTimer;
@@ -1304,7 +1309,11 @@ class _SurahReaderScreenState extends State<SurahReaderScreen> {
           _ayahProgress = 0.0;
         }
       });
-      if (state.processingState == ProcessingState.completed && !_advancingSurah) {
+      // أثناء جلسة «ردد واحفظ» لا نُنفّذ الانتقال التلقائي للسورة التالية:
+      // انتهاء صوت الآية الواحدة ليس نهاية السورة.
+      if (state.processingState == ProcessingState.completed &&
+          !_advancingSurah &&
+          !_isHifzSessionActive) {
         _advancingSurah = true;
         try {
           widget.onSurahCompleted?.call();
@@ -2417,7 +2426,7 @@ class _SurahReaderScreenState extends State<SurahReaderScreen> {
                                 fontWeight: FontWeight.w900)),
                       ),
                       const SizedBox(width: 8),
-                      Text(tr('استوديو الحفظ الذكي', 'Smart Hifz Studio'),
+                      Text(tr('أدوات التلاوة والحفظ', 'Recitation & Hifz Tools'),
                           style: const TextStyle(
                               fontSize: 16.5, fontWeight: FontWeight.bold)),
                     ],
@@ -2433,9 +2442,9 @@ class _SurahReaderScreenState extends State<SurahReaderScreen> {
                     borderRadius: BorderRadius.circular(16),
                     side: BorderSide(color: Colors.grey.withOpacity(0.22))),
                 leading: const Icon(Icons.mic_rounded, color: Color(0xFFF59E0B)),
-                title: Text(tr('التسميع الذكي بالإخفاء', 'Smart Hidden-Text Recitation'),
+                title: Text(tr('تلاوة', 'Tilawa'),
                     style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 14)),
-                subtitle: Text(tr('كشف كلمة/آية + ذكاء المدّ وإعادة الآية', 'Hide/reveal words + Madd & Repeat forgiveness'),
+                subtitle: Text(tr('سمِّع لنا ونحن نصحح لك إذا يوجد أخطاء', 'Recite to us and we will correct any mistakes'),
                     style: const TextStyle(fontSize: 11.5)),
                 trailing: const Icon(Icons.arrow_forward_ios_rounded, size: 15),
                 onTap: () {
@@ -2449,9 +2458,9 @@ class _SurahReaderScreenState extends State<SurahReaderScreen> {
                     borderRadius: BorderRadius.circular(16),
                     side: BorderSide(color: Colors.grey.withOpacity(0.22))),
                 leading: const Icon(Icons.repeat_on_rounded, color: Color(0xFF0288D1)),
-                title: Text(tr('وضع الحفظ (تكرار + صمت تلقائي)', 'Hifz Mode (Auto-Silence Repeat)'),
+                title: Text(tr('ردد واحفظ', 'Repeat & Memorize'),
                     style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 14)),
-                subtitle: Text(tr('يتوقف بعد كل آية بنفس مدة تلاوة القارئ', 'Pauses automatically matching reciter duration'),
+                subtitle: Text(tr('القارئ يعطيك مساحة لكي تردد وراءه للحفظ بسهولة', 'The reciter gives you room to repeat after him and memorize with ease'),
                     style: const TextStyle(fontSize: 11.5)),
                 trailing: const Icon(Icons.arrow_forward_ios_rounded, size: 15),
                 onTap: () {
@@ -2520,8 +2529,45 @@ class _SurahReaderScreenState extends State<SurahReaderScreen> {
     return AzkariProManager.isPro(widget.prefs);
   }
 
+  /// إيقاف جلسة «ردد واحفظ» فوراً والعودة للتلاوة العادية.
+  Future<void> _stopHifzSession() async {
+    if (!_isHifzSessionActive) return;
+    _hifzSessionToken++;
+    _isHifzSessionActive = false;
+    try {
+      await _player.stop();
+    } catch (_) {}
+    if (!mounted) return;
+    setState(() {});
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(tr('تم إيقاف جلسة «ردد واحفظ»',
+            'Repeat & Memorize session stopped', 'Tekrar Et & Ezberle oturumu durduruldu')),
+      ),
+    );
+  }
+
+  /// ينتظر انتهاء صوت الآية الحالية بدقة ويعيد مدة الصوت الحقيقية بالملي ثانية.
+  Future<int> _waitForAyahAudioEnd({required int token}) async {
+    final startWatch = Stopwatch()..start();
+    // انتظار بدء الصوت فعلياً (أو مهلة قصيرة إن فشل التحميل).
+    while (mounted &&
+        !_player.playing &&
+        startWatch.elapsedMilliseconds < 4000 &&
+        token == _hifzSessionToken) {
+      await Future.delayed(const Duration(milliseconds: 120));
+    }
+    var durMs = _player.duration?.inMilliseconds ?? 0;
+    final playWatch = Stopwatch()..start();
+    while (mounted && _player.playing && token == _hifzSessionToken) {
+      await Future.delayed(const Duration(milliseconds: 120));
+    }
+    if (durMs <= 0) durMs = playWatch.elapsedMilliseconds;
+    return durMs.clamp(500, 180000);
+  }
+
   Future<void> _openHifzSheet() async {
-    if (!await _ensureProOrPrompt(tr('وضع الحفظ والتكرار الصامت', 'Hifz Mode'))) return;
+    if (!await _ensureProOrPrompt(tr('ردد واحفظ', 'Repeat & Memorize'))) return;
     int fromAyah = 1;
     int toAyah = _ayahs.length.clamp(1, 5);
     int repeatCount = 3;
@@ -2544,14 +2590,14 @@ class _SurahReaderScreenState extends State<SurahReaderScreen> {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(
-                  tr('وضع الحفظ (تكرار مع صمت تلقائي)', 'Hifz Mode (Auto-Silence Repeat)'),
+                  tr('ردد واحفظ', 'Repeat & Memorize'),
                   style: const TextStyle(fontSize: 17, fontWeight: FontWeight.bold),
                 ),
                 const SizedBox(height: 6),
                 Text(
                   tr(
-                    'يتوقف الصوت تلقائياً بعد كل آية بنفس مدة تلاوة القارئ لتقرأها غيباً.',
-                    'Pauses automatically after each Ayah for the exact reciter duration so you can recite from memory.',
+                    'القارئ يعطيك مساحة لكي تردد وراءه للحفظ بسهولة، ثم يعطيك صمتاً تلقائياً بنفس مدة القراءة.',
+                    'The reciter gives you room to repeat after him and memorize with ease, then pauses for the same duration.',
                   ),
                   style: const TextStyle(fontSize: 12.5, color: Colors.grey),
                 ),
@@ -2642,24 +2688,34 @@ class _SurahReaderScreenState extends State<SurahReaderScreen> {
                         : () async {
                             setS(() => running = true);
                             Navigator.pop(sCtx);
-                            for (int r = 0; r < repeatCount; r++) {
-                              for (int ay = fromAyah; ay <= toAyah; ay++) {
-                                if (!mounted) return;
-                                final idx = ay - 1;
-                                await _playSingleAyah(idx);
-                                final startWait = DateTime.now();
-                                while (mounted && _player.playing) {
-                                  await Future.delayed(const Duration(milliseconds: 250));
-                                }
-                                final elapsedMs = DateTime.now()
-                                    .difference(startWait)
-                                    .inMilliseconds
-                                    .clamp(1200, 120000);
-                                final silenceMs = (elapsedMs * silenceMultiplier).round();
-                                if (mounted) {
-                                  ScaffoldMessenger.of(context).showSnackBar(
+                            _hifzSessionToken++;
+                            final token = _hifzSessionToken;
+                            setState(() => _isHifzSessionActive = true);
+                            try {
+                              for (int r = 0; r < repeatCount; r++) {
+                                for (int ay = fromAyah; ay <= toAyah; ay++) {
+                                  if (!mounted || token != _hifzSessionToken) {
+                                    return;
+                                  }
+                                  final idx = ay - 1;
+                                  await _playSingleAyah(idx);
+                                  if (!mounted || token != _hifzSessionToken) {
+                                    return;
+                                  }
+                                  final audioMs =
+                                      await _waitForAyahAudioEnd(token: token);
+                                  if (!mounted || token != _hifzSessionToken) {
+                                    return;
+                                  }
+                                  final silenceMs =
+                                      (audioMs * silenceMultiplier).round();
+                                  final messenger =
+                                      ScaffoldMessenger.of(context);
+                                  messenger.hideCurrentSnackBar();
+                                  messenger.showSnackBar(
                                     SnackBar(
-                                      duration: Duration(milliseconds: silenceMs),
+                                      duration:
+                                          Duration(milliseconds: silenceMs),
                                       content: Text(
                                         tr(
                                           'دورك الآن: ردّد الآية $ay غيباً (${(silenceMs / 1000).toStringAsFixed(1)} ث)...',
@@ -2668,13 +2724,19 @@ class _SurahReaderScreenState extends State<SurahReaderScreen> {
                                       ),
                                     ),
                                   );
+                                  await Future.delayed(
+                                      Duration(milliseconds: silenceMs));
                                 }
-                                await Future.delayed(Duration(milliseconds: silenceMs));
+                              }
+                            } finally {
+                              if (token == _hifzSessionToken) {
+                                _isHifzSessionActive = false;
+                                if (mounted) setState(() {});
                               }
                             }
                           },
                     icon: const Icon(Icons.play_arrow_rounded),
-                    label: Text(tr('بدء جلسة الحفظ', 'Start Hifz Session')),
+                    label: Text(tr('بدء جلسة «ردد واحفظ»', 'Start Repeat & Memorize')),
                   ),
                 ),
               ],
@@ -2686,7 +2748,7 @@ class _SurahReaderScreenState extends State<SurahReaderScreen> {
   }
 
   Future<void> _openSmartTasmeeSheet() async {
-    if (!await _ensureProOrPrompt(tr('التسميع الذكي بالإخفاء', 'Smart Recitation'))) return;
+    if (!await _ensureProOrPrompt(tr('تلاوة', 'Tilawa'))) return;
     int targetAyahIdx = (_playingAyahIndex ?? 0).clamp(0, _ayahs.length - 1);
     final speech = stt.SpeechToText();
     bool listening = false;
@@ -2803,7 +2865,7 @@ class _SurahReaderScreenState extends State<SurahReaderScreen> {
                   Row(
                     mainAxisAlignment: MainAxisAlignment.spaceBetween,
                     children: [
-                      Text(tr('التسميع الذكي بالإخفاء', 'Smart Recitation'),
+                      Text(tr('تلاوة', 'Tilawa'),
                           style: const TextStyle(
                               fontSize: 16.5, fontWeight: FontWeight.bold)),
                       DropdownButton<int>(
@@ -3070,6 +3132,43 @@ class _SurahReaderScreenState extends State<SurahReaderScreen> {
 
     return Scaffold(
       backgroundColor: _focusDimMode ? const Color(0xFF000000) : null,
+      floatingActionButtonLocation: FloatingActionButtonLocation.centerTop,
+      floatingActionButton: _isHifzSessionActive
+          ? Padding(
+              padding: const EdgeInsets.only(top: 6),
+              child: Material(
+                color: const Color(0xFF0A192F),
+                elevation: 6,
+                shape: StadiumBorder(
+                  side: BorderSide(color: const Color(0xFF38BDF8).withOpacity(0.6)),
+                ),
+                child: Padding(
+                  padding: const EdgeInsetsDirectional.only(start: 14, end: 4),
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      const Icon(Icons.record_voice_over_rounded,
+                          size: 18, color: Color(0xFF38BDF8)),
+                      const SizedBox(width: 8),
+                      Text(
+                        tr('جلسة «ردد واحفظ» جارية', 'Repeat & Memorize session', 'Tekrar oturumu'),
+                        style: const TextStyle(
+                            color: Color(0xFFE6F1FF),
+                            fontSize: 12.5,
+                            fontWeight: FontWeight.bold),
+                      ),
+                      IconButton(
+                        tooltip: tr('إيقاف الجلسة', 'Stop session', 'Oturumu durdur'),
+                        onPressed: _stopHifzSession,
+                        icon: const Icon(Icons.close_rounded,
+                            size: 18, color: Color(0xFFFDE047)),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            )
+          : null,
       appBar: AppBar(
         title: Column(
           mainAxisSize: MainAxisSize.min,
@@ -3084,7 +3183,7 @@ class _SurahReaderScreenState extends State<SurahReaderScreen> {
         ),
         actions: [
           IconButton(
-            tooltip: tr('أدوات أذكاري PRO (التسميع والحفظ)', 'Azkari PRO Tools', 'Azkari PRO Araçları'),
+            tooltip: tr('أدوات أذكاري PRO (تلاوة وردد واحفظ)', 'Azkari PRO Tools', 'Azkari PRO Araçları'),
             onPressed: _openProToolsMenu,
             icon: const Icon(Icons.workspace_premium_rounded, color: Color(0xFFF59E0B)),
           ),

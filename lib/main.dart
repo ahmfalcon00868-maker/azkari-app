@@ -624,6 +624,13 @@ class _AzkariAppState extends State<AzkariApp> {
   late String lastStartupAudioDate;
   late String lastDoubleRewardPromptDate;
   late List<String> activeDaysHistory;
+
+  /// تاريخ آخر تصفير يومي لعدادات الأذكار (YYYY-MM-DD).
+  late String lastAzkarResetDate;
+
+  /// عدد التسبيحات المطلوبة للدورة الواحدة (0 = مفتوح بلا حد).
+  late int tasbihTarget;
+  Timer? _midnightTimer;
   Timer? _floatingTimer;
   Timer? _saveDebounce;
   final ap.AudioPlayer _splashAudioPlayer = ap.AudioPlayer();
@@ -714,6 +721,8 @@ class _AzkariAppState extends State<AzkariApp> {
                 AndroidFlutterLocalNotificationsPlugin>()
             ?.requestNotificationsPermission();
       } catch (_) {}
+      // أذونات الإشعارات وتنبيهات المواعيد الدقيقة (أندرويد 13+ و14+).
+      await NotificationService.instance.requestPermissions();
       await AzkariProManager.syncServerSubscription(widget.prefs);
       if (mounted) setState(() {});
     });
@@ -725,6 +734,8 @@ class _AzkariAppState extends State<AzkariApp> {
     SoundEffectsService.instance.init();
     _loadPrefsFromDisk();
     _rebuildAzkarList();
+    resetDailyAzkarIfNeeded();
+    _scheduleMidnightReset();
     _syncReminders();
     _syncFloatingTimer();
     _playStartupAyahAudio();
@@ -766,6 +777,8 @@ class _AzkariAppState extends State<AzkariApp> {
     dailyAyahEnabled = p.getBool('dailyAyahEnabled') ?? true;
     dailyAyahIndex = p.getInt('dailyAyahIndex') ?? 0;
     customTasbihPhrases = p.getStringList('customTasbihPhrases') ?? [];
+    lastAzkarResetDate = p.getString('lastAzkarResetDate') ?? '';
+    tasbihTarget = p.getInt('tasbihTarget') ?? 33;
 
     editedAzkarOverrides = {};
     final edRaw = p.getString('editedAzkarOverrides');
@@ -1110,6 +1123,55 @@ class _AzkariAppState extends State<AzkariApp> {
     );
   }
 
+  /// تاريخ اليوم بصيغة YYYY-MM-DD.
+  static String _dayKey(DateTime d) =>
+      '${d.year.toString().padLeft(4, '0')}-'
+      '${d.month.toString().padLeft(2, '0')}-'
+      '${d.day.toString().padLeft(2, '0')}';
+
+  /// تصفير عدادات الأذكار اليومية عند بداية يوم جديد (12:00 ص).
+  ///
+  /// يحافظ على إجمالي التسبيحات (`tasbihLifetime`) وسلسلة الأيام
+  /// (`currentStreak` / `bestStreak`) كما هي؛ يُصفَّر فقط `count` لكل ذكر.
+  bool resetDailyAzkarIfNeeded({bool force = false}) {
+    final today = _dayKey(DateTime.now());
+    final saved = widget.prefs.getString('lastAzkarResetDate') ?? '';
+    if (!force && saved == today) return false;
+    for (final z in azkarList) {
+      z.count = 0;
+    }
+    widget.prefs.setString('lastAzkarResetDate', today);
+    widget.prefs.setString(
+      'azkarState',
+      jsonEncode(azkarList.map((e) => e.toJson()).toList()),
+    );
+    lastAzkarResetDate = today;
+    // مهام اليوم (أذكار الصباح/المساء…) تُعاد أيضاً لليوم الجديد.
+    widget.prefs.setString('tasksDate', today);
+    tasksDate = today;
+    taskMorningDone = false;
+    taskEveningDone = false;
+    taskSleepDone = false;
+    taskMulkDone = false;
+    taskKahfDone = false;
+    widget.prefs.setBool('taskMorningDone', false);
+    widget.prefs.setBool('taskEveningDone', false);
+    widget.prefs.setBool('taskSleepDone', false);
+    widget.prefs.setBool('taskMulkDone', false);
+    widget.prefs.setBool('taskKahfDone', false);
+    if (mounted) setState(() {});
+    return true;
+  }
+
+  /// يراجع كل دقيقة: يغطّي عبور منتصف الليل والتطبيق مفتوح.
+  void _scheduleMidnightReset() {
+    _midnightTimer?.cancel();
+    _midnightTimer = Timer.periodic(const Duration(minutes: 1), (_) {
+      if (!mounted) return;
+      resetDailyAzkarIfNeeded();
+    });
+  }
+
   void saveAllState({bool resyncTimers = true}) {
     final p = widget.prefs;
     tasbihCountsByPhrase[tasbihPhrase] = tasbihCount;
@@ -1158,6 +1220,8 @@ class _AzkariAppState extends State<AzkariApp> {
     p.setBool('dailyAyahEnabled', dailyAyahEnabled);
     p.setInt('dailyAyahIndex', dailyAyahIndex);
     p.setStringList('customTasbihPhrases', customTasbihPhrases);
+    p.setString('lastAzkarResetDate', lastAzkarResetDate);
+    p.setInt('tasbihTarget', tasbihTarget);
     final mapEnc = <String, dynamic>{};
     editedAzkarOverrides.forEach((k, v) {
       mapEnc[k.toString()] = v;
@@ -1175,6 +1239,7 @@ class _AzkariAppState extends State<AzkariApp> {
   @override
   void dispose() {
     _floatingTimer?.cancel();
+    _midnightTimer?.cancel();
     _splashAudioPlayer.dispose();
     _salawatPlayer.dispose();
     super.dispose();
@@ -2184,8 +2249,8 @@ class _MainShellScreenState extends State<MainShellScreen> {
                       ),
                       const SizedBox(height: 4),
                       Text(
-                        s.tr('التلاوة بالإخفاء، وضع الحفظ، وتوقيت الكلمات.',
-                            'Smart Recitation, Hifz Mode & QUL Timings.'),
+                        s.tr('تلاوة وتصحيح، ردد واحفظ، وتوقيت الكلمات.',
+                            'Tilawa, Repeat & Memorize & QUL Timings.'),
                         style: const TextStyle(fontSize: 11.5, color: Colors.grey),
                       ),
                       const SizedBox(height: 10),
@@ -2604,7 +2669,7 @@ class _MainShellScreenState extends State<MainShellScreen> {
                       fontWeight: FontWeight.bold,
                     ),
                   ),
-                  const SizedBox(height: 4),
+                  const SizedBox(height: 8),
                   Text(
                     formatHijriAndGregorian(now, s.appLang),
                     maxLines: 1,
@@ -3339,11 +3404,60 @@ class _MainShellScreenState extends State<MainShellScreen> {
     );
   }
 
+  /// يضبط عدد التسبيح المطلوب للدورة ويحفظه.
+  void _setTasbihTarget(_AzkariAppState s, int target) {
+    s.tasbihTarget = target;
+    s.saveAllState(resyncTimers: false);
+    setState(() {});
+  }
+
+  /// يطلب من المستخدم كتابة عدد مخصص للدورة.
+  Future<void> _pickCustomTasbihTarget(_AzkariAppState s) async {
+    final ctrl = TextEditingController(
+        text: s.tasbihTarget > 0 ? '${s.tasbihTarget}' : '');
+    final value = await showDialog<int>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(22)),
+        title: Text(s.tr('عدد مخصص للدورة', 'Custom Cycle Count', 'Özel Tur Sayısı')),
+        content: TextField(
+          controller: ctrl,
+          keyboardType: TextInputType.number,
+          autofocus: true,
+          decoration: InputDecoration(
+            hintText: s.tr('مثال: 313', 'e.g. 313', 'Örn: 313'),
+            border: OutlineInputBorder(borderRadius: BorderRadius.circular(14)),
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx),
+            child: Text(s.tr('إلغاء', 'Cancel', 'İptal')),
+          ),
+          FilledButton(
+            onPressed: () {
+              final v = int.tryParse(ctrl.text.trim());
+              Navigator.pop(ctx, (v != null && v > 0) ? v : null);
+            },
+            child: Text(s.tr('حفظ', 'Save', 'Kaydet')),
+          ),
+        ],
+      ),
+    );
+    if (value != null && value > 0) _setTasbihTarget(s, value);
+  }
+
   Widget _buildTasbihTab(BuildContext context, Color cardColor,
       Color borderColor, Color primary, Color textSecondary) {
     final s = widget.appState;
-    final cycleVal = s.tasbihCount % 33;
-    final cycleProgress = (s.tasbihCount > 0 && cycleVal == 0) ? 1.0 : cycleVal / 33.0;
+    final int target = s.tasbihTarget;
+    final bool isOpenEnded = target <= 0;
+    const presetTargets = [33, 99, 100, 1000];
+    final bool isPresetTarget = presetTargets.contains(target);
+    final int cycleVal = isOpenEnded ? s.tasbihCount : s.tasbihCount % target;
+    final double cycleProgress = isOpenEnded
+        ? 0.0
+        : ((s.tasbihCount > 0 && cycleVal == 0) ? 1.0 : cycleVal / target);
     final allPhrases = [
       ...kRandomShortAzkar,
       ...s.customTasbihPhrases.where((c) => !kRandomShortAzkar.contains(c)),
@@ -3450,6 +3564,44 @@ class _MainShellScreenState extends State<MainShellScreen> {
               ),
             ],
           ),
+          const SizedBox(height: 14),
+          Align(
+            alignment: AlignmentDirectional.centerStart,
+            child: Text(
+              s.tr('عدد التسبيح في الدورة', 'Cycle Count', 'Tur Sayısı'),
+              style: TextStyle(
+                fontSize: 13.5,
+                fontWeight: FontWeight.bold,
+                color: textSecondary,
+              ),
+            ),
+          ),
+          const SizedBox(height: 8),
+          Wrap(
+            spacing: 8,
+            runSpacing: 8,
+            children: [
+              for (final t in presetTargets)
+                ChoiceChip(
+                  label: Text('$t'),
+                  selected: target == t,
+                  onSelected: (_) => _setTasbihTarget(s, t),
+                ),
+              ChoiceChip(
+                label: Text(s.tr('مفتوح ∞', 'Open ∞', 'Sınırsız ∞')),
+                selected: isOpenEnded,
+                onSelected: (_) => _setTasbihTarget(s, 0),
+              ),
+              ActionChip(
+                avatar: const Icon(Icons.edit_rounded, size: 16),
+                label: Text(
+                  (!isOpenEnded && !isPresetTarget) ? '$target'
+                      : s.tr('مخصص', 'Custom', 'Özel'),
+                ),
+                onPressed: () => _pickCustomTasbihTarget(s),
+              ),
+            ],
+          ),
           const SizedBox(height: 16),
           Container(
             width: double.infinity,
@@ -3476,9 +3628,15 @@ class _MainShellScreenState extends State<MainShellScreen> {
                 const SizedBox(height: 8),
                 Text(
                   s.tr(
-                    'الدورة: $cycleVal / 33  •  الإجمالي: ${s.tasbihLifetime}',
-                    'Cycle: $cycleVal / 33  •  Total: ${s.tasbihLifetime}',
-                    'Tur: $cycleVal / 33  •  Toplam: ${s.tasbihLifetime}',
+                    isOpenEnded
+                        ? 'مفتوح بلا حد  •  الإجمالي: ${s.tasbihLifetime}'
+                        : 'الدورة: $cycleVal / $target  •  الإجمالي: ${s.tasbihLifetime}',
+                    isOpenEnded
+                        ? 'Open count  •  Total: ${s.tasbihLifetime}'
+                        : 'Cycle: $cycleVal / $target  •  Total: ${s.tasbihLifetime}',
+                    isOpenEnded
+                        ? 'Sınırsız  •  Toplam: ${s.tasbihLifetime}'
+                        : 'Tur: $cycleVal / $target  •  Toplam: ${s.tasbihLifetime}',
                   ),
                   style: TextStyle(fontSize: 13, color: textSecondary),
                 ),
@@ -3497,7 +3655,10 @@ class _MainShellScreenState extends State<MainShellScreen> {
             onTap: () {
               s.tasbihCount += 1;
               s.tasbihLifetime += 1;
-              s.playTapFeedback(stronger: s.tasbihCount % 33 == 0);
+              s.playTapFeedback(
+                  stronger: !isOpenEnded &&
+                      target > 0 &&
+                      s.tasbihCount % target == 0);
               s.saveLightState();
               setState(() {});
             },
@@ -3636,7 +3797,7 @@ class _MainShellScreenState extends State<MainShellScreen> {
               Text(
                 AzkariProManager.isPro(s.widget.prefs)
                     ? s.tr('شكراً لمساهمتك! جميع مزايا الحفظ الذكي متاحة لك.', 'Thank you! All smart Hifz features are active.')
-                    : s.tr('التسميع الذكي، وضع الحفظ، وتوقيت الكلمات بالمللي ثانية.', 'Smart Recitation, Hifz Mode & QUL Word Timings.'),
+                    : s.tr('تلاوة، ردد واحفظ، وتوقيت الكلمات بالمللي ثانية.', 'Tilawa, Repeat & Memorize & QUL Word Timings.'),
                 style: const TextStyle(color: Colors.white, fontSize: 13, fontWeight: FontWeight.w600, height: 1.45),
               ),
               if (AzkariProManager.hasContributorBadge(s.widget.prefs)) ...[
