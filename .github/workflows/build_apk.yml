@@ -173,6 +173,10 @@ jobs:
             REASON=$(grep -m2 -E "^e: |FAILED|Cannot " /tmp/gradle.log 2>/dev/null | tr '\n' ' ' | sed 's/::/-/g' | cut -c1-620)
           fi
           echo "::error::gradle=$status logbytes=$LOGB reason=${REASON:-none}"
+          ERR1=$(grep -m1 -E "^e: " /tmp/gradle.log 2>/dev/null | sed 's|file:///[^ ]*/||; s/::/-/g' | cut -c1-320)
+          ERR2=$(grep -m2 -E "^e: " /tmp/gradle.log 2>/dev/null | tail -1 | sed 's|file:///[^ ]*/||; s/::/-/g' | cut -c1-320)
+          echo "::error::err1=${ERR1:-none}"
+          echo "::error::err2=${ERR2:-none}"
           cp /tmp/gradle.original "$gradle_file"   # نُعيد minSdk 23 قبل بناء الـ APK
           python3 tool/android_test_stats.py android/app/build/test-results/testDebugUnitTest
           stats=$?
