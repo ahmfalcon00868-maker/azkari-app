@@ -9,7 +9,6 @@ on:
 
 permissions:
   contents: read
-  issues: write
 
 jobs:
   analyze-and-test:
@@ -41,16 +40,6 @@ jobs:
         run: |
           set -uo pipefail
           flutter test --reporter expanded 2>&1 | tee test_out.log
-
-      - name: TEMP diagnostics — failing tests
-        if: failure()
-        env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: |
-          { echo "== failures =="; grep -nE "^(  Expected|  Actual|  Which|[0-9]+:[0-9]+ \+)?" test_out.log | head -20;
-            echo "== tail =="; tail -c 30000 test_out.log; } > /tmp/f.txt
-          head -c 55000 /tmp/f.txt > /tmp/f2.txt
-          gh issue create --repo "$GITHUB_REPOSITORY" --title "temp-test-failures" --body-file /tmp/f2.txt || true
 
       # اسم الأرتيفاكت يحمل أعداد التحليل ليقرأها المطوّر من صفحة التشغيل مباشرة.
       - name: Decide analysis artifact name
