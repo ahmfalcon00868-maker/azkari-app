@@ -220,29 +220,38 @@ jobs:
           head -c 55000 /tmp/diag.txt > /tmp/diag_trim.txt
           gh issue create --repo "$GITHUB_REPOSITORY" --title "temp-build-diagnostics" --body-file /tmp/diag_trim.txt || true
 
-      - name: Verify shipped manifest (no cleartext HTTP, no AD_ID)
+      - name: Verify shipped APK manifest (no cleartext HTTP, no AD_ID)
         run: |
           set -uo pipefail
-          MAPS=$(grep -rl 'com.flc.azkari' --include=AndroidManifest.xml build/app/intermediates 2>/dev/null || true)
-          echo "manifests inspected: $MAPS"
-          test -n "$MAPS" || { echo "::error::no merged manifest found"; exit 1; }
+          APK=build/app/outputs/flutter-apk/app-release.apk
+          SDK_DIR="${ANDROID_HOME:-${ANDROID_SDK_ROOT:-/usr/local/lib/android/sdk}}"
+          AAPT=$(ls -1 "$SDK_DIR"/build-tools/*/aapt2 2>/dev/null | sort -V | tail -n 1)
+          echo "using: $AAPT"
+          "$AAPT" dump permissions "$APK" > perms.txt
+          "$AAPT" dump xmltree --file AndroidManifest.xml "$APK" > manifest.txt
+          echo "--- permissions ---"; cat perms.txt
           fail=0
-          while IFS= read -r hit; do
-            [ -z "$hit" ] && continue
-            echo "::error::cleartext HTTP allowed: $hit"
+          if grep -qi 'AD_ID' perms.txt; then
+            echo "::error::AD_ID permission is shipped in the APK"
             fail=1
-          done <<< "$(grep -n 'usesCleartextTraffic="true"' $MAPS 2>/dev/null || true)"
-          while IFS= read -r hit; do
-            [ -z "$hit" ] && continue
-            echo "::error::AD_ID present: $hit"
+          fi
+          if grep -qi 'usesCleartextTraffic' manifest.txt; then
+            grep -i 'usesCleartextTraffic' manifest.txt | head -3
+            if grep -i 'usesCleartextTraffic' manifest.txt | grep -qvi '0x0'; then
+              echo "::error::cleartext HTTP is enabled in the shipped manifest"
+              fail=1
+            fi
+          fi
+          if ! grep -q 'com.flc.azkari.TasbihWidgetProvider' manifest.txt; then
+            echo "::error::tasbih widget receiver missing from the shipped manifest"
             fail=1
-          done <<< "$(grep -n 'com.google.android.gms.permission.AD_ID' $MAPS 2>/dev/null || true)"
-          if ! grep -q 'com.flc.azkari.TasbihWidgetProvider' $MAPS; then
-            echo "::error::widget providers missing from the shipped manifest"
+          fi
+          if ! grep -q 'com.flc.azkari.AyahWidgetProvider' manifest.txt; then
+            echo "::error::ayah widget receiver missing from the shipped manifest"
             fail=1
           fi
           if [ "$fail" -ne 0 ]; then exit 1; fi
-          echo "manifest hardened ✔"
+          echo "APK manifest hardened ✔"
 
       - name: Verify signature & compute checksums
         id: apk
