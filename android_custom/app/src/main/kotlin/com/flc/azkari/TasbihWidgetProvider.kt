@@ -6,7 +6,10 @@ import android.appwidget.AppWidgetProvider
 import android.content.ComponentName
 import android.content.Context
 import android.content.Intent
+import android.net.Uri
 import android.widget.RemoteViews
+
+import es.antonborri.home_widget.HomeWidgetLaunchIntent
 
 /** ويدجت «السبحة والذكر السريع»: ذكر متجدد + عداد يزيد من الشاشة الرئيسية. */
 class TasbihWidgetProvider : AppWidgetProvider() {
@@ -104,15 +107,10 @@ class TasbihWidgetProvider : AppWidgetProvider() {
         )
         views.setOnClickPendingIntent(R.id.widget_zikr_text, nextPending)
 
-        val openIntent = Intent(context, MainActivity::class.java).apply {
-            flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP
-            putExtra("open_tab", "tasbih")
-        }
-        val openPending = PendingIntent.getActivity(
+        val openPending = HomeWidgetLaunchIntent.getActivity(
             context,
-            widgetId * 10 + 3,
-            openIntent,
-            PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
+            MainActivity::class.java,
+            Uri.parse("azkari://tasbih")
         )
         views.setOnClickPendingIntent(R.id.widget_title, openPending)
         views.setOnClickPendingIntent(R.id.widget_root, openPending)

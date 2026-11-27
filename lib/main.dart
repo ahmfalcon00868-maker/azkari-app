@@ -16,6 +16,7 @@ import 'package:flutter_overlay_window/flutter_overlay_window.dart';
 import 'package:just_audio_background/just_audio_background.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:share_plus/share_plus.dart';
+import 'package:home_widget/home_widget.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:url_launcher/url_launcher.dart';
 
@@ -1512,6 +1513,28 @@ class _MainShellScreenState extends State<MainShellScreen> {
     super.dispose();
   }
 
+  /// لمس ويدجت الشاشة الرئيسية يفتح التبويب المناسب (السبحة / الأذكار).
+  Future<void> _initWidgetLaunch() async {
+    try {
+      final initial = await HomeWidget.initiallyLaunchedFromHomeWidget();
+      if (initial != null) _handleWidgetUri(initial);
+      HomeWidget.widgetClicked.listen((uri) {
+        if (uri != null) _handleWidgetUri(uri);
+      });
+    } catch (_) {
+      // بعض المنصات لا تدعم ويدجت الشاشة الرئيسية — تجاهل بصمت.
+    }
+  }
+
+  void _handleWidgetUri(Uri uri) {
+    if (!mounted) return;
+    final host = uri.host.toLowerCase();
+    final idx = host.contains('tasbih') ? 3 : (host.contains('azkar') ? 2 : 0);
+    setState(() => _currentIndex = idx);
+    if (_pageController.hasClients) _pageController.jumpToPage(idx);
+    _syncVolumeCapture();
+  }
+
   void _onKhushuChanged() {
     if (mounted) setState(() {});
   }
@@ -1550,6 +1573,7 @@ class _MainShellScreenState extends State<MainShellScreen> {
     KhushuService.active.addListener(_onKhushuChanged);
     VolumeButtonService.instance.init();
     _volumeSub = VolumeButtonService.instance.presses.listen((_) => _onVolumePressed());
+    _initWidgetLaunch();
     WidgetsBinding.instance.addPostFrameCallback((_) async {
       UpdateService.checkForUpdate(
         context,

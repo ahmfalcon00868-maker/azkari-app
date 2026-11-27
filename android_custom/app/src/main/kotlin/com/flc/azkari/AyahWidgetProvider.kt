@@ -6,7 +6,10 @@ import android.appwidget.AppWidgetProvider
 import android.content.ComponentName
 import android.content.Context
 import android.content.Intent
+import android.net.Uri
 import android.widget.RemoteViews
+
+import es.antonborri.home_widget.HomeWidgetLaunchIntent
 
 /** ويدجت «آية اليوم وورد الأذكار»: آية + حالة أذكار الصباح/المساء. */
 class AyahWidgetProvider : AppWidgetProvider() {
@@ -60,15 +63,10 @@ class AyahWidgetProvider : AppWidgetProvider() {
             if (evening) "المساء: تم" else "المساء: لم يتم"
         )
 
-        val openIntent = Intent(context, MainActivity::class.java).apply {
-            flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP
-            putExtra("open_tab", "azkar")
-        }
-        val openPending = PendingIntent.getActivity(
+        val openPending = HomeWidgetLaunchIntent.getActivity(
             context,
-            widgetId * 10 + 7,
-            openIntent,
-            PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
+            MainActivity::class.java,
+            Uri.parse("azkari://azkar")
         )
         views.setOnClickPendingIntent(R.id.widget_root, openPending)
 
