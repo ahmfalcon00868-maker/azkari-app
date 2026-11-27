@@ -178,7 +178,9 @@ jobs:
           echo "::error::files=$(find android/app/src/test -type f 2>/dev/null | head -3 | tr '\n' ',')"
           echo "::error::gradle-kts=$(grep -nE 'sourceSets|junit|testOptions|kotlin' android/app/build.gradle.kts 2>/dev/null | head -4 | tr '\n' '|' | tr -d ':' | cut -c1-300)"
           echo "::error::tasks=$(grep -oE 'Task :app:[a-zA-Z]*[Uu]nitTest[a-zA-Z]*' /tmp/gradle.log | sort -u | head -3 | tr '\n' ',')"
-          echo "::error::grep-task=$(grep -cE 'testDebugUnitTest' /tmp/gradle.log)" 
+          echo "::error::classfiles=$(find android/app/build -name 'TasbihPressLogTest*.class' 2>/dev/null | head -2 | sed 's|android/app/build/||' | tr '\n' ',')"
+          echo "::error::resultfiles=$(find android/app/build -path '*test-results*' -name '*.xml' 2>/dev/null | head -3 | tr '\n' ',')"
+          echo "::error::taskline=$(grep -E 'Task :app:testDebugUnitTest' /tmp/gradle.log | head -2 | tr '\n' '|' | tr -d ':' | cut -c1-200)" 
           cp /tmp/gradle.original "$gradle_file"   # نُعيد minSdk 23 قبل بناء الـ APK
           python3 tool/android_test_stats.py android/app/build/test-results/testDebugUnitTest
           stats=$?
