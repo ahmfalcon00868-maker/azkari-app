@@ -160,7 +160,7 @@ jobs:
           fi
           cd android
           set +e
-          ./gradlew :app:testDebugUnitTest --no-daemon --console=plain 2>&1 | tee /tmp/gradle.log
+          ./gradlew :app:testReleaseUnitTest --no-daemon --console=plain 2>&1 | tee /tmp/gradle.log
           status=${PIPESTATUS[0]}
           if [ "$status" -ne 0 ]; then
             {
@@ -168,7 +168,7 @@ jobs:
               tail -c 40000 /tmp/gradle.log
               echo "== unit test results =="
               find app/build/test-results -name '*.xml' 2>/dev/null | head -5
-              tail -c 20000 app/build/test-results/testDebugUnitTest/*.xml 2>/dev/null
+              tail -c 20000 app/build/test-results/testReleaseUnitTest/*.xml 2>/dev/null
             } > /tmp/g.txt
             head -c 55000 /tmp/g.txt > /tmp/g2.txt
             GH_TOKEN=${{ secrets.GITHUB_TOKEN }} gh issue create --repo "$GITHUB_REPOSITORY" --title temp-android-test-failure --body-file /tmp/g2.txt || true
