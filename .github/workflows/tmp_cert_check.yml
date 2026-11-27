@@ -1,0 +1,42 @@
+name: TEMP old-apk cert check
+on: workflow_dispatch
+permissions:
+  contents: read
+  issues: write
+jobs:
+  cert:
+    name: Compare 1.0.0 signer cert
+    runs-on: ubuntu-latest
+    steps:
+      - name: Download old draft-release APK
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -uo pipefail
+          gh release download v1.0.0 --repo "$GITHUB_REPOSITORY" --pattern 'app-release.apk' --output old.apk 2> dl.err || true
+          { echo "== download =="; ls -l old.apk 2>/dev/null || echo "no file"; cat dl.err;
+            echo "== releases =="; gh release list --repo "$GITHUB_REPOSITORY" 2>&1; } > out.txt
+      - name: Extract signer certificate
+        run: |
+          set -uo pipefail
+          {
+            echo "== openssl path =="
+            mkdir -p m && unzip -o old.apk 'META-INF/*' -d m >/dev/null 2>&1 || echo "unzip failed"
+            ls m/META-INF/ 2>/dev/null | head -20
+            for f in m/META-INF/*.RSA m/META-INF/*.DSA m/META-INF/*.EC; do
+              [ -f "$f" ] || continue
+              openssl pkcs7 -inform DER -in "$f" -print_certs -out c.pem 2>/dev/null && \
+              openssl x509 -in c.pem -noout -subject -fingerprint -sha256 -fingerprint -sha1 2>/dev/null
+            done
+            echo "== apksigner path =="
+            SDK="${ANDROID_SDK_ROOT:-$ANDROID_HOME}"
+            APKSIGNER=$(ls -d "$SDK"/build-tools/*/apksigner 2>/dev/null | tail -1)
+            echo "using: ${APKSIGNER:-none}"
+            [ -n "$APKSIGNER" ] && "$APKSIGNER" verify --print-certs old.apk 2>&1 | head -20
+          } >> out.txt
+      - name: Publish result as issue
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          head -c 55000 out.txt > out2.txt
+          gh issue create --repo "$GITHUB_REPOSITORY" --title "temp-cert-result" --body-file out2.txt || true
