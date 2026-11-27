@@ -66,8 +66,23 @@ Administration لتغيير ذلك. لم يتم تفعيل الحماية من �
 بديل سطري (بتوكن المالك، صلاحية Administration):
 
 ```bash
+# (1) الافتراضي: يفرض "Analyze & Test" فقط — لا يضع شرطاً غير موجود
 GH_TOKEN=<owner-token> ./tool/setup_main_protection.sh
+
+# (2) معاينة الحمولة قبل أي تعديل
+DRY_RUN=1 ./tool/setup_main_protection.sh
+
+# (3) بعد دمج release_guard.yml في main ونجاح تشغيله مرة واحدة على main
+GH_TOKEN=<owner-token> ./tool/setup_main_protection.sh --with-freeze
 ```
+
+**ضمانات السكربت** (تمنع قفل الدمج بسبب فحص غير موجود):
+
+* يرفض العمل إذا لم يرصد تشغيلاً لـ `Analyze & Test` على الفرع المستهدف.
+* `--with-freeze` يتحقق أولاً من وجود `release_guard.yml` على الفرع **ومن** أن
+  آخر تشغيل لـ `Freeze guard (no user-facing updates)` على الفرع نتيجته
+  `success`؛ وإلا يتوقف دون تفعيل الشرط.
+* بدون `--with-freeze` لا يُضاف حرس التجميد إلى قائمة الشروط إطلاقاً.
 
 بعد الضبط: أي تعديل على `version.json` أو `update_service.dart` أو خطوط النشر في
 `main` يحتاج مراجعة + نجاح الفحوصات قبل الدمج.

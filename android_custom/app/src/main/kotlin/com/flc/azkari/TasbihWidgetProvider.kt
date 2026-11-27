@@ -38,6 +38,7 @@ class TasbihWidgetProvider : AppWidgetProvider() {
         appWidgetManager: AppWidgetManager,
         appWidgetIds: IntArray
     ) {
+        WidgetPrefs.ensureTotalsSchema(context)
         appWidgetIds.forEach { id -> render(context, appWidgetManager, id) }
     }
 
@@ -45,14 +46,18 @@ class TasbihWidgetProvider : AppWidgetProvider() {
         super.onReceive(context, intent)
         when (intent.action) {
             ACTION_INC -> {
+                val zikr = WidgetPrefs.readString(context, KEY_ZIKR, ZIKR_POOL[0])
                 val count = WidgetPrefs.readInt(context, KEY_COUNT, 0) + 1
                 val lifetime = WidgetPrefs.readInt(context, KEY_LIFETIME, 0) + 1
                 WidgetPrefs.writeInt(context, KEY_COUNT, count)
                 WidgetPrefs.writeInt(context, KEY_LIFETIME, lifetime)
+                // الضغطة تُسجَّل في سجل الذكر نفسه، فلا تضيع عند تبديل الذكر.
+                WidgetPrefs.recordPress(context, zikr)
                 WidgetPrefs.bumpRevision(context)
                 refreshAll(context)
             }
             ACTION_NEXT -> {
+                WidgetPrefs.ensureTotalsSchema(context)
                 val current = WidgetPrefs.readString(context, KEY_ZIKR, "")
                 val idx = ZIKR_POOL.indexOf(current)
                 val next = ZIKR_POOL[(idx + 1) % ZIKR_POOL.size]

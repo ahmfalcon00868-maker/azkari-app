@@ -282,13 +282,16 @@ jobs:
           test -n "$CERT"
           echo "APK SHA-256:  $SHA"
           echo "Signer SHA-256: $CERT"
+          BYTES=$(stat -c%s "$APK")
+          echo "APK bytes:     $BYTES"
           echo "sha=$SHA" >> "$GITHUB_OUTPUT"
           echo "cert=$CERT" >> "$GITHUB_OUTPUT"
+          echo "bytes=$BYTES" >> "$GITHUB_OUTPUT"
           cp "$APK" "Azkari-1.1.0+2.apk"
 
       - name: Upload APK as workflow artifact only (no release, no publish)
         uses: actions/upload-artifact@v4
         with:
-          name: Azkari-1.1.0-2-sha256-${{ steps.apk.outputs.sha }}-cert-${{ steps.apk.outputs.cert }}-tests-${{ steps.tests.outputs.count }}
+          name: Azkari-1.1.0-2-sha256-${{ steps.apk.outputs.sha }}-cert-${{ steps.apk.outputs.cert }}-tests-${{ steps.tests.outputs.count }}-apk-bytes-${{ steps.apk.outputs.bytes }}
           path: Azkari-1.1.0+2.apk
           if-no-files-found: error

@@ -614,6 +614,13 @@ class _AzkariAppState extends State<AzkariApp> with WidgetsBindingObserver {
   late int tasbihLifetime;
   late String tasbihPhrase;
   late Map<String, int> tasbihCountsByPhrase;
+
+  /// علامات مائية لكل ذكر: آخر مجموع ضغطات استهلكه التطبيق من سجل الويدجت
+  /// الأصلي (`widget_totals`). تُحفظ مع العدّادات في كتابة واحدة.
+  Map<String, int> widgetTotalsSeen = <String, int>{};
+
+  /// مفتاح الحالة الذرّية لمزامنة الويدجت (عدّادات + علامات مائية + إجمالي).
+  static const String kWidgetSyncStateKey = 'widget_sync_state';
   late int currentStreak;
   late int bestStreak;
   late int totalAzkarCompleted;
@@ -860,6 +867,36 @@ class _AzkariAppState extends State<AzkariApp> with WidgetsBindingObserver {
         decoded.forEach((k, v) {
           tasbihCountsByPhrase[k] = (v as num).toInt();
         });
+      } catch (_) {}
+    }
+    // الحالة الذرّية (إن وُجدت) هي الأحدث: تحمل العدّادات والعلامات المائية
+    // والإجمالي في كتابة واحدة، فلا يمكن أن تتضاعف ضغطات أو تُفقد.
+    final syncRaw = p.getString(kWidgetSyncStateKey);
+    if (syncRaw != null && syncRaw.isNotEmpty) {
+      try {
+        final decoded = jsonDecode(syncRaw);
+        if (decoded is Map) {
+          final counts = decoded['counts'];
+          if (counts is Map) {
+            final restored = <String, int>{};
+            counts.forEach((k, v) {
+              if (v is num) restored[k.toString()] = v.toInt();
+            });
+            if (restored.isNotEmpty) tasbihCountsByPhrase = restored;
+          }
+          final seen = decoded['seen'];
+          if (seen is Map) {
+            final restoredSeen = <String, int>{};
+            seen.forEach((k, v) {
+              if (v is num) restoredSeen[k.toString()] = v.toInt();
+            });
+            widgetTotalsSeen = restoredSeen;
+          }
+          final totalLifetime = decoded['lifetime'];
+          if (totalLifetime is num && totalLifetime.toInt() > tasbihLifetime) {
+            tasbihLifetime = totalLifetime.toInt();
+          }
+        }
       } catch (_) {}
     }
     tasbihCount =
@@ -1151,7 +1188,22 @@ class _AzkariAppState extends State<AzkariApp> with WidgetsBindingObserver {
     _restoreAzkarState();
   }
 
+  /// يكتب العدّادات + العلامات المائية + الإجمالي في **مفتاح واحد** لضمان أن
+  /// استهلاك ضغطات الودجت لا يتكرر ولا يضيع لو أُغلق التطبيق بعد المزامنة.
+  Future<void> persistWidgetSyncState() async {
+    tasbihCountsByPhrase[tasbihPhrase] = tasbihCount;
+    final payload = jsonEncode(<String, dynamic>{
+      'counts': tasbihCountsByPhrase,
+      'seen': widgetTotalsSeen,
+      'lifetime': tasbihLifetime,
+    });
+    try {
+      await widget.prefs.setString(kWidgetSyncStateKey, payload);
+    } catch (_) {}
+  }
+
   void saveLightState() {
+    persistWidgetSyncState();
     _saveDebounce?.cancel();
     _saveDebounce = Timer(const Duration(milliseconds: 450), () {
       final p = widget.prefs;
@@ -1201,41 +1253,34 @@ class _AzkariAppState extends State<AzkariApp> with WidgetsBindingObserver {
   Future<void> _pullTasbihFromWidget({bool pushBack = true}) async {
     final snapshot = await WidgetService.instance.readTasbihState();
     final seenRevision = widget.prefs.getInt('widget_revision_seen') ?? 0;
-    final lastPushedCount = widget.prefs.getInt('widget_pushed_count') ?? 0;
-    final lastPushedZikr = widget.prefs.getString('widget_pushed_zikr') ?? '';
     final plan = planTasbihSync(
       widget: snapshot,
       appZikr: tasbihPhrase,
       appCount: tasbihCount,
       appLifetime: tasbihLifetime,
       seenRevision: seenRevision,
-      appCountForWidgetZikr:
-          tasbihCountsByPhrase[snapshot.zikr] ?? snapshot.count,
-      lastPushedCount: lastPushedCount,
-      lastPushedZikr: lastPushedZikr,
+      appCountsByPhrase: tasbihCountsByPhrase,
+      watermarks: widgetTotalsSeen,
+      lastPushedCount: widget.prefs.getInt('widget_pushed_count') ?? 0,
+      lastPushedZikr: widget.prefs.getString('widget_pushed_zikr') ?? '',
     );
 
-    if (plan.seenRevision != seenRevision) {
-      await widget.prefs.setInt('widget_revision_seen', plan.seenRevision);
-    }
+    final bool changed = plan.zikr != tasbihPhrase ||
+        plan.count != tasbihCount ||
+        plan.lifetime != tasbihLifetime;
 
-    var changed = false;
-    if (plan.zikr != tasbihPhrase) {
-      tasbihPhrase = plan.zikr;
-      await widget.prefs.setString('tasbihPhrase', plan.zikr);
-      changed = true;
-    }
-    if (plan.count != tasbihCount) {
-      tasbihCount = plan.count;
-      changed = true;
-    }
-    if (plan.lifetime != tasbihLifetime) {
-      tasbihLifetime = plan.lifetime;
-      changed = true;
-    }
+    tasbihPhrase = plan.zikr;
+    tasbihCount = plan.count;
+    tasbihLifetime = plan.lifetime;
+    tasbihCountsByPhrase = Map<String, int>.from(plan.countsByPhrase);
+    widgetTotalsSeen = Map<String, int>.from(plan.watermarks);
+
+    // ترتيب الحفظ: العلامات المائية تُثبَّت مع العدّادات في نفس المفتاح.
+    await widget.prefs.setInt('widget_revision_seen', plan.seenRevision);
+    await widget.prefs.setString('tasbihPhrase', tasbihPhrase);
+    await persistWidgetSyncState();
 
     if (changed || plan.addedFromWidget > 0) {
-      tasbihCountsByPhrase[tasbihPhrase] = tasbihCount;
       saveLightState();
       if (mounted) setState(() {});
     }
@@ -1316,6 +1361,7 @@ class _AzkariAppState extends State<AzkariApp> with WidgetsBindingObserver {
     p.setInt('tasbihLifetime', tasbihLifetime);
     p.setString('tasbihPhrase', tasbihPhrase);
     p.setString('tasbihCountsByPhrase', jsonEncode(tasbihCountsByPhrase));
+    persistWidgetSyncState();
     p.setInt('currentStreak', currentStreak);
     p.setInt('bestStreak', bestStreak);
     p.setInt('totalAzkarCompleted', totalAzkarCompleted);

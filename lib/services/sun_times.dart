@@ -134,12 +134,19 @@ bool isFridaySunnahWindow(
   return (start: utc.start?.toLocal(), end: utc.end?.toLocal());
 }
 
-/// اليوم من السنة (1..366).
-int _dayOfYear(DateTime date) {
-  final DateTime start = DateTime(date.year, 1, 1);
-  final DateTime day = DateTime(date.year, date.month, date.day);
+/// رقم اليوم في السنة (1..366) محسوبًا في تقويم UTC.
+///
+/// كل الحساب داخل UTC: نأخذ مكوّنات السنة/الشهر/اليوم كما هي ونبني تواريخ
+/// `DateTime.utc`، لأن طرح تواريخ محلية يعني أن أي تغيير توقيت صيفي داخل السنة
+/// يجعل الفرق 133.958 يومًا مثلًا، و`inDays` تقتطع الكسر فينقص رقم اليوم واحدًا
+/// وتنزاح مواقيت الشمس بمقدار يوم. استخدام UTC يجعل كل يوم 24 ساعة بالضبط.
+int dayOfYearUtc(DateTime date) {
+  final DateTime start = DateTime.utc(date.year, 1, 1);
+  final DateTime day = DateTime.utc(date.year, date.month, date.day);
   return day.difference(start).inDays + 1;
 }
+
+int _dayOfYear(DateTime date) => dayOfYearUtc(date);
 
 DateTime _fromUtcMinutesUtc(DateTime date, double minutes) {
   final DateTime base = DateTime.utc(date.year, date.month, date.day);

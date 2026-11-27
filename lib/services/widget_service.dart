@@ -1,3 +1,5 @@
+import 'dart:convert';
+
 import 'package:home_widget/home_widget.dart';
 
 import 'widget_sync_logic.dart';
@@ -24,6 +26,10 @@ class WidgetService {
 
   /// مراجعة يزيدها الجانب الأصلي عند كل تعديل يتم من الويدجت نفسه.
   static const String kRevisionKey = 'widget_revision';
+
+  /// سجل الضغطات الدائم لكل ذكر (يكتبه الجانب الأصلي، لا يُستهلك هنا).
+  static const String kTotalsKey = 'widget_totals';
+  static const String kTotalsSchemaKey = 'widget_totals_schema';
 
   bool _initialized = false;
 
@@ -90,14 +96,40 @@ class WidgetService {
       final rawRevision =
           await HomeWidget.getWidgetData<String>(kRevisionKey) ?? '';
       final revision = int.tryParse(rawRevision.trim()) ?? 0;
+      final rawSchema =
+          await HomeWidget.getWidgetData<String>(kTotalsSchemaKey) ?? '';
+      final totalsSchema = int.tryParse(rawSchema.trim()) ?? 0;
+      final rawTotals =
+          await HomeWidget.getWidgetData<String>(kTotalsKey) ?? '';
       return WidgetTasbihSnapshot(
         zikr: zikr,
         count: count,
         lifetime: lifetime,
         revision: revision,
+        totals: _parseTotals(rawTotals),
+        totalsSchema: totalsSchema,
       );
     } catch (_) {
       return WidgetTasbihSnapshot.empty;
+    }
+  }
+
+  /// يفكّ سجل الضغطات `{"ذكر": عدد}` القادم من الجانب الأصلي.
+  static Map<String, int> _parseTotals(String raw) {
+    if (raw.trim().isEmpty) return const <String, int>{};
+    try {
+      final decoded = jsonDecode(raw);
+      if (decoded is! Map) return const <String, int>{};
+      final out = <String, int>{};
+      decoded.forEach((key, value) {
+        final phrase = key.toString().trim();
+        if (phrase.isEmpty) return;
+        final count = value is num ? value.toInt() : int.tryParse('$value') ?? 0;
+        if (count > 0) out[phrase] = count;
+      });
+      return out;
+    } catch (_) {
+      return const <String, int>{};
     }
   }
 
