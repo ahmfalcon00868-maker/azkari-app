@@ -2013,7 +2013,6 @@ class _MainShellScreenState extends State<MainShellScreen> {
     );
   }
 
-  @override
   void _openSettingsPage() {
     final s = widget.appState;
     final isDark = s.isDarkMode;
@@ -2058,6 +2057,7 @@ class _MainShellScreenState extends State<MainShellScreen> {
     );
   }
 
+  @override
   Widget build(BuildContext context) {
     final s = widget.appState;
     final isDark = s.isDarkMode;
@@ -3714,9 +3714,6 @@ class _MainShellScreenState extends State<MainShellScreen> {
     const presetTargets = [33, 99, 100, 1000];
     final bool isPresetTarget = presetTargets.contains(target);
     final int cycleVal = isOpenEnded ? s.tasbihCount : s.tasbihCount % target;
-    final double cycleProgress = isOpenEnded
-        ? 0.0
-        : ((s.tasbihCount > 0 && cycleVal == 0) ? 1.0 : cycleVal / target);
     final allPhrases = [
       ...kRandomShortAzkar,
       ...s.customTasbihPhrases.where((c) => !kRandomShortAzkar.contains(c)),

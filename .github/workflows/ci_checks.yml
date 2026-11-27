@@ -37,7 +37,7 @@ jobs:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           if [ -f /tmp/analyze.log ]; then
-            head -c 60000 /tmp/analyze.log > /tmp/analyze_trim.log
+            { grep -E "error •|issues? found|No issues" /tmp/analyze.log || true; } | head -c 60000 > /tmp/analyze_trim.log
             gh issue create --title "analyzer-output" --body-file /tmp/analyze_trim.log --repo "$GITHUB_REPOSITORY" || true
           fi
 
