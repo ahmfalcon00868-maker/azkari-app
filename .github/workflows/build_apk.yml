@@ -8,6 +8,7 @@ on:
 # صلاحية قراءة فقط: هذا المسار لا يستطيع نشر Release أو تعديل الإصدارات إطلاقاً.
 permissions:
   contents: read
+  issues: write
 
 jobs:
   build-android-apk:
@@ -215,6 +216,15 @@ jobs:
         run: |
           set -euo pipefail
           flutter build apk --release --obfuscate --split-debug-info=build/debug-info 2>&1 | tee build.log
+
+      - name: TEMP build diagnostics
+        if: failure()
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          { echo "== tail of build.log =="; tail -c 45000 build.log 2>/dev/null || echo "no build.log"; } > /tmp/b.txt
+          head -c 55000 /tmp/b.txt > /tmp/b2.txt
+          gh issue create --repo "$GITHUB_REPOSITORY" --title "temp-build-errors" --body-file /tmp/b2.txt || true
 
       - name: Verify shipped APK manifest (no cleartext HTTP, no AD_ID)
         run: |
