@@ -170,20 +170,7 @@ jobs:
           status=${PIPESTATUS[0]}
           cd ..
           cp /tmp/gradle.original "$gradle_file"   # إعادة minSdk إلى 23 للـ APK
-          python3 - <<'PY'
-import glob, xml.etree.ElementTree as ET
-files = glob.glob("android/app/build/test-results/testDebugUnitTest/*.xml")
-total = failures = skipped = 0
-for f in files:
-    root = ET.parse(f).getroot()
-    total += int(root.get("tests", 0))
-    failures += int(root.get("failures", 0)) + int(root.get("errors", 0))
-    skipped += int(root.get("skipped", 0))
-if files:
-    print(f"android unit tests: {total} run, {failures} failed, {skipped} skipped")
-else:
-    print("::error:: لم تُنتج اختبارات Kotlin أي تقرير (لم تُشغَّل؟)")
-PY
+          python3 tool/android_test_stats.py android/app/build/test-results/testDebugUnitTest
           if [ "$status" -ne 0 ] || ! ls android/app/build/test-results/testDebugUnitTest/*.xml >/dev/null 2>&1; then
             {
               echo "== gradle tail =="
