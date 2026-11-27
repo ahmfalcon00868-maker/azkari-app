@@ -144,36 +144,57 @@ jobs:
           '
 
       # اختبارات وحدة Kotlin للمنطق الأصلي لسجل الضغطات (JVM، بلا جهاز).
+      # ملاحظة: نرفع minSdk مؤقتاً إلى 24 لبناء نسخة debug (بعض المكتبات تطلب
+      # ذلك) ثم نعيده إلى 23 فوراً حتى يبقى الـ APK المُسلَّم بلا أي تغيير.
       - name: Run Android unit tests (widget press log)
         run: |
-          set -euo pipefail
+          set -uo pipefail
           kts="android/app/build.gradle.kts"
           grv="android/app/build.gradle"
+          gradle_file=""
           if [ -f "$kts" ]; then
+            gradle_file="$kts"
             if ! grep -q 'junit:junit' "$kts"; then
-              printf '\nandroid {\n    sourceSets.getByName("test").java.srcDir("src/test/kotlin")\n}\n\ndependencies {\n    testImplementation("junit:junit:4.13.2")\n}\n' >> "$kts"
+              printf '\ndependencies {\n    testImplementation("junit:junit:4.13.2")\n}\n' >> "$kts"
             fi
           elif [ -f "$grv" ]; then
+            gradle_file="$grv"
             if ! grep -q 'junit:junit' "$grv"; then
-              printf '\nandroid {\n    sourceSets { test.java.srcDirs += "src/test/kotlin" }\n}\n\ndependencies {\n    testImplementation "junit:junit:4.13.2"\n}\n' >> "$grv"
+              printf '\ndependencies {\n    testImplementation "junit:junit:4.13.2"\n}\n' >> "$grv"
             fi
           fi
+          cp "$gradle_file" /tmp/gradle.original
+          sed -i 's/minSdk = 23/minSdk = 24/; s/minSdkVersion 23/minSdkVersion 24/' "$gradle_file"
           cd android
-          set +e
-          ./gradlew :app:testReleaseUnitTest --no-daemon --console=plain 2>&1 | tee /tmp/gradle.log
+          ./gradlew :app:testDebugUnitTest --no-daemon --console=plain 2>&1 | tee /tmp/gradle.log
           status=${PIPESTATUS[0]}
-          if [ "$status" -ne 0 ]; then
+          cd ..
+          cp /tmp/gradle.original "$gradle_file"   # إعادة minSdk إلى 23 للـ APK
+          python3 - <<'PY'
+import glob, xml.etree.ElementTree as ET
+files = glob.glob("android/app/build/test-results/testDebugUnitTest/*.xml")
+total = failures = skipped = 0
+for f in files:
+    root = ET.parse(f).getroot()
+    total += int(root.get("tests", 0))
+    failures += int(root.get("failures", 0)) + int(root.get("errors", 0))
+    skipped += int(root.get("skipped", 0))
+if files:
+    print(f"android unit tests: {total} run, {failures} failed, {skipped} skipped")
+else:
+    print("::error:: لم تُنتج اختبارات Kotlin أي تقرير (لم تُشغَّل؟)")
+PY
+          if [ "$status" -ne 0 ] || ! ls android/app/build/test-results/testDebugUnitTest/*.xml >/dev/null 2>&1; then
             {
               echo "== gradle tail =="
-              tail -c 40000 /tmp/gradle.log
-              echo "== unit test results =="
-              find app/build/test-results -name '*.xml' 2>/dev/null | head -5
-              tail -c 20000 app/build/test-results/testReleaseUnitTest/*.xml 2>/dev/null
+              tail -c 30000 /tmp/gradle.log
+              echo "== results =="
+              tail -c 20000 android/app/build/test-results/testDebugUnitTest/*.xml 2>/dev/null
             } > /tmp/g.txt
             head -c 55000 /tmp/g.txt > /tmp/g2.txt
             GH_TOKEN=${{ secrets.GITHUB_TOKEN }} gh issue create --repo "$GITHUB_REPOSITORY" --title temp-android-test-failure --body-file /tmp/g2.txt || true
           fi
-          exit "$status"
+          exit "${status:-1}"
 
       - name: Use pre-installed NDK to avoid slow/corrupt downloads
         run: |
