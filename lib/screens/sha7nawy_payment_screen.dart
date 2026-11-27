@@ -88,16 +88,16 @@ class AzkariProManager {
 
   static String formatExpiryDate(DateTime dt, String lang) {
     const monthsAr = [
-      'يناير', 'فبراير', 'مارس', 'أبريل', 'مايو', 'يونيو',
-      'يوليو', 'أغسطس', 'سبتمبر', 'أكتوبر', 'نوفمبر', 'ديسمبر'
+'يناير', 'فبراير', 'مارس', 'أبريل', 'مايو', 'يونيو',
+'يوليو', 'أغسطس', 'سبتمبر', 'أكتوبر', 'نوفمبر', 'ديسمبر'
     ];
     const monthsEn = [
-      'Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun',
-      'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'
+'Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun',
+'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'
     ];
     const monthsTr = [
-      'Oca', 'Şub', 'Mar', 'Nis', 'May', 'Haz',
-      'Tem', 'Ağu', 'Eyl', 'Eki', 'Kas', 'Ara'
+'Oca', 'Şub', 'Mar', 'Nis', 'May', 'Haz',
+'Tem', 'Ağu', 'Eyl', 'Eki', 'Kas', 'Ara'
     ];
     final mList = lang == 'tr' ? monthsTr : (lang == 'en' ? monthsEn : monthsAr);
     return '${dt.day} ${mList[dt.month - 1]} ${dt.year}';
@@ -162,7 +162,7 @@ class AzkariProManager {
     try {
       final res = await http.get(
         Uri.parse(CloudSyncService.rest(
-            'user_subscriptions?fb_user_id=eq.${Uri.encodeComponent(fbId)}&select=*')),
+'user_subscriptions?fb_user_id=eq.${Uri.encodeComponent(fbId)}&select=*')),
         headers: CloudSyncService.authHeaders,
       ).timeout(const Duration(seconds: 8));
       if (res.statusCode == 200) {
@@ -249,12 +249,12 @@ class AzkariProManager {
             Uri.parse(CloudSyncService.rest('developer_contributions')),
             headers: CloudSyncService.jsonAuthHeaders,
             body: jsonEncode({
-              'country': country,
-              'method': method,
-              'amount': amount,
-              'currency': currency,
-              'reference': reference ?? '',
-              'message': (message ?? '').trim(),
+'country': country,
+'method': method,
+'amount': amount,
+'currency': currency,
+'reference': reference ?? '',
+'message': (message ?? '').trim(),
             }),
           )
           .timeout(const Duration(seconds: 8));
@@ -284,26 +284,26 @@ class _CountryOption {
 }
 
 const List<_CountryOption> _kCountries = [
-  _CountryOption('EG', 'مصر', 'Egypt', 'EGP', '🇪🇬', true,
-      'فودافون • أورنج • اتصالات ماني', 'Vodafone • Orange • Etisalat Money'),
+  _CountryOption('EG', 'مصر', 'Egypt', 'EGP', '', true,
+'فودافون • أورنج • اتصالات ماني', 'Vodafone • Orange • Etisalat Money'),
   _CountryOption('GLOBAL', 'عالمياً (جميع الدول)', 'Global (Worldwide)', 'USDT',
-      '🌍', true, 'دفع فوري تلقائي عبر Bybit', 'Instant Auto-Verify via Bybit'),
-  _CountryOption('SA', 'السعودية', 'Saudi Arabia', 'SAR', '🇸🇦', false,
-      'قريباً • استخدم عالمياً (Bybit)', 'Coming soon • Use Global (Bybit)'),
-  _CountryOption('AE', 'الإمارات', 'UAE', 'AED', '🇦🇪', false,
-      'قريباً • استخدم عالمياً (Bybit)', 'Coming soon • Use Global (Bybit)'),
-  _CountryOption('KW', 'الكويت', 'Kuwait', 'KWD', '🇰🇼', false,
-      'قريباً • استخدم عالمياً (Bybit)', 'Coming soon • Use Global (Bybit)'),
-  _CountryOption('QA', 'قطر', 'Qatar', 'QAR', '🇶🇦', false,
-      'قريباً • استخدم عالمياً (Bybit)', 'Coming soon • Use Global (Bybit)'),
-  _CountryOption('JO', 'الأردن', 'Jordan', 'JOD', '🇯🇴', false,
-      'قريباً • استخدم عالمياً (Bybit)', 'Coming soon • Use Global (Bybit)'),
-  _CountryOption('MA', 'المغرب', 'Morocco', 'MAD', '🇲🇦', false,
-      'قريباً • استخدم عالمياً (Bybit)', 'Coming soon • Use Global (Bybit)'),
-  _CountryOption('TR', 'تركيا', 'Turkey', 'TRY', '🇹🇷', false,
-      'قريباً • استخدم عالمياً (Bybit)', 'Coming soon • Use Global (Bybit)'),
-  _CountryOption('US', 'الولايات المتحدة', 'United States', 'USD', '🇺🇸', false,
-      'قريباً • استخدم عالمياً (Bybit)', 'Coming soon • Use Global (Bybit)'),
+'', true, 'دفع فوري تلقائي عبر Bybit', 'Instant Auto-Verify via Bybit'),
+  _CountryOption('SA', 'السعودية', 'Saudi Arabia', 'SAR', '', false,
+'قريباً • استخدم عالمياً (Bybit)', 'Coming soon • Use Global (Bybit)'),
+  _CountryOption('AE', 'الإمارات', 'UAE', 'AED', '', false,
+'قريباً • استخدم عالمياً (Bybit)', 'Coming soon • Use Global (Bybit)'),
+  _CountryOption('KW', 'الكويت', 'Kuwait', 'KWD', '', false,
+'قريباً • استخدم عالمياً (Bybit)', 'Coming soon • Use Global (Bybit)'),
+  _CountryOption('QA', 'قطر', 'Qatar', 'QAR', '', false,
+'قريباً • استخدم عالمياً (Bybit)', 'Coming soon • Use Global (Bybit)'),
+  _CountryOption('JO', 'الأردن', 'Jordan', 'JOD', '', false,
+'قريباً • استخدم عالمياً (Bybit)', 'Coming soon • Use Global (Bybit)'),
+  _CountryOption('MA', 'المغرب', 'Morocco', 'MAD', '', false,
+'قريباً • استخدم عالمياً (Bybit)', 'Coming soon • Use Global (Bybit)'),
+  _CountryOption('TR', 'تركيا', 'Turkey', 'TRY', '', false,
+'قريباً • استخدم عالمياً (Bybit)', 'Coming soon • Use Global (Bybit)'),
+  _CountryOption('US', 'الولايات المتحدة', 'United States', 'USD', '', false,
+'قريباً • استخدم عالمياً (Bybit)', 'Coming soon • Use Global (Bybit)'),
 ];
 
 class _WalletOption {
@@ -327,31 +327,31 @@ class _WalletOption {
 
 const List<_WalletOption> _kEgyptWallets = [
   _WalletOption(
-    'vf_cash',
-    'فودافون كاش',
-    'Vodafone Cash',
-    '010',
-    'assets/images/wallet_vodafone.jpg',
-    'اطلب كود *9*1# من هاتفك وأدخل الرقم السري للمحفظة خلال 60 ثانية لتأكيد السحب.',
-    'Dial *9*1# on your phone and enter your wallet PIN within 60 seconds.',
+'vf_cash',
+'فودافون كاش',
+'Vodafone Cash',
+'010',
+'assets/images/wallet_vodafone.jpg',
+'اطلب كود *9*1# من هاتفك وأدخل الرقم السري للمحفظة خلال 60 ثانية لتأكيد السحب.',
+'Dial *9*1# on your phone and enter your wallet PIN within 60 seconds.',
   ),
   _WalletOption(
-    'or_cash',
-    'أورنج كاش',
-    'Orange Cash',
-    '012',
-    'assets/images/wallet_orange.jpg',
-    'افتح تطبيق Orange Cash على هاتفك ووافق على طلب السحب المعلّق خلال 60 ثانية.',
-    'Open the Orange Cash app on your phone and approve the pending request.',
+'or_cash',
+'أورنج كاش',
+'Orange Cash',
+'012',
+'assets/images/wallet_orange.jpg',
+'افتح تطبيق Orange Cash على هاتفك ووافق على طلب السحب المعلّق خلال 60 ثانية.',
+'Open the Orange Cash app on your phone and approve the pending request.',
   ),
   _WalletOption(
-    'et_cash',
-    'اتصالات ماني',
-    'Etisalat Money',
-    '011',
-    'assets/images/wallet_etisalat.png',
-    'اطلب كود *777*11# أو افتح تطبيق e& Money لتأكيد السحب خلال 60 ثانية.',
-    'Dial *777*11# or open e& Money app to approve within 60 seconds.',
+'et_cash',
+'اتصالات ماني',
+'Etisalat Money',
+'011',
+'assets/images/wallet_etisalat.png',
+'اطلب كود *777*11# أو افتح تطبيق e& Money لتأكيد السحب خلال 60 ثانية.',
+'Dial *777*11# or open e& Money app to approve within 60 seconds.',
   ),
 ];
 
@@ -530,7 +530,7 @@ class _Sha7nawyPaymentScreenState extends State<Sha7nawyPaymentScreen> {
                       decoration: InputDecoration(
                         prefixIcon: const Icon(Icons.search_rounded),
                         hintText: tr('ابحث باسم الدولة (مصر، عالمياً، السعودية...)',
-                            'Search country...'),
+'Search country...'),
                         border: OutlineInputBorder(
                             borderRadius: BorderRadius.circular(16)),
                         isDense: true,
@@ -584,7 +584,7 @@ class _Sha7nawyPaymentScreenState extends State<Sha7nawyPaymentScreen> {
                                             CrossAxisAlignment.start,
                                         children: [
                                           Text(
-                                            '${tr(c.nameAr, c.nameEn)} (${c.currency})',
+'${tr(c.nameAr, c.nameEn)} (${c.currency})',
                                             style: const TextStyle(
                                                 fontWeight: FontWeight.bold,
                                                 fontSize: 13.5),
@@ -678,8 +678,8 @@ class _Sha7nawyPaymentScreenState extends State<Sha7nawyPaymentScreen> {
                 const SizedBox(height: 6),
                 Text(
                   tr(
-                    'أدخل البرومو كود للحصول على خصم فوري على الباقة أو تفعيل مجاني مباشر لأذكاري PRO.',
-                    'Enter a promo code for an instant discount or direct Pro activation.',
+'أدخل البرومو كود للحصول على خصم فوري على الباقة أو تفعيل مجاني مباشر لأذكاري PRO.',
+'Enter a promo code for an instant discount or direct Pro activation.',
                   ),
                   style: const TextStyle(fontSize: 12.5, color: Colors.grey),
                 ),
@@ -717,14 +717,14 @@ class _Sha7nawyPaymentScreenState extends State<Sha7nawyPaymentScreen> {
                             final code = codeCtrl.text.trim().toUpperCase();
                             if (code.isEmpty) {
                               setS(() => localErr = tr(
-                                  'يرجى إدخال البرومو كود أولاً',
-                                  'Enter a promo code first'));
+'يرجى إدخال البرومو كود أولاً',
+'Enter a promo code first'));
                               return;
                             }
                             if (!CloudSyncService.isCloudConfigured) {
                               setS(() => localErr = tr(
-                                  'يرجى تفعيل بيانات Supabase أولاً لتفعيل الأكواد.',
-                                  'Supabase is not configured yet.'));
+'يرجى تفعيل بيانات Supabase أولاً لتفعيل الأكواد.',
+'Supabase is not configured yet.'));
                               return;
                             }
                             setS(() {
@@ -734,7 +734,7 @@ class _Sha7nawyPaymentScreenState extends State<Sha7nawyPaymentScreen> {
                             try {
                               final res = await http.get(
                                 Uri.parse(CloudSyncService.rest(
-                                    'pro_promo_codes?code=eq.${Uri.encodeComponent(code)}&active=eq.true&select=*')),
+'pro_promo_codes?code=eq.${Uri.encodeComponent(code)}&active=eq.true&select=*')),
                                 headers: CloudSyncService.authHeaders,
                               ).timeout(const Duration(seconds: 10));
                               final list = jsonDecode(res.body);
@@ -748,15 +748,15 @@ class _Sha7nawyPaymentScreenState extends State<Sha7nawyPaymentScreen> {
                                   setS(() {
                                     busy = false;
                                     localErr = tr(
-                                        'تم استخدام هذا الكود بالكامل.',
-                                        'This code has already been redeemed.');
+'تم استخدام هذا الكود بالكامل.',
+'This code has already been redeemed.');
                                   });
                                   return;
                                 }
                                 // Increment usage count
                                 await http.patch(
                                   Uri.parse(CloudSyncService.rest(
-                                      'pro_promo_codes?code=eq.${Uri.encodeComponent(code)}')),
+'pro_promo_codes?code=eq.${Uri.encodeComponent(code)}')),
                                   headers: CloudSyncService.jsonAuthHeaders,
                                   body: jsonEncode({'used_count': used + 1}),
                                 );
@@ -781,22 +781,22 @@ class _Sha7nawyPaymentScreenState extends State<Sha7nawyPaymentScreen> {
                                   });
                                   if (ctx.mounted) Navigator.pop(ctx);
                                   _showSnack(tr(
-                                      'تم تطبيق خصم $discPct% بنجاح!',
-                                      '$discPct% discount applied!'));
+'تم تطبيق خصم $discPct% بنجاح!',
+'$discPct% discount applied!'));
                                 }
                               } else {
                                 setS(() {
                                   busy = false;
                                   localErr = tr(
-                                      'البرومو كود غير صحيح أو منتهي الصلاحية.',
-                                      'Invalid or expired promo code.');
+'البرومو كود غير صحيح أو منتهي الصلاحية.',
+'Invalid or expired promo code.');
                                 });
                               }
                             } catch (e) {
                               setS(() {
                                 busy = false;
                                 localErr = tr('تعذر التحقق من الكود: $e',
-                                    'Could not verify code: $e');
+'Could not verify code: $e');
                               });
                             }
                           },
@@ -826,8 +826,8 @@ class _Sha7nawyPaymentScreenState extends State<Sha7nawyPaymentScreen> {
     if (_isProTab && fbId.isEmpty) {
       setState(() {
         _errorMsg = tr(
-          'يرجى تسجيل الدخول بحساب فيسبوك أولاً من الصفحة الرئيسية لربط اشتراكك وحمايته على كل أجهزتك.',
-          'Please sign in with Facebook first from the Home screen to protect and bind your PRO subscription.',
+'يرجى تسجيل الدخول بحساب فيسبوك أولاً من الصفحة الرئيسية لربط اشتراكك وحمايته على كل أجهزتك.',
+'Please sign in with Facebook first from the Home screen to protect and bind your PRO subscription.',
         );
       });
       return;
@@ -842,8 +842,8 @@ class _Sha7nawyPaymentScreenState extends State<Sha7nawyPaymentScreen> {
     if (kSha7nawyPublicKey.trim().isEmpty || kSha7nawyPublicKey.startsWith('YOUR_')) {
       setState(() {
         _errorMsg = tr(
-          'يرجى استبدال YOUR_SHA7NAWY_PUBLIC_KEY بمفتاحك العام في إعدادات الدفع.',
-          'Please replace YOUR_SHA7NAWY_PUBLIC_KEY with your Public Key.',
+'يرجى استبدال YOUR_SHA7NAWY_PUBLIC_KEY بمفتاحك العام في إعدادات الدفع.',
+'Please replace YOUR_SHA7NAWY_PUBLIC_KEY with your Public Key.',
         );
       });
       return;
@@ -856,8 +856,8 @@ class _Sha7nawyPaymentScreenState extends State<Sha7nawyPaymentScreen> {
     if (amountEgp < 10 || amountEgp > 10000) {
       setState(() {
         _errorMsg = tr(
-          'المبلغ يجب أن يكون بين 10 و 10,000 جنيه مصري.',
-          'Amount must be between 10 and 10,000 EGP.',
+'المبلغ يجب أن يكون بين 10 و 10,000 جنيه مصري.',
+'Amount must be between 10 and 10,000 EGP.',
         );
       });
       return;
@@ -867,8 +867,8 @@ class _Sha7nawyPaymentScreenState extends State<Sha7nawyPaymentScreen> {
     if (!RegExp(r'^01[0125]\d{8}$').hasMatch(phone)) {
       setState(() {
         _errorMsg = tr(
-          'أدخل رقم محفظة مصري صحيح من 11 رقماً (010 / 011 / 012 / 015).',
-          'Enter a valid 11-digit Egyptian wallet number.',
+'أدخل رقم محفظة مصري صحيح من 11 رقماً (010 / 011 / 012 / 015).',
+'Enter a valid 11-digit Egyptian wallet number.',
         );
       });
       return;
@@ -881,23 +881,23 @@ class _Sha7nawyPaymentScreenState extends State<Sha7nawyPaymentScreen> {
           .post(
             Uri.parse('$kSha7nawyBaseUrl/payment/create'),
             headers: {
-              'Content-Type': 'application/json',
-              'Accept': 'application/json',
-              'Authorization': kSha7nawyPublicKey,
-              'X-App-Name': 'Azkari',
+'Content-Type': 'application/json',
+'Accept': 'application/json',
+'Authorization': kSha7nawyPublicKey,
+'X-App-Name': 'Azkari',
             },
             body: jsonEncode({
-              'order_id': orderId,
-              'number': phone,
-              'amount': (amountEgp / 1.02).round().clamp(5, 10000),
-              'method': _selectedWallet,
-              'description': _isProTab
+'order_id': orderId,
+'number': phone,
+'amount': (amountEgp / 1.02).round().clamp(5, 10000),
+'method': _selectedWallet,
+'description': _isProTab
                   ? 'Azkari Pro ($_selectedPlan - $amountEgp EGP)'
                   : 'Azkari Developer Contribution ($amountEgp EGP)',
-              'metadata': {
-                'type': _isProTab ? 'pro_upgrade' : 'developer_contribution',
-                'plan': _selectedPlan,
-                'promo': _appliedPromoCode ?? '',
+'metadata': {
+'type': _isProTab ? 'pro_upgrade' : 'developer_contribution',
+'plan': _selectedPlan,
+'promo': _appliedPromoCode ?? '',
               },
             }),
           )
@@ -983,7 +983,7 @@ class _Sha7nawyPaymentScreenState extends State<Sha7nawyPaymentScreen> {
                               style: const TextStyle(
                                   fontSize: 17, fontWeight: FontWeight.bold)),
                           Text(
-                            '${tr(_walletObj.nameAr, _walletObj.nameEn)} • $amountEgp ${tr('ج.م', 'EGP')}',
+'${tr(_walletObj.nameAr, _walletObj.nameEn)} • $amountEgp ${tr('ج.م', 'EGP')}',
                             style: const TextStyle(
                                 fontSize: 12, color: Colors.grey),
                           ),
@@ -1105,12 +1105,12 @@ class _Sha7nawyPaymentScreenState extends State<Sha7nawyPaymentScreen> {
                                     final res = await http
                                         .post(
                                           Uri.parse(
-                                              '$kSha7nawyBaseUrl/payment/confirm'),
+'$kSha7nawyBaseUrl/payment/confirm'),
                                           headers: {
-                                            'Content-Type': 'application/json',
-                                            'Accept': 'application/json',
-                                            'Authorization': kSha7nawyPublicKey,
-                                            'X-App-Name': 'Azkari',
+'Content-Type': 'application/json',
+'Accept': 'application/json',
+'Authorization': kSha7nawyPublicKey,
+'X-App-Name': 'Azkari',
                                           },
                                           body: jsonEncode(
                                               {'reference': reference}),
@@ -1131,9 +1131,9 @@ class _Sha7nawyPaymentScreenState extends State<Sha7nawyPaymentScreen> {
                                               : 30,
                                           planLabel: _selectedPlan == 'yearly'
                                               ? tr('الباقة السنوية PRO',
-                                                  'Yearly PRO')
+'Yearly PRO')
                                               : tr('الباقة الشهرية PRO',
-                                                  'Monthly PRO'),
+'Monthly PRO'),
                                           amountEgp: amountEgp,
                                         );
                                       } else {
@@ -1158,15 +1158,15 @@ class _Sha7nawyPaymentScreenState extends State<Sha7nawyPaymentScreen> {
                                       setS(() {
                                         confirming = false;
                                         sheetErr = tr(
-                                          'العملية معلقة لموافقة المحفظة على هاتفك. وافق عليها ثم اضغط تأكيد مرة أخرى.',
-                                          'Waiting for wallet approval. Approve then tap Confirm again.',
+'العملية معلقة لموافقة المحفظة على هاتفك. وافق عليها ثم اضغط تأكيد مرة أخرى.',
+'Waiting for wallet approval. Approve then tap Confirm again.',
                                         );
                                       });
                                     } else {
                                       setS(() {
                                         confirming = false;
                                         sheetErr = (body['message'] ??
-                                                'Confirmation failed')
+'Confirmation failed')
                                             .toString();
                                       });
                                     }
@@ -1209,7 +1209,7 @@ class _Sha7nawyPaymentScreenState extends State<Sha7nawyPaymentScreen> {
     if (!_isProTab && (amountUsd < 1.0 || amountUsd > 10000.0)) {
       setState(() {
         _errorMsg = tr('المبلغ يجب أن يكون بين 1 و 10,000 دولار (USDT).',
-            'Amount must be between \$1 and \$10,000 USDT.');
+'Amount must be between \$1 and \$10,000 USDT.');
       });
       return;
     }
@@ -1217,8 +1217,8 @@ class _Sha7nawyPaymentScreenState extends State<Sha7nawyPaymentScreen> {
     if (txId.length < 6) {
       setState(() {
         _errorMsg = tr(
-          'أدخل رقم عملية التحويل (Transfer ID) من سجل Bybit للتحقق الفوري.',
-          'Please paste your Bybit Transfer ID for instant verification.',
+'أدخل رقم عملية التحويل (Transfer ID) من سجل Bybit للتحقق الفوري.',
+'Please paste your Bybit Transfer ID for instant verification.',
         );
       });
       return;
@@ -1227,8 +1227,8 @@ class _Sha7nawyPaymentScreenState extends State<Sha7nawyPaymentScreen> {
     if (!CloudSyncService.isCloudConfigured) {
       setState(() {
         _errorMsg = tr(
-          'يرجى تفعيل بيانات Supabase لنشر دالة التحقق التلقائي من Bybit.',
-          'Configure Supabase first to verify Bybit transfers automatically.',
+'يرجى تفعيل بيانات Supabase لنشر دالة التحقق التلقائي من Bybit.',
+'Configure Supabase first to verify Bybit transfers automatically.',
         );
       });
       return;
@@ -1241,10 +1241,10 @@ class _Sha7nawyPaymentScreenState extends State<Sha7nawyPaymentScreen> {
             Uri.parse(CloudSyncService.function('verify-bybit')),
             headers: CloudSyncService.jsonAuthHeaders,
             body: jsonEncode({
-              'tx_id': txId,
-              'plan': _isProTab ? _selectedPlan : 'contribution',
-              'expected_amount': amountUsd,
-              'user_id': widget.prefs.getString('fbUserId') ?? 'azkari_user',
+'tx_id': txId,
+'plan': _isProTab ? _selectedPlan : 'contribution',
+'expected_amount': amountUsd,
+'user_id': widget.prefs.getString('fbUserId') ?? 'azkari_user',
             }),
           )
           .timeout(const Duration(seconds: 18));
@@ -1286,7 +1286,7 @@ class _Sha7nawyPaymentScreenState extends State<Sha7nawyPaymentScreen> {
               ? (body['message'] ?? 'Verification failed').toString()
               : tr(
                   CloudSyncService.describeHttpFailure(res.statusCode),
-                  'Verification server error (HTTP ${res.statusCode}).',
+'Verification server error (HTTP ${res.statusCode}).',
                 );
         });
       }
@@ -1294,7 +1294,7 @@ class _Sha7nawyPaymentScreenState extends State<Sha7nawyPaymentScreen> {
       setState(() {
         _loading = false;
         _errorMsg = tr('تعذر التحقق التلقائي من Bybit: $e',
-            'Bybit auto-verify error: $e');
+'Bybit auto-verify error: $e');
       });
     }
   }
@@ -1329,12 +1329,12 @@ class _Sha7nawyPaymentScreenState extends State<Sha7nawyPaymentScreen> {
         content: Text(
           unlockedPro
               ? tr(
-                  'تم تفعيل الشارة الذهبية وفتح تلاوة وردد واحفظ وتوقيت الكلمات بالمللي ثانية على جهازك.',
-                  'Golden PRO badge active! Tilawa, Repeat & Memorize & QUL Word Timings are now unlocked.',
+'تم تفعيل الشارة الذهبية وفتح تلاوة وردد واحفظ وتوقيت الكلمات بالمللي ثانية على جهازك.',
+'Golden PRO badge active! Tilawa, Repeat & Memorize & QUL Word Timings are now unlocked.',
                 )
               : tr(
-                  'تم استلام مساهمتك ورسالتك بنجاح. بارك الله فيك ونفع بك.',
-                  'Your contribution and message were received. Thank you!',
+'تم استلام مساهمتك ورسالتك بنجاح. بارك الله فيك ونفع بك.',
+'Your contribution and message were received. Thank you!',
                 ),
           textAlign: TextAlign.center,
           style: const TextStyle(fontSize: 13.5, height: 1.5),
@@ -1508,8 +1508,8 @@ class _Sha7nawyPaymentScreenState extends State<Sha7nawyPaymentScreen> {
           ] else ...[
             Text(
               tr(
-                'إخفاء الكلمات مع ذكاء المدّ بالخشوع وإعادة الآية بدون خطأ، وتنبيه لطيف للمتشابهات مع توهج زر (+ كلمة).',
-                'Hidden words reveal with Madd/Repeat forgiveness, Mutashabihat alert & glowing word-hint.',
+'إخفاء الكلمات مع ذكاء المدّ بالخشوع وإعادة الآية بدون خطأ، وتنبيه لطيف للمتشابهات مع توهج زر (+ كلمة).',
+'Hidden words reveal with Madd/Repeat forgiveness, Mutashabihat alert & glowing word-hint.',
               ),
               style: const TextStyle(fontSize: 12, height: 1.5, color: Colors.grey),
             ),
@@ -1647,8 +1647,8 @@ class _Sha7nawyPaymentScreenState extends State<Sha7nawyPaymentScreen> {
               padding: const EdgeInsets.symmetric(horizontal: 4),
               child: Text(
                 tr(
-                  'أذكاري تطبيق مجاني وخالٍ تماماً من الإعلانات. مساهمتك الاختيارية تساعدنا في استمرار التطوير وإضافة مزايا قرآنية جديدة.',
-                  'Azkari is ad-free. Your voluntary contribution funds ongoing development and new Quranic features.',
+'أذكاري تطبيق مجاني وخالٍ تماماً من الإعلانات. مساهمتك الاختيارية تساعدنا في استمرار التطوير وإضافة مزايا قرآنية جديدة.',
+'Azkari is ad-free. Your voluntary contribution funds ongoing development and new Quranic features.',
                 ),
                 style: const TextStyle(
                     fontSize: 12.5, color: Colors.grey, height: 1.5),
@@ -1848,7 +1848,7 @@ class _Sha7nawyPaymentScreenState extends State<Sha7nawyPaymentScreen> {
                         mainAxisAlignment: MainAxisAlignment.spaceBetween,
                         children: [
                           Text(
-                            '$_appliedPromoCode (-$_appliedDiscountPercent%)',
+'$_appliedPromoCode (-$_appliedDiscountPercent%)',
                             style: const TextStyle(
                                 color: Colors.green,
                                 fontWeight: FontWeight.bold,
@@ -1880,9 +1880,9 @@ class _Sha7nawyPaymentScreenState extends State<Sha7nawyPaymentScreen> {
                   Text(
                     isEgypt
                         ? tr('مبلغ المساهمة (10 – 10,000 ج.م)',
-                            'Contribution Amount (10 - 10,000 EGP)')
+'Contribution Amount (10 - 10,000 EGP)')
                         : tr('مبلغ المساهمة (1 – 10,000 USDT)',
-                            'Contribution Amount (1 - 10,000 USDT)'),
+'Contribution Amount (1 - 10,000 USDT)'),
                     style: const TextStyle(
                         fontSize: 12,
                         fontWeight: FontWeight.bold,
@@ -2002,7 +2002,7 @@ class _Sha7nawyPaymentScreenState extends State<Sha7nawyPaymentScreen> {
                     },
                     decoration: InputDecoration(
                       labelText: tr('رقم ${_walletObj.nameAr} (11 رقم)',
-                          '${_walletObj.nameEn} Number'),
+'${_walletObj.nameEn} Number'),
                       hintText: '${_walletObj.prefix}xxxxxxxx',
                       prefixIcon: const Icon(Icons.phone_android_rounded),
                       border: OutlineInputBorder(
@@ -2029,7 +2029,7 @@ class _Sha7nawyPaymentScreenState extends State<Sha7nawyPaymentScreen> {
                               crossAxisAlignment: CrossAxisAlignment.start,
                               children: [
                                 Text(tr('تحويل داخلي عبر Bybit (0 رسوم)',
-                                    'Bybit Internal Transfer (0 Fee)'),
+'Bybit Internal Transfer (0 Fee)'),
                                     style: const TextStyle(
                                         fontWeight: FontWeight.bold,
                                         fontSize: 13)),
@@ -2052,7 +2052,7 @@ class _Sha7nawyPaymentScreenState extends State<Sha7nawyPaymentScreen> {
                                 Clipboard.setData(const ClipboardData(
                                     text: AzkariProManager.kBybitUid));
                                 _showSnack(tr('تم نسخ Bybit UID',
-                                    'Bybit UID copied'));
+'Bybit UID copied'));
                               },
                               child: Text(tr('نسخ UID', 'Copy UID'),
                                   style: const TextStyle(
@@ -2064,8 +2064,8 @@ class _Sha7nawyPaymentScreenState extends State<Sha7nawyPaymentScreen> {
                         const SizedBox(height: 8),
                         Text(
                           tr(
-                            '1. افتح Bybit ← Assets ← Transfer / Internal Transfer\n2. حوّل المبلغ بعملة USDT إلى UID: 105501004\n3. من Funding Account > History انسخ Transfer ID وألصقه بالأسفل للتفعيل الفوري.',
-                            '1. Open Bybit -> Assets -> Internal Transfer\n2. Send USDT to UID: 105501004\n3. Copy Transfer ID from Funding History and paste below for instant verification.',
+'1. افتح Bybit ← Assets ← Transfer / Internal Transfer\n2. حوّل المبلغ بعملة USDT إلى UID: 105501004\n3. من Funding Account > History انسخ Transfer ID وألصقه بالأسفل للتفعيل الفوري.',
+'1. Open Bybit -> Assets -> Internal Transfer\n2. Send USDT to UID: 105501004\n3. Copy Transfer ID from Funding History and paste below for instant verification.',
                           ),
                           style: const TextStyle(
                               fontSize: 11.5, color: Colors.grey, height: 1.5),
@@ -2079,7 +2079,7 @@ class _Sha7nawyPaymentScreenState extends State<Sha7nawyPaymentScreen> {
                     textDirection: TextDirection.ltr,
                     decoration: InputDecoration(
                       labelText: tr('رقم العملية (Bybit Transfer ID)',
-                          'Bybit Transfer ID'),
+'Bybit Transfer ID'),
                       hintText: 'Paste Transfer ID here...',
                       prefixIcon: const Icon(Icons.receipt_long_rounded),
                       border: OutlineInputBorder(
@@ -2097,9 +2097,9 @@ class _Sha7nawyPaymentScreenState extends State<Sha7nawyPaymentScreen> {
                     maxLines: 2,
                     decoration: InputDecoration(
                       labelText: tr('رسالة أو دعوة للمطور (اختياري)',
-                          'Message or Dua for Developer (Optional)'),
+'Message or Dua for Developer (Optional)'),
                       hintText: tr('اكتب رسالتك أو دعوتك هنا...',
-                          'Write your message here...'),
+'Write your message here...'),
                       border: OutlineInputBorder(
                           borderRadius: BorderRadius.circular(16)),
                       isDense: true,
@@ -2136,12 +2136,12 @@ class _Sha7nawyPaymentScreenState extends State<Sha7nawyPaymentScreen> {
                             child: Text(
                               baseEgp > 0
                                   ? tr(
-                                      'الرسوم علينا! ستصلك رسالة تأكيد دفع بمبلغ $netToGateway ج.م، وبإضافة 2% رسوم الخدمة سيُخصم منك ${baseEgp.round()} ج.م فقط.',
-                                      'Zero extra fee! You will receive a $netToGateway EGP confirmation message so your exact total is ${baseEgp.round()} EGP.',
+'الرسوم علينا! ستصلك رسالة تأكيد دفع بمبلغ $netToGateway ج.م، وبإضافة 2% رسوم الخدمة سيُخصم منك ${baseEgp.round()} ج.م فقط.',
+'Zero extra fee! You will receive a $netToGateway EGP confirmation message so your exact total is ${baseEgp.round()} EGP.',
                                     )
                                   : tr(
-                                      'نحن نتحمل 2% رسوم الدفع بالكامل عنك.',
-                                      'We cover the 2% payment fee for you.',
+'نحن نتحمل 2% رسوم الدفع بالكامل عنك.',
+'We cover the 2% payment fee for you.',
                                     ),
                               style: const TextStyle(fontSize: 11.5, color: Colors.green, height: 1.45),
                             ),
@@ -2177,7 +2177,7 @@ class _Sha7nawyPaymentScreenState extends State<Sha7nawyPaymentScreen> {
                                 : (isEgypt
                                     ? tr('متابعة المساهمة', 'Continue')
                                     : tr('تحقق وإرسال المساهمة',
-                                        'Verify & Send')),
+'Verify & Send')),
                             style: const TextStyle(
                                 fontWeight: FontWeight.w900, fontSize: 14.5),
                           ),
@@ -2197,8 +2197,8 @@ class _Sha7nawyPaymentScreenState extends State<Sha7nawyPaymentScreen> {
                 Flexible(
                   child: Text(
                     tr(
-                      'دفع لمرة واحدة بدون خصم تلقائي — أنت من يقرر التجديد',
-                      'One-time payment, no auto-renewal — you stay in full control',
+'دفع لمرة واحدة بدون خصم تلقائي — أنت من يقرر التجديد',
+'One-time payment, no auto-renewal — you stay in full control',
                     ),
                     textAlign: TextAlign.center,
                     style: const TextStyle(fontSize: 11.5, color: Colors.grey),
@@ -2242,7 +2242,7 @@ class _Sha7nawyPaymentScreenState extends State<Sha7nawyPaymentScreen> {
                                   fontWeight: FontWeight.bold, fontSize: 13)),
                           Text(
                             tr('خصم على الباقة أو تفعيل مجاني مباشر',
-                                'Plan discount or instant free activation'),
+'Plan discount or instant free activation'),
                             style: const TextStyle(
                                 fontSize: 11, color: Colors.grey),
                           ),
@@ -2277,7 +2277,7 @@ class _Sha7nawyPaymentScreenState extends State<Sha7nawyPaymentScreen> {
                     if (fbId.isEmpty) {
                       _showSnack(
                         tr('سجّل الدخول بحساب فيسبوك أولاً لاستعادة اشتراكك',
-                            'Sign in with Facebook first to restore your subscription'),
+'Sign in with Facebook first to restore your subscription'),
                         isError: true,
                       );
                       return;
@@ -2288,9 +2288,9 @@ class _Sha7nawyPaymentScreenState extends State<Sha7nawyPaymentScreen> {
                     _showSnack(
                       active
                           ? tr('تمت استعادة اشتراك أذكاري PRO بنجاح!',
-                              'Azkari PRO restored successfully!')
+'Azkari PRO restored successfully!')
                           : tr('لم يتم العثور على اشتراك نشط لهذا الحساب.',
-                              'No active subscription found for this account.'),
+'No active subscription found for this account.'),
                       isError: !active,
                     );
                   },
@@ -2315,15 +2315,15 @@ class _Sha7nawyPaymentScreenState extends State<Sha7nawyPaymentScreen> {
                       scheme: 'mailto',
                       path: 'ahmfalcon00868@gmail.com',
                       queryParameters: {
-                        'subject': 'مساعدة في الدفع - أذكاري PRO',
-                        'body': 'معرّف الحساب: $fbId\nآخر رقم مرجعي: ${lastRef.isEmpty ? "لا يوجد" : lastRef}\n\nوصف المشكلة:',
+'subject': 'مساعدة في الدفع - أذكاري PRO',
+'body': 'معرّف الحساب: $fbId\nآخر رقم مرجعي: ${lastRef.isEmpty ? "لا يوجد" : lastRef}\n\nوصف المشكلة:',
                       },
                     );
                     try {
                       await launchUrl(uri, mode: LaunchMode.externalApplication);
                     } catch (_) {
                       _showSnack(tr('تواصل معنا عبر: ahmfalcon00868@gmail.com',
-                          'Contact us: ahmfalcon00868@gmail.com'));
+'Contact us: ahmfalcon00868@gmail.com'));
                     }
                   },
                   icon: const Icon(Icons.support_agent_rounded, size: 16),

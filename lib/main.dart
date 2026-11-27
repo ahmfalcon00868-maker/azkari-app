@@ -23,6 +23,11 @@ import 'data/azkar_data.dart';
 import 'screens/explore_islamic_screen.dart';
 import 'screens/quran_screen.dart';
 import 'screens/tools_screen.dart';
+import 'screens/more_screen.dart';
+import 'widgets/tasbih_skins.dart';
+import 'services/volume_button_service.dart';
+import 'services/widget_service.dart';
+import 'services/khushu_service.dart';
 import 'services/notification_service.dart';
 import 'services/cloud_sync_service.dart';
 import 'services/update_service.dart';
@@ -36,12 +41,23 @@ import 'widgets/google_play_icon.dart';
 /// `UpdateService`) الذي يحتاج رابط ملف APK مباشر.
 const String kAppDownloadLink = 'https://apkpure.com/p/com.flc.azkari';
 
+/// آيات قصيرة لويدجت «آية اليوم» (نص + المرجع).
+const List<List<String>> kWidgetAyahPool = [
+  ['﴿أَلَا بِذِكْرِ اللَّهِ تَطْمَئِنُّ الْقُلُوبُ﴾', 'الرعد ٢٨'],
+  ['﴿وَاذْكُرْ رَبَّكَ إِذَا نَسِيتَ﴾', 'الكهف ٢٤'],
+  ['﴿وَمَن يَتَوَكَّلْ عَلَى اللَّهِ فَهُوَ حَسْبُهُ﴾', 'الطلاق ٣'],
+  ['﴿فَاذْكُرُونِي أَذْكُرْكُمْ وَاشْكُرُوا لِي وَلَا تَكْفُرُونِ﴾', 'البقرة ١٥٢'],
+  ['﴿وَسَبِّحْ بِحَمْدِ رَبِّكَ قَبْلَ طُلُوعِ الشَّمْسِ وَقَبْلَ غُرُوبِهَا﴾', 'طه ١٣٠'],
+  ['﴿إِنَّ مَعَ الْعُسْرِ يُسْرًا﴾', 'الشرح ٦'],
+  ['﴿وَإِذَا سَأَلَكَ عِبَادِي عَنِّي فَإِنِّي قَرِيبٌ﴾', 'البقرة ١٨٦'],
+];
+
 const List<String> kSplashVerses = [
-  '﴿وَاذْكُرْ رَبَّكَ إِذَا نَسِيتَ﴾',
-  '﴿أَلَا بِذِكْرِ اللَّهِ تَطْمَئِنُّ الْقُلُوبُ﴾',
-  '﴿فَاذْكُرُونِي أَذْكُرْكُمْ وَاشْكُرُوا لِي وَلَا تَكْفُرُونِ﴾',
-  '﴿وَسَبِّحْ بِحَمْدِ رَبِّكَ قَبْلَ طُلُوعِ الشَّمْسِ وَقَبْلَ غُرُوبِهَا﴾',
-  '﴿وَالذَّاكِرِينَ اللَّهَ كَثِيرًا وَالذَّاكِرَاتِ أَعَدَّ اللَّهُ لَهُمْ مَغْفِرَةً وَأَجْرًا عَظِيمًا﴾',
+'﴿وَاذْكُرْ رَبَّكَ إِذَا نَسِيتَ﴾',
+'﴿أَلَا بِذِكْرِ اللَّهِ تَطْمَئِنُّ الْقُلُوبُ﴾',
+'﴿فَاذْكُرُونِي أَذْكُرْكُمْ وَاشْكُرُوا لِي وَلَا تَكْفُرُونِ﴾',
+'﴿وَسَبِّحْ بِحَمْدِ رَبِّكَ قَبْلَ طُلُوعِ الشَّمْسِ وَقَبْلَ غُرُوبِهَا﴾',
+'﴿وَالذَّاكِرِينَ اللَّهَ كَثِيرًا وَالذَّاكِرَاتِ أَعَدَّ اللَّهُ لَهُمْ مَغْفِرَةً وَأَجْرًا عَظِيمًا﴾',
 ];
 
 String stripAllTashkeel(String input) {
@@ -143,38 +159,38 @@ Widget buildHighlightedSearchText(
 }
 
 const List<String> kFloatingAzkarPool = [
-  'سبحان الله وبحمده',
-  'سبحان الله العظيم',
-  'أستغفر الله العظيم وأتوب إليه',
-  'الحمد لله رب العالمين',
-  'لا إله إلا الله وحده لا شريك له',
-  'الله أكبر كبيرا والحمد لله كثيرا',
-  'لا حول ولا قوة إلا بالله العلي العظيم',
-  'لا إله إلا أنت سبحانك إني كنت من الظالمين',
-  'اللهم صل وسلم وبارك على نبينا محمد',
-  'صل على رسول الله محمد',
-  'صل على محمد وآل محمد',
-  'حسبي الله لا إله إلا هو عليه توكلت',
-  'سبحان الله والحمد لله ولا إله إلا الله والله أكبر',
-  'اللهم إني أسألك الهدى والتقى والعفاف والغنى',
-  'رب اغفر لي ولوالدي وللمؤمنين',
-  'اللهم أعني على ذكرك وشكرك وحسن عبادتك',
-  'يا حي يا قيوم برحمتك أستغيث',
-  'اللهم إنك عفو تحب العفو فاعف عني',
-  'رضيت بالله ربا وبالإسلام دينا وبمحمد صلى الله عليه وسلم نبيا',
-  'اللهم بارك لنا في أوقاتنا وأعمالنا',
-  'تذكير: حان وقت ذكر الله وأذكار الصباح والمساء',
-  'تذكير: لا تنس الصلاة في وقتها والخشوع فيها',
-  'تذكير: اقرأ وردك اليومي من القرآن الكريم',
-  'اللهم ارزقنا حسن الخاتمة وثبت قلوبنا على دينك',
-  'أصبحنا وأصبح الملك لله والحمد لله',
-  'أمسينا وأمسى الملك لله والحمد لله',
-  'باسمك اللهم أموت وأحيا',
-  'سبحان الله وبحمده عدد خلقه ورضا نفسه وزنة عرشه ومداد كلماته',
-  'اللهم اجعل القرآن ربيع قلوبنا ونور صدورنا',
-  'ربنا آتنا في الدنيا حسنة وفي الآخرة حسنة وقنا عذاب النار',
-  'اللهم اغفر للمسلمين والمسلمات الأحياء منهم والأموات',
-  'أستغفر الله الذي لا إله إلا هو الحي القيوم وأتوب إليه',
+'سبحان الله وبحمده',
+'سبحان الله العظيم',
+'أستغفر الله العظيم وأتوب إليه',
+'الحمد لله رب العالمين',
+'لا إله إلا الله وحده لا شريك له',
+'الله أكبر كبيرا والحمد لله كثيرا',
+'لا حول ولا قوة إلا بالله العلي العظيم',
+'لا إله إلا أنت سبحانك إني كنت من الظالمين',
+'اللهم صل وسلم وبارك على نبينا محمد',
+'صل على رسول الله محمد',
+'صل على محمد وآل محمد',
+'حسبي الله لا إله إلا هو عليه توكلت',
+'سبحان الله والحمد لله ولا إله إلا الله والله أكبر',
+'اللهم إني أسألك الهدى والتقى والعفاف والغنى',
+'رب اغفر لي ولوالدي وللمؤمنين',
+'اللهم أعني على ذكرك وشكرك وحسن عبادتك',
+'يا حي يا قيوم برحمتك أستغيث',
+'اللهم إنك عفو تحب العفو فاعف عني',
+'رضيت بالله ربا وبالإسلام دينا وبمحمد صلى الله عليه وسلم نبيا',
+'اللهم بارك لنا في أوقاتنا وأعمالنا',
+'تذكير: حان وقت ذكر الله وأذكار الصباح والمساء',
+'تذكير: لا تنس الصلاة في وقتها والخشوع فيها',
+'تذكير: اقرأ وردك اليومي من القرآن الكريم',
+'اللهم ارزقنا حسن الخاتمة وثبت قلوبنا على دينك',
+'أصبحنا وأصبح الملك لله والحمد لله',
+'أمسينا وأمسى الملك لله والحمد لله',
+'باسمك اللهم أموت وأحيا',
+'سبحان الله وبحمده عدد خلقه ورضا نفسه وزنة عرشه ومداد كلماته',
+'اللهم اجعل القرآن ربيع قلوبنا ونور صدورنا',
+'ربنا آتنا في الدنيا حسنة وفي الآخرة حسنة وقنا عذاب النار',
+'اللهم اغفر للمسلمين والمسلمات الأحياء منهم والأموات',
+'أستغفر الله الذي لا إله إلا هو الحي القيوم وأتوب إليه',
 ];
 
 class SoundEffectsService {
@@ -213,12 +229,12 @@ String toEnglishTranslit(String ar) {
   if (clean.contains('اللهم إني أسألك العفو والعافية')) return 'Allahumma inni as’alukal-afwa wal-afiyah fid-dunya wal-akhirah.';
   // General phonetic fallback
   const map = {
-    'ا': 'a', 'أ': 'a', 'إ': 'i', 'آ': 'aa', 'ب': 'b', 'ت': 't', 'ث': 'th',
-    'ج': 'j', 'ح': 'h', 'خ': 'kh', 'د': 'd', 'ذ': 'dh', 'ر': 'r', 'ز': 'z',
-    'س': 's', 'ش': 'sh', 'ص': 's', 'ض': 'd', 'ط': 't', 'ظ': 'z', 'ع': '’',
-    'غ': 'gh', 'ف': 'f', 'ق': 'q', 'ك': 'k', 'ل': 'l', 'م': 'm', 'ن': 'n',
-    'ه': 'h', 'و': 'w', 'ي': 'y', 'ى': 'a', 'ة': 'h', 'ء': '’', 'ئ': 'y',
-    'ؤ': 'w', ' ': ' ', '\n': '\n',
+'ا': 'a', 'أ': 'a', 'إ': 'i', 'آ': 'aa', 'ب': 'b', 'ت': 't', 'ث': 'th',
+'ج': 'j', 'ح': 'h', 'خ': 'kh', 'د': 'd', 'ذ': 'dh', 'ر': 'r', 'ز': 'z',
+'س': 's', 'ش': 'sh', 'ص': 's', 'ض': 'd', 'ط': 't', 'ظ': 'z', 'ع': '’',
+'غ': 'gh', 'ف': 'f', 'ق': 'q', 'ك': 'k', 'ل': 'l', 'م': 'm', 'ن': 'n',
+'ه': 'h', 'و': 'w', 'ي': 'y', 'ى': 'a', 'ة': 'h', 'ء': '’', 'ئ': 'y',
+'ؤ': 'w', ' ': ' ', '\n': '\n',
   };
   final buf = StringBuffer();
   for (final r in clean.runes) {
@@ -232,24 +248,24 @@ String toEnglishTranslit(String ar) {
 String translateShortZikr(String ar, String lang) {
   if (lang == 'ar') return ar;
   const enMap = {
-    'سُبْحَانَ اللَّهِ وَبِحَمْدِهِ': 'SubhanAllahi wa bihamdih (Glory and praise be to Allah)',
-    'أَسْتَغْفِرُ اللَّهَ الْعَظِيمَ وَأَتُوبُ إِلَيْهِ': 'Astaghfirullahal-Azim wa atubu ilayh',
-    'الْحَمْدُ لِلَّهِ رَبِّ الْعَالَمِينَ': 'Alhamdulillahi Rabbil-Alamin',
-    'اللَّهُمَّ صَلِّ وَسَلِّمْ عَلَى نَبِيِّنَا مُحَمَّدٍ': 'Allahumma salli wa sallim ala Nabiyyina Muhammad',
-    'لَا حَوْلَ وَلَا قُوَّةَ إِلَّا بِاللَّهِ': 'La hawla wa la quwwata illa billah',
-    'لَا إِلَهَ إِلَّا أَنْتَ سُبْحَانَكَ إِنِّي كُنْتُ مِنَ الظَّالِمِينَ': 'La ilaha illa Anta subhanaka inni kuntu minaz-zalimin',
-    'سُبْحَانَ اللَّهِ، وَالْحَمْدُ لِلَّهِ، وَلَا إِلَهَ إِلَّا اللَّهُ، وَاللَّهُ أَكْبَرُ': 'SubhanAllah, Alhamdulillah, La ilaha illAllah, Allahu Akbar',
-    'حَسْبِيَ اللَّهُ لَا إِلَهَ إِلَّا هُوَ عَلَيْهِ تَوَكَّلْتُ': 'HasbiyAllahu la ilaha illa Huwa alayhi tawakkaltu',
+'سُبْحَانَ اللَّهِ وَبِحَمْدِهِ': 'SubhanAllahi wa bihamdih (Glory and praise be to Allah)',
+'أَسْتَغْفِرُ اللَّهَ الْعَظِيمَ وَأَتُوبُ إِلَيْهِ': 'Astaghfirullahal-Azim wa atubu ilayh',
+'الْحَمْدُ لِلَّهِ رَبِّ الْعَالَمِينَ': 'Alhamdulillahi Rabbil-Alamin',
+'اللَّهُمَّ صَلِّ وَسَلِّمْ عَلَى نَبِيِّنَا مُحَمَّدٍ': 'Allahumma salli wa sallim ala Nabiyyina Muhammad',
+'لَا حَوْلَ وَلَا قُوَّةَ إِلَّا بِاللَّهِ': 'La hawla wa la quwwata illa billah',
+'لَا إِلَهَ إِلَّا أَنْتَ سُبْحَانَكَ إِنِّي كُنْتُ مِنَ الظَّالِمِينَ': 'La ilaha illa Anta subhanaka inni kuntu minaz-zalimin',
+'سُبْحَانَ اللَّهِ، وَالْحَمْدُ لِلَّهِ، وَلَا إِلَهَ إِلَّا اللَّهُ، وَاللَّهُ أَكْبَرُ': 'SubhanAllah, Alhamdulillah, La ilaha illAllah, Allahu Akbar',
+'حَسْبِيَ اللَّهُ لَا إِلَهَ إِلَّا هُوَ عَلَيْهِ تَوَكَّلْتُ': 'HasbiyAllahu la ilaha illa Huwa alayhi tawakkaltu',
   };
   const trMap = {
-    'سُبْحَانَ اللَّهِ وَبِحَمْدِهِ': 'Subhanallahi ve bihamdih',
-    'أَسْتَغْفِرُ اللَّهَ الْعَظِيمَ وَأَتُوبُ إِلَيْهِ': 'Estağfirullah el-Azim ve etübü ileyh',
-    'الْحَمْدُ لِلَّهِ رَبِّ الْعَالَمِينَ': 'Elhamdülillahi Rabbil-Alemin',
-    'اللَّهُمَّ صَلِّ وَسَلِّمْ عَلَى نَبِيِّنَا مُحَمَّدٍ': 'Allahümme salli ve sellim ala Nebiyyina Muhammed',
-    'لَا حَوْلَ وَلَا قُوَّةَ إِلَّا بِاللَّهِ': 'La havle ve la kuvvete illa billah',
-    'لَا إِلَهَ إِلَّا أَنْتَ سُبْحَانَكَ إِنِّي كُنْتُ مِنَ الظَّالِمِينَ': 'La ilahe illa Ente subhaneke inni küntü minez-zalimin',
-    'سُبْحَانَ اللَّهِ، وَالْحَمْدُ لِلَّهِ، وَلَا إِلَهَ إِلَّا اللَّهُ، وَاللَّهُ أَكْبَرُ': 'Subhanallah, Elhamdülillah, La ilahe illallah, Allahu Ekber',
-    'حَسْبِيَ اللَّهُ لَا إِلَهَ إِلَّا هُوَ عَلَيْهِ تَوَكَّلْتُ': 'Hasbiyallahu la ilahe illa Hu aleyhi tevekkeltü',
+'سُبْحَانَ اللَّهِ وَبِحَمْدِهِ': 'Subhanallahi ve bihamdih',
+'أَسْتَغْفِرُ اللَّهَ الْعَظِيمَ وَأَتُوبُ إِلَيْهِ': 'Estağfirullah el-Azim ve etübü ileyh',
+'الْحَمْدُ لِلَّهِ رَبِّ الْعَالَمِينَ': 'Elhamdülillahi Rabbil-Alemin',
+'اللَّهُمَّ صَلِّ وَسَلِّمْ عَلَى نَبِيِّنَا مُحَمَّدٍ': 'Allahümme salli ve sellim ala Nebiyyina Muhammed',
+'لَا حَوْلَ وَلَا قُوَّةَ إِلَّا بِاللَّهِ': 'La havle ve la kuvvete illa billah',
+'لَا إِلَهَ إِلَّا أَنْتَ سُبْحَانَكَ إِنِّي كُنْتُ مِنَ الظَّالِمِينَ': 'La ilahe illa Ente subhaneke inni küntü minez-zalimin',
+'سُبْحَانَ اللَّهِ، وَالْحَمْدُ لِلَّهِ، وَلَا إِلَهَ إِلَّا اللَّهُ، وَاللَّهُ أَكْبَرُ': 'Subhanallah, Elhamdülillah, La ilahe illallah, Allahu Ekber',
+'حَسْبِيَ اللَّهُ لَا إِلَهَ إِلَّا هُوَ عَلَيْهِ تَوَكَّلْتُ': 'Hasbiyallahu la ilahe illa Hu aleyhi tevekkeltü',
   };
   if (lang == 'tr') return trMap[ar] ?? ar;
   return enMap[ar] ?? ar;
@@ -258,50 +274,50 @@ String translateShortZikr(String ar, String lang) {
 String lightTashkeel(String text) {
   var out = text.replaceAll(RegExp(r'[\u064E\u064F\u0650\u0652]'), '');
   const criticalWords = <String, String>{
-    'الجبن': 'الجُبنِ',
-    'جبن': 'جُبنٍ',
-    'البخل': 'البُخلِ',
-    'بخل': 'بُخلٍ',
-    'غلبة الدين': 'غَلَبةِ الدَّينِ',
-    'قهر الرجال': 'قَهرِ الرجال',
-    'العجز': 'العَجزِ',
-    'الكسل': 'الكَسَلِ',
-    'الهم والحزن': 'الهَمِّ والحَزَنِ',
-    'الضر': 'الضُّرِّ',
-    'الشرك': 'الشِّركِ',
-    'الخبث والخبائث': 'الخُبُثِ والخَبائِثِ',
-    'الخبث': 'الخُبُثِ',
-    'البرص': 'البَرَصِ',
-    'الجنون': 'الجُنونِ',
-    'الجذام': 'الجُذامِ',
-    'سيئ الأسقام': 'سَيِّئِ الأَسقامِ',
-    'سيء الأسقام': 'سَيِّئِ الأَسقامِ',
-    'درك الشقاء': 'دَرَكِ الشَّقاءِ',
-    'جهد البلاء': 'جَهدِ البَلاءِ',
-    'سوء القضاء': 'سُوءِ القَضاءِ',
-    'شماتة الأعداء': 'شَماتَةِ الأَعداءِ',
-    'عذاب القبر': 'عَذابِ القَبرِ',
-    'فتنة المحيا والممات': 'فِتنةِ المَحيا والمَماتِ',
-    'الذل': 'الذُّلِّ',
-    'القلة': 'القِلَّةِ',
-    'الفقر': 'الفَقرِ',
-    'الكفر': 'الكُفرِ',
-    'سخطك': 'سَخَطِكَ',
-    'عقوبتك': 'عُقوبَتِكَ',
-    'زوال نعمتك': 'زَوالِ نِعمَتِكَ',
-    'تحول عافيتك': 'تَحَوُّلِ عافِيَتِكَ',
-    'فجاءة نقمتك': 'فُجاءَةِ نِقمَتِكَ',
-    'الردى': 'الرَّدى',
-    'الهدم': 'الهَدمِ',
-    'الغرق': 'الغَرَقِ',
-    'الحرق': 'الحَرَقِ',
-    'الهرم': 'الهَرَمِ',
-    'أشرك': 'أُشرِكَ',
-    'أضل': 'أَضِلَّ',
-    'أزل': 'أَزِلَّ',
-    'أظلم': 'أَظلِمَ',
-    'أجهل': 'أَجهَلَ',
-    'يجهل علي': 'يُجهَلَ عَلَيَّ',
+'الجبن': 'الجُبنِ',
+'جبن': 'جُبنٍ',
+'البخل': 'البُخلِ',
+'بخل': 'بُخلٍ',
+'غلبة الدين': 'غَلَبةِ الدَّينِ',
+'قهر الرجال': 'قَهرِ الرجال',
+'العجز': 'العَجزِ',
+'الكسل': 'الكَسَلِ',
+'الهم والحزن': 'الهَمِّ والحَزَنِ',
+'الضر': 'الضُّرِّ',
+'الشرك': 'الشِّركِ',
+'الخبث والخبائث': 'الخُبُثِ والخَبائِثِ',
+'الخبث': 'الخُبُثِ',
+'البرص': 'البَرَصِ',
+'الجنون': 'الجُنونِ',
+'الجذام': 'الجُذامِ',
+'سيئ الأسقام': 'سَيِّئِ الأَسقامِ',
+'سيء الأسقام': 'سَيِّئِ الأَسقامِ',
+'درك الشقاء': 'دَرَكِ الشَّقاءِ',
+'جهد البلاء': 'جَهدِ البَلاءِ',
+'سوء القضاء': 'سُوءِ القَضاءِ',
+'شماتة الأعداء': 'شَماتَةِ الأَعداءِ',
+'عذاب القبر': 'عَذابِ القَبرِ',
+'فتنة المحيا والممات': 'فِتنةِ المَحيا والمَماتِ',
+'الذل': 'الذُّلِّ',
+'القلة': 'القِلَّةِ',
+'الفقر': 'الفَقرِ',
+'الكفر': 'الكُفرِ',
+'سخطك': 'سَخَطِكَ',
+'عقوبتك': 'عُقوبَتِكَ',
+'زوال نعمتك': 'زَوالِ نِعمَتِكَ',
+'تحول عافيتك': 'تَحَوُّلِ عافِيَتِكَ',
+'فجاءة نقمتك': 'فُجاءَةِ نِقمَتِكَ',
+'الردى': 'الرَّدى',
+'الهدم': 'الهَدمِ',
+'الغرق': 'الغَرَقِ',
+'الحرق': 'الحَرَقِ',
+'الهرم': 'الهَرَمِ',
+'أشرك': 'أُشرِكَ',
+'أضل': 'أَضِلَّ',
+'أزل': 'أَزِلَّ',
+'أظلم': 'أَظلِمَ',
+'أجهل': 'أَجهَلَ',
+'يجهل علي': 'يُجهَلَ عَلَيَّ',
   };
   criticalWords.forEach((k, v) {
     if (out.contains(k)) out = out.replaceAll(k, v);
@@ -311,21 +327,21 @@ String lightTashkeel(String text) {
 
 String formatHijriAndGregorian(DateTime date, String lang) {
   const weekDaysAr = [
-    'الإثنين', 'الثلاثاء', 'الأربعاء', 'الخميس', 'الجمعة', 'السبت', 'الأحد'
+'الإثنين', 'الثلاثاء', 'الأربعاء', 'الخميس', 'الجمعة', 'السبت', 'الأحد'
   ];
   const weekDaysEn = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
   const weekDaysTr = ['Pzt', 'Sal', 'Çar', 'Per', 'Cum', 'Cmt', 'Paz'];
   const hijriMonthsAr = [
-    'محرم', 'صفر', 'ربيع الأول', 'ربيع الآخر', 'جمادى الأولى', 'جمادى الآخرة',
-    'رجب', 'شعبان', 'رمضان', 'شوال', 'ذو القعدة', 'ذو الحجة'
+'محرم', 'صفر', 'ربيع الأول', 'ربيع الآخر', 'جمادى الأولى', 'جمادى الآخرة',
+'رجب', 'شعبان', 'رمضان', 'شوال', 'ذو القعدة', 'ذو الحجة'
   ];
   const hijriMonthsEn = [
-    'Muharram', 'Safar', 'Rabi al-Awwal', 'Rabi al-Thani', 'Jumada al-Ula', 'Jumada al-Akhirah',
-    'Rajab', 'Sha’ban', 'Ramadan', 'Shawwal', 'Dhul-Qi’dah', 'Dhul-Hijjah'
+'Muharram', 'Safar', 'Rabi al-Awwal', 'Rabi al-Thani', 'Jumada al-Ula', 'Jumada al-Akhirah',
+'Rajab', 'Sha’ban', 'Ramadan', 'Shawwal', 'Dhul-Qi’dah', 'Dhul-Hijjah'
   ];
   const hijriMonthsTr = [
-    'Muharrem', 'Safer', 'Rebiülevvel', 'Rebiülahir', 'Cemaziyelevvel', 'Cemaziyelahir',
-    'Recep', 'Şaban', 'Ramazan', 'Şevval', 'Zilkade', 'Zilhicce'
+'Muharrem', 'Safer', 'Rebiülevvel', 'Rebiülahir', 'Cemaziyelevvel', 'Cemaziyelahir',
+'Recep', 'Şaban', 'Ramazan', 'Şevval', 'Zilkade', 'Zilhicce'
   ];
   final jd = (date.millisecondsSinceEpoch / 86400000).floor() + 2440588;
   final l = jd - 1948440 + 10632;
@@ -462,7 +478,7 @@ class _FloatingZikrOverlayWidgetState
                   ClipRRect(
                     borderRadius: BorderRadius.circular(10),
                     child: Image.asset(
-                      'assets/images/app_icon.png',
+'assets/images/app_icon.png',
                       width: 34,
                       height: 34,
                       errorBuilder: (_, __, ___) => const Icon(
@@ -479,7 +495,7 @@ class _FloatingZikrOverlayWidgetState
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
                         const Text(
-                          'أذكاري • واذكر ربك إذا نسيت',
+'أذكاري • واذكر ربك إذا نسيت',
                           style: TextStyle(
                             color: Color(0xFFBAE6FD),
                             fontSize: 10.5,
@@ -572,7 +588,7 @@ class AzkariApp extends StatefulWidget {
   State<AzkariApp> createState() => _AzkariAppState();
 }
 
-class _AzkariAppState extends State<AzkariApp> {
+class _AzkariAppState extends State<AzkariApp> with WidgetsBindingObserver {
   late bool isDarkMode;
   late String appLang; // 'ar', 'en', 'tr'
   bool get isEnglish => appLang == 'en';
@@ -696,6 +712,31 @@ class _AzkariAppState extends State<AzkariApp> {
     }
   }
 
+  /// شكل السبحة المختار (0..4).
+  int get sabhaSkinIndex => widget.prefs.getInt('sabhaSkin') ?? 0;
+
+  /// يزامن ويدجت الشاشة الرئيسية بالعداد الحالي للسبحة.
+  void syncTasbihWidget() {
+    WidgetService.instance.syncTasbih(
+      zikr: tasbihPhrase,
+      count: tasbihCount,
+      lifetime: tasbihLifetime,
+    );
+  }
+
+  /// يزامن ويدجت «آية اليوم» مع حالة ورد الأذكار.
+  void syncAyahWidget() {
+    final idx = DateTime.now().difference(DateTime(2024)).inDays.abs() %
+        kWidgetAyahPool.length;
+    final ayah = kWidgetAyahPool[idx];
+    WidgetService.instance.syncAyah(
+      ayah: ayah[0],
+      reference: ayah[1],
+      morningDone: taskMorningDone,
+      eveningDone: taskEveningDone,
+    );
+  }
+
   List<Color> get sabhaColors {
     final skin = widget.prefs.getInt('sabhaSkin') ?? 0;
     switch (skin) {
@@ -713,6 +754,7 @@ class _AzkariAppState extends State<AzkariApp> {
   @override
   void initState() {
     super.initState();
+    WidgetsBinding.instance.addObserver(this);
     WidgetsBinding.instance.addPostFrameCallback((_) async {
       try {
         final plugin = FlutterLocalNotificationsPlugin();
@@ -736,6 +778,8 @@ class _AzkariAppState extends State<AzkariApp> {
     _rebuildAzkarList();
     resetDailyAzkarIfNeeded();
     _scheduleMidnightReset();
+    syncTasbihWidget();
+    syncAyahWidget();
     _syncReminders();
     _syncFloatingTimer();
     _playStartupAyahAudio();
@@ -947,8 +991,8 @@ class _AzkariAppState extends State<AzkariApp> {
           ScaffoldMessenger.of(context).showSnackBar(
             SnackBar(
               content: Text(tr(
-                'تم تسجيل الدخول بنجاح: $fbUserName',
-                'Signed in as $fbUserName',
+'تم تسجيل الدخول بنجاح: $fbUserName',
+'Signed in as $fbUserName',
               )),
             ),
           );
@@ -957,8 +1001,8 @@ class _AzkariAppState extends State<AzkariApp> {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
             content: Text(tr(
-              'تعذر تسجيل الدخول بفيسبوك',
-              'Facebook login failed',
+'تعذر تسجيل الدخول بفيسبوك',
+'Facebook login failed',
             )),
           ),
         );
@@ -968,8 +1012,8 @@ class _AzkariAppState extends State<AzkariApp> {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
             content: Text(tr(
-              'تحقق من الاتصال بالإنترنت وإعدادات فيسبوك',
-              'Check internet connection and Facebook setup',
+'تحقق من الاتصال بالإنترنت وإعدادات فيسبوك',
+'Check internet connection and Facebook setup',
             )),
           ),
         );
@@ -1101,7 +1145,7 @@ class _AzkariAppState extends State<AzkariApp> {
       p.setInt('bestStreak', bestStreak);
       p.setString('lastActiveDate', lastActiveDate);
       p.setString(
-        'azkarState',
+'azkarState',
         jsonEncode(azkarList.map((e) => e.toJson()).toList()),
       );
     });
@@ -1115,19 +1159,38 @@ class _AzkariAppState extends State<AzkariApp> {
     });
     p.setString('editedAzkarOverrides', jsonEncode(mapEnc));
     p.setStringList(
-        'deletedAzkarIds', deletedAzkarIds.map((e) => e.toString()).toList());
+'deletedAzkarIds', deletedAzkarIds.map((e) => e.toString()).toList());
     p.setString('customAzkar', jsonEncode(customAzkar));
     p.setString(
-      'azkarState',
+'azkarState',
       jsonEncode(azkarList.map((e) => e.toJson()).toList()),
     );
   }
 
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state == AppLifecycleState.resumed) {
+      _pullTasbihFromWidget();
+    }
+  }
+
+  /// أي تسبيح تم من ويدجت الشاشة الرئيسية يُضاف لرصيد التطبيق عند العودة.
+  Future<void> _pullTasbihFromWidget() async {
+    final data = await WidgetService.instance.readTasbihFromWidget();
+    if (data.count > tasbihCount) {
+      final delta = data.count - tasbihCount;
+      tasbihCount = data.count;
+      tasbihLifetime += delta;
+      saveLightState();
+      if (mounted) setState(() {});
+    }
+  }
+
   /// تاريخ اليوم بصيغة YYYY-MM-DD.
   static String _dayKey(DateTime d) =>
-      '${d.year.toString().padLeft(4, '0')}-'
-      '${d.month.toString().padLeft(2, '0')}-'
-      '${d.day.toString().padLeft(2, '0')}';
+'${d.year.toString().padLeft(4, '0')}-'
+'${d.month.toString().padLeft(2, '0')}-'
+'${d.day.toString().padLeft(2, '0')}';
 
   /// تصفير عدادات الأذكار اليومية عند بداية يوم جديد (12:00 ص).
   ///
@@ -1142,7 +1205,7 @@ class _AzkariAppState extends State<AzkariApp> {
     }
     widget.prefs.setString('lastAzkarResetDate', today);
     widget.prefs.setString(
-      'azkarState',
+'azkarState',
       jsonEncode(azkarList.map((e) => e.toJson()).toList()),
     );
     lastAzkarResetDate = today;
@@ -1212,7 +1275,7 @@ class _AzkariAppState extends State<AzkariApp> {
     p.setString('fbUserPhoto', fbUserPhoto);
     p.setString('customAzkar', jsonEncode(customAzkar));
     p.setString(
-      'azkarState',
+'azkarState',
       jsonEncode(azkarList.map((e) => e.toJson()).toList()),
     );
     p.setBool('onboardingDone', onboardingDone);
@@ -1228,7 +1291,7 @@ class _AzkariAppState extends State<AzkariApp> {
     });
     p.setString('editedAzkarOverrides', jsonEncode(mapEnc));
     p.setStringList(
-        'deletedAzkarIds', deletedAzkarIds.map((e) => e.toString()).toList());
+'deletedAzkarIds', deletedAzkarIds.map((e) => e.toString()).toList());
     if (resyncTimers) {
       _syncReminders();
       _syncFloatingTimer();
@@ -1238,6 +1301,7 @@ class _AzkariAppState extends State<AzkariApp> {
 
   @override
   void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
     _floatingTimer?.cancel();
     _midnightTimer?.cancel();
     _splashAudioPlayer.dispose();
@@ -1361,7 +1425,7 @@ class _SplashWrapperScreenState extends State<SplashWrapperScreen>
                               ClipRRect(
                                 borderRadius: BorderRadius.circular(28),
                                 child: Image.asset(
-                                  'assets/images/app_icon.png',
+'assets/images/app_icon.png',
                                   width: 108,
                                   height: 108,
                                   errorBuilder: (_, __, ___) => const Icon(
@@ -1435,16 +1499,57 @@ class _MainShellScreenState extends State<MainShellScreen> {
   int _currentIndex = 0;
   String _searchQuery = '';
   bool _showSearch = false;
+  StreamSubscription<int>? _volumeSub;
+  bool _volumeHintShown = false;
 
   @override
   void dispose() {
+    _volumeSub?.cancel();
+    VolumeButtonService.instance.setCapture(false);
+    KhushuService.active.removeListener(_onKhushuChanged);
+    KhushuService.disable();
     _pageController.dispose();
     super.dispose();
+  }
+
+  void _onKhushuChanged() {
+    if (mounted) setState(() {});
+  }
+
+  /// يُفعّل اعتراض أزرار الصوت فقط داخل صفحة السبحة (إذا لم يوقفه المستخدم).
+  void _syncVolumeCapture() {
+    final prefs = widget.appState.widget.prefs;
+    final enabled = (prefs.getBool('volumeButtonsEnabled') ?? true) &&
+        _currentIndex == 3;
+    VolumeButtonService.instance.setCapture(enabled);
+  }
+
+  void _onVolumePressed() {
+    if (_currentIndex != 3) return;
+    final s = widget.appState;
+    if (!(s.widget.prefs.getBool('volumeButtonsEnabled') ?? true)) return;
+    final target = s.tasbihTarget;
+    _tasbihTap(s, target <= 0, target);
+    if (!_volumeHintShown) {
+      _volumeHintShown = true;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(s.tr(
+'إذا أردت التحكم في الصوت اخرج من صفحة السبحة',
+'To control the volume, leave the Tasbih page',
+'Sesi kontrol etmek için Tesbih sayfasından çıkın',
+          )),
+        ),
+      );
+    }
   }
 
   @override
   void initState() {
     super.initState();
+    KhushuService.active.addListener(_onKhushuChanged);
+    VolumeButtonService.instance.init();
+    _volumeSub = VolumeButtonService.instance.presses.listen((_) => _onVolumePressed());
     WidgetsBinding.instance.addPostFrameCallback((_) async {
       UpdateService.checkForUpdate(
         context,
@@ -1634,11 +1739,11 @@ class _MainShellScreenState extends State<MainShellScreen> {
             (a['text'] ?? '').toString(),
           );
           flatAyahs.add({
-            'surah': surah['name'] ?? '',
-            'surahEn': surah['englishName'] ?? '',
-            'num': a['numberInSurah'] ?? (aIdx + 1),
-            'text': cleanAyahText,
-            'tafsir': tText,
+'surah': surah['name'] ?? '',
+'surahEn': surah['englishName'] ?? '',
+'num': a['numberInSurah'] ?? (aIdx + 1),
+'text': cleanAyahText,
+'tafsir': tText,
           });
         }
       }
@@ -1661,7 +1766,7 @@ class _MainShellScreenState extends State<MainShellScreen> {
                   mainAxisSize: MainAxisSize.min,
                   children: [
                     Text(
-                      '${item['surah']}',
+'${item['surah']}',
                       style: const TextStyle(
                         fontSize: 18,
                         fontWeight: FontWeight.bold,
@@ -1670,7 +1775,7 @@ class _MainShellScreenState extends State<MainShellScreen> {
                     ),
                     if (s.appLang != 'ar')
                       Text(
-                        '${item['surahEn']}',
+'${item['surahEn']}',
                         style: const TextStyle(fontSize: 12, color: Colors.grey),
                       ),
                     const SizedBox(height: 14),
@@ -1678,7 +1783,7 @@ class _MainShellScreenState extends State<MainShellScreen> {
                       constraints: const BoxConstraints(maxHeight: 220),
                       child: SingleChildScrollView(
                         child: Text(
-                          '${item['text']} ﴿${item['num']}﴾',
+'${item['text']} ﴿${item['num']}﴾',
                           textAlign: TextAlign.center,
                           textDirection: TextDirection.rtl,
                           style: TextStyle(
@@ -1732,9 +1837,9 @@ class _MainShellScreenState extends State<MainShellScreen> {
                                 title: Text(s.tr('معلومات عن الميزة', 'About Feature', 'Özellik Hakkında')),
                                 content: Text(
                                   s.tr(
-                                    'هذه الميزة تساعدك على قراءة آية من القرآن بالتسلسل عند بدء تشغيل التطبيق.\n\nيمكنك إيقاف تفعيل الميزة من الإعدادات في وقت لاحق أو من الزر بالأسفل.\n\nملاحظة: الخط وحجم الخط المستخدمان هنا هما نفس إعدادات صفحة القرآن.',
-                                    'Shows a sequential Quran Ayah on startup using your Quran font settings. You can disable it anytime below or in Settings.',
-                                    'Uygulama açılışında sırayla bir Kur’an ayeti gösterir. İstediğiniz zaman aşağıdan veya Ayarlar’dan kapatabilirsiniz.',
+'هذه الميزة تساعدك على قراءة آية من القرآن بالتسلسل عند بدء تشغيل التطبيق.\n\nيمكنك إيقاف تفعيل الميزة من الإعدادات في وقت لاحق أو من الزر بالأسفل.\n\nملاحظة: الخط وحجم الخط المستخدمان هنا هما نفس إعدادات صفحة القرآن.',
+'Shows a sequential Quran Ayah on startup using your Quran font settings. You can disable it anytime below or in Settings.',
+'Uygulama açılışında sırayla bir Kur’an ayeti gösterir. İstediğiniz zaman aşağıdan veya Ayarlar’dan kapatabilirsiniz.',
                                   ),
                                 ),
                                 actions: [
@@ -1846,8 +1951,8 @@ class _MainShellScreenState extends State<MainShellScreen> {
     final s = widget.appState;
     Share.share(
       s.tr(
-        'حمّل تطبيق «أذكاري» للأذكار اليومية والقرآن والسبحة بدون إنترنت:\n$kAppDownloadLink\nشارك تؤجر ',
-        'Download Azkari app for daily Azkar, Quran & offline Tasbih:\n$kAppDownloadLink',
+'حمّل تطبيق «أذكاري» للأذكار اليومية والقرآن والسبحة بدون إنترنت:\n$kAppDownloadLink\nشارك تؤجر ',
+'Download Azkari app for daily Azkar, Quran & offline Tasbih:\n$kAppDownloadLink',
       ),
     );
   }
@@ -1909,6 +2014,50 @@ class _MainShellScreenState extends State<MainShellScreen> {
   }
 
   @override
+  void _openSettingsPage() {
+    final s = widget.appState;
+    final isDark = s.isDarkMode;
+    final cardColor = isDark ? AppColors.surfaceDark : AppColors.surfaceLight;
+    final borderColor = isDark ? AppColors.borderDark : AppColors.borderLight;
+    final primary = isDark ? AppColors.primaryDark : AppColors.primaryBlue;
+    final textSecondary =
+        isDark ? AppColors.textSecondaryDark : AppColors.textSecondaryLight;
+    Navigator.of(context).push(
+      MaterialPageRoute(
+        builder: (routeCtx) => Scaffold(
+          appBar: AppBar(
+            title: Text(s.tr('الإعدادات', 'Settings')),
+            leading: IconButton(
+              icon: const Icon(Icons.arrow_back_rounded),
+              onPressed: () => Navigator.pop(routeCtx),
+            ),
+          ),
+          body: _buildSettingsTab(routeCtx, cardColor, borderColor, primary, textSecondary),
+        ),
+      ),
+    );
+  }
+
+  MoreStats _moreStats() {
+    final s = widget.appState;
+    final now = DateTime.now();
+    final startOfWeek = DateTime(now.year, now.month, now.day)
+        .subtract(Duration(days: now.weekday - DateTime.monday));
+    final weekDays = s.activeDaysHistory
+        .where((d) => DateTime.tryParse(d) != null &&
+            !DateTime.parse(d).isBefore(startOfWeek))
+        .length;
+    final todayItems = s.azkarList.where((z) => z.category == 'morning' || z.category == 'evening');
+    final done = todayItems.where((z) => z.count >= z.target).length;
+    return MoreStats(
+      tasbihLifetime: s.tasbihLifetime,
+      streak: s.currentStreak,
+      azkarDoneToday: done,
+      azkarTotalToday: todayItems.length,
+      azkarDaysThisWeek: weekDays,
+    );
+  }
+
   Widget build(BuildContext context) {
     final s = widget.appState;
     final isDark = s.isDarkMode;
@@ -1929,7 +2078,13 @@ class _MainShellScreenState extends State<MainShellScreen> {
       ),
       _buildAllAzkarTab(context, cardColor, borderColor, primary, textSecondary),
       _buildTasbihTab(context, cardColor, borderColor, primary, textSecondary),
-      _buildSettingsTab(context, cardColor, borderColor, primary, textSecondary),
+      MoreHubScreen(
+        prefs: s.widget.prefs,
+        appLang: s.appLang,
+        isDarkMode: s.isDarkMode,
+        stats: _moreStats(),
+        onOpenSettings: _openSettingsPage,
+      ),
     ];
 
     final drawerContent = _buildLeftDrawer(context, cardColor, primary);
@@ -2069,7 +2224,7 @@ class _MainShellScreenState extends State<MainShellScreen> {
         ),
       ),
       extendBody: true,
-      bottomNavigationBar: SafeArea(
+      bottomNavigationBar: KhushuService.active.value ? null : SafeArea(
         child: Container(
           margin: const EdgeInsets.fromLTRB(14, 0, 14, 10),
           padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 4),
@@ -2099,6 +2254,7 @@ class _MainShellScreenState extends State<MainShellScreen> {
               selectedIndex: _currentIndex,
               onDestinationSelected: (idx) {
                 setState(() => _currentIndex = idx);
+                _syncVolumeCapture();
                 if (_pageController.hasClients) {
                   _pageController.animateToPage(
                     idx,
@@ -2126,8 +2282,8 @@ class _MainShellScreenState extends State<MainShellScreen> {
                   label: s.tr('السبحة', 'Tasbih'),
                 ),
                 NavigationDestination(
-                  icon: Icon(Icons.settings_rounded, key: _navSettingsKey),
-                  label: s.tr('الإعدادات', 'Settings'),
+                  icon: Icon(Icons.apps_rounded, key: _navSettingsKey),
+                  label: s.tr('المزيد', 'More', 'Daha fazla'),
                 ),
               ],
             ),
@@ -2250,7 +2406,7 @@ class _MainShellScreenState extends State<MainShellScreen> {
                       const SizedBox(height: 4),
                       Text(
                         s.tr('تلاوة وتصحيح، ردد واحفظ، وتوقيت الكلمات.',
-                            'Tilawa, Repeat & Memorize & QUL Timings.'),
+'Tilawa, Repeat & Memorize & QUL Timings.'),
                         style: const TextStyle(fontSize: 11.5, color: Colors.grey),
                       ),
                       const SizedBox(height: 10),
@@ -2357,13 +2513,13 @@ class _MainShellScreenState extends State<MainShellScreen> {
                     ),
                     const SizedBox(height: 8),
                     Text(
-                      '${s.tr('ينتهي في:', 'Expires:')} $expText',
+'${s.tr('ينتهي في:', 'Expires:')} $expText',
                       style: const TextStyle(
                           fontSize: 12.5, fontWeight: FontWeight.bold),
                     ),
                     const SizedBox(height: 3),
                     Text(
-                      '${s.tr('الأجهزة المرتبطة:', 'Devices:')} $devCount / 2  •  ${s.tr('يعمل بدون إنترنت', 'Offline Ready')}',
+'${s.tr('الأجهزة المرتبطة:', 'Devices:')} $devCount / 2  •  ${s.tr('يعمل بدون إنترنت', 'Offline Ready')}',
                       style: const TextStyle(fontSize: 11, color: Colors.grey),
                     ),
                     if (lastRef.isNotEmpty) ...[
@@ -2374,7 +2530,7 @@ class _MainShellScreenState extends State<MainShellScreen> {
                           ScaffoldMessenger.of(context).showSnackBar(
                             SnackBar(
                               content: Text(s.tr('تم نسخ الرقم المرجعي: $lastRef',
-                                  'Copied reference: $lastRef')),
+'Copied reference: $lastRef')),
                             ),
                           );
                         },
@@ -2382,7 +2538,7 @@ class _MainShellScreenState extends State<MainShellScreen> {
                           children: [
                             Expanded(
                               child: Text(
-                                '${s.tr('آخر مرجع:', 'Ref:')} $lastRef',
+'${s.tr('آخر مرجع:', 'Ref:')} $lastRef',
                                 maxLines: 1,
                                 overflow: TextOverflow.ellipsis,
                                 style: const TextStyle(
@@ -2430,7 +2586,7 @@ class _MainShellScreenState extends State<MainShellScreen> {
                   s.tr('الإنجازات والمهام اليومية', 'Achievements & Tasks')),
               subtitle: Text(
                 s.tr('المواظبة الحالية: ${s.currentStreak} يوم',
-                    'Current streak: ${s.currentStreak} days'),
+'Current streak: ${s.currentStreak} days'),
               ),
               onTap: () {
                 Navigator.pop(context);
@@ -2780,10 +2936,10 @@ class _MainShellScreenState extends State<MainShellScreen> {
                     final aTxt = (ay['text'] ?? '').toString();
                     if (normalizeArabicForSearch(aTxt).contains(normQuery)) {
                       ayahHits.add({
-                        'sNum': sr['number'],
-                        'sName': s.appLang == 'ar' ? sr['name'] : sr['englishName'],
-                        'aNum': ay['numberInSurah'],
-                        'text': aTxt,
+'sNum': sr['number'],
+'sName': s.appLang == 'ar' ? sr['name'] : sr['englishName'],
+'aNum': ay['numberInSurah'],
+'text': aTxt,
                       });
                       if (ayahHits.length >= 4) break;
                     }
@@ -2873,7 +3029,7 @@ class _MainShellScreenState extends State<MainShellScreen> {
                   ),
                   Text(
                     s.tr('$activeDone من ${activeItems.length} مكتمل',
-                        '$activeDone / ${activeItems.length} done'),
+'$activeDone / ${activeItems.length} done'),
                     style: const TextStyle(color: Colors.white70, fontSize: 12),
                   ),
                 ],
@@ -2891,7 +3047,7 @@ class _MainShellScreenState extends State<MainShellScreen> {
               const SizedBox(height: 6),
               Text(
                 s.tr('حصن يومك بالذكر؛ قراءة هادئة ومصادر صحيحة موثقة.',
-                    'Fortify your day with authentic daily remembrance.'),
+'Fortify your day with authentic daily remembrance.'),
                 style: const TextStyle(color: Colors.white70, fontSize: 13),
               ),
               const SizedBox(height: 16),
@@ -2974,7 +3130,7 @@ class _MainShellScreenState extends State<MainShellScreen> {
                   ),
                   TextButton(
                     onPressed: _openAchievementsScreen,
-                    child: Text(s.tr('الإنجازات 🏆', 'Achievements 🏆')),
+                    child: Text(s.tr('الإنجازات ', 'Achievements ')),
                   ),
                 ],
               ),
@@ -3001,7 +3157,7 @@ class _MainShellScreenState extends State<MainShellScreen> {
               if (isFriday)
                 _autoTaskTile(
                   s.tr('قراءة سورة الكهف (يوم الجمعة)',
-                      'Surah Al-Kahf (Friday)'),
+'Surah Al-Kahf (Friday)'),
                   s.taskKahfDone,
                   () => _openSurahDirectly(18),
                 ),
@@ -3086,7 +3242,7 @@ class _MainShellScreenState extends State<MainShellScreen> {
                 title: Text(z['title'] ?? '',
                     style: const TextStyle(fontWeight: FontWeight.bold)),
                 subtitle: Text(
-                  '${z['before'] != '' ? '${z['before']}\n' : ''}${z['text']}\n(${z['target'] ?? 1}x) ${z['note'] ?? ''}',
+'${z['before'] != '' ? '${z['before']}\n' : ''}${z['text']}\n(${z['target'] ?? 1}x) ${z['note'] ?? ''}',
                   maxLines: 3,
                   overflow: TextOverflow.ellipsis,
                 ),
@@ -3178,81 +3334,81 @@ class _MainShellScreenState extends State<MainShellScreen> {
   void _openBuiltInExtraCategory(String catKey, String label) {
     final s = widget.appState;
     final Map<String, List<(String, String)>> extrasAr = {
-      'adhan': [
+'adhan': [
         (
-          'عند سماع المؤذن: يقول مثل ما يقول المؤذن إلا في الحيعلتين فيقول: لا حول ولا قوة إلا بالله.',
-          'متفق عليه',
+'عند سماع المؤذن: يقول مثل ما يقول المؤذن إلا في الحيعلتين فيقول: لا حول ولا قوة إلا بالله.',
+'متفق عليه',
         ),
         (
-          'اللهم رب هذه الدعوة التامة، والصلاة القائمة، آت محمداً الوسيلة والفضيلة، وابعثه مقاماً محموداً الذي وعدته.',
-          'رواه البخاري',
+'اللهم رب هذه الدعوة التامة، والصلاة القائمة، آت محمداً الوسيلة والفضيلة، وابعثه مقاماً محموداً الذي وعدته.',
+'رواه البخاري',
         ),
       ],
-      'mosque': [
+'mosque': [
         ('دخول المسجد: اللهم افتح لي أبواب رحمتك.', 'رواه مسلم'),
         ('الخروج من المسجد: اللهم إني أسألك من فضلك.', 'رواه مسلم'),
       ],
-      'wudu': [
+'wudu': [
         ('قبل الوضوء: بسم الله.', 'رواه أبو داود'),
         (
-          'بعد الوضوء: أشهد أن لا إله إلا الله وحده لا شريك له، وأشهد أن محمداً عبده ورسوله.',
-          'رواه مسلم',
+'بعد الوضوء: أشهد أن لا إله إلا الله وحده لا شريك له، وأشهد أن محمداً عبده ورسوله.',
+'رواه مسلم',
         ),
       ],
-      'food': [
+'food': [
         ('قبل الطعام: بسم الله (فإن نسي: بسم الله أوله وآخره).', 'رواه أبو داود'),
         (
-          'بعد الطعام: الحمد لله الذي أطعمني هذا ورزقنيه من غير حول مني ولا قوة.',
-          'رواه الترمذي',
+'بعد الطعام: الحمد لله الذي أطعمني هذا ورزقنيه من غير حول مني ولا قوة.',
+'رواه الترمذي',
         ),
       ],
-      'khala': [
+'khala': [
         ('عند الدخول: اللهم إني أعوذ بك من الخبث والخبائث.', 'متفق عليه'),
         ('عند الخروج: غفرانك.', 'رواه أبو داود والترمذي'),
       ],
     };
 
     final Map<String, List<(String, String)>> extrasEn = {
-      'adhan': [
+'adhan': [
         ('Repeat what the Mu’adhdhin says, except at Hayya alas-Salah/Falah say: La hawla wa la quwwata illa billah.', 'Agreed upon'),
         ('Allahumma Rabba hadhihid-da’watit-tammah, was-salatil-qa’imah, ati Muhammadanil-wasilata wal-fadilah.', 'Sahih Al-Bukhari'),
       ],
-      'mosque': [
+'mosque': [
         ('Entering the Mosque: Allahumma-ftah li abwaba rahmatik (O Allah, open the doors of Your mercy for me).', 'Sahih Muslim'),
         ('Leaving the Mosque: Allahumma inni as’aluka min fadlik (O Allah, I ask You from Your bounty).', 'Sahih Muslim'),
       ],
-      'wudu': [
+'wudu': [
         ('Before Wudu: Bismillah (In the name of Allah).', 'Abu Dawud'),
         ('After Wudu: Ash-hadu an la ilaha illAllahu wahdahu la sharika lah, wa ash-hadu anna Muhammadan abduhu wa rasuluh.', 'Sahih Muslim'),
       ],
-      'food': [
+'food': [
         ('Before Eating: Bismillah (If forgotten: Bismillahi awwalahu wa akhirah).', 'Abu Dawud'),
         ('After Eating: Alhamdulillahil-ladhi at’amani hadha wa razaqanihi min ghayri hawlin minni wa la quwwah.', 'At-Tirmidhi'),
       ],
-      'khala': [
+'khala': [
         ('Entering Restroom: Allahumma inni a’udhu bika minal-khubuthi wal-khaba’ith.', 'Agreed upon'),
         ('Leaving Restroom: Ghufranaka (I seek Your forgiveness).', 'Abu Dawud & At-Tirmidhi'),
       ],
     };
 
     final Map<String, List<(String, String)>> extrasTr = {
-      'adhan': [
+'adhan': [
         ('Ezanı işitince müezzinin söylediklerini tekrar et; Hayye ales-salah / felah kısmında "La havle ve la kuvvete illa billah" de.', 'Müttefekun Aleyh'),
         ('Allahümme Rabbe hazihid-da’vetit-tammeh ves-salatil-kaimeh, ati Muhammedenil-vesilete vel-fazileh.', 'Buhari'),
       ],
-      'mosque': [
+'mosque': [
         ('Camiye Girerken: Allahümmeftah li ebvabe rahmetik (Allah’ım, bana rahmet kapılarını aç).', 'Müslim'),
         ('Camiden Çıkarken: Allahümme inni es’elüke min fadlik (Allah’ım, Senin lütfundan dilerim).', 'Müslim'),
       ],
-      'wudu': [
+'wudu': [
         ('Abdestten Önce: Bismillah.', 'Ebu Davud'),
         ('Abdestten Sonra: Eşhedü en la ilahe illallahu vahdehu la şerike leh ve eşhedü enne Muhammeden abdühu ve resulüh.', 'Müslim'),
       ],
-      'food': [
+'food': [
         ('Yemekten Önce: Bismillah (Unutulursa: Bismillahi evvelehu ve ahireh).', 'Ebu Davud'),
         ('Yemekten Sonra: Elhamdülillahillezi et’ameni haza ve rezekanihi min gayri havlin minni ve la kuvveh.', 'Tirmizi'),
       ],
-      'khala': [
+'khala': [
         ('Tuvalete Girerken: Allahümme inni euzü bike minel-hubsi vel-habais.', 'Müttefekun Aleyh'),
         ('Tuvaletten Çıkarken: Gufraneke (Allah’ım bağışlamanı dilerim).', 'Ebu Davud & Tirmizi'),
       ],
@@ -3352,13 +3508,13 @@ class _MainShellScreenState extends State<MainShellScreen> {
               final txt = textCtrl.text.trim();
               if (txt.isEmpty) return;
               s.customAzkar.add({
-                'title': titleCtrl.text.trim().isEmpty
+'title': titleCtrl.text.trim().isEmpty
                     ? s.tr('ذكر مخصص', 'Custom Zikr', 'Özel Zikir')
                     : titleCtrl.text.trim(),
-                'before': '',
-                'text': txt,
-                'note': '',
-                'target': (int.tryParse(targetCtrl.text.trim()) ?? 1).clamp(1, 999),
+'before': '',
+'text': txt,
+'note': '',
+'target': (int.tryParse(targetCtrl.text.trim()) ?? 1).clamp(1, 999),
               });
               s.saveAllState(resyncTimers: false);
               Navigator.pop(ctx);
@@ -3402,6 +3558,109 @@ class _MainShellScreenState extends State<MainShellScreen> {
         ),
       ),
     );
+  }
+
+  /// تنفيذ تسبيحة واحدة (من اللمس أو أزرار الصوت) مع مزامنة الويدجت.
+  void _tasbihTap(_AzkariAppState s, bool isOpenEnded, int target) {
+    s.tasbihCount += 1;
+    s.tasbihLifetime += 1;
+    s.playTapFeedback(
+      stronger: !isOpenEnded && target > 0 && s.tasbihCount % target == 0,
+    );
+    s.saveLightState();
+    s.syncTasbihWidget();
+    setState(() {});
+  }
+
+  /// إعدادات صفحة السبحة: الشكل (5 أشكال) وأزرار الصوت.
+  Future<void> _openTasbihSettings(SharedPreferences prefs) async {
+    final lang = widget.appState.appLang;
+    final dark = widget.appState.isDarkMode;
+    await showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: dark ? const Color(0xFF0B1626) : Colors.white,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+      ),
+      builder: (sheetCtx) => StatefulBuilder(
+        builder: (sheetCtx, setSheet) {
+          final skin = prefs.getInt('sabhaSkin') ?? 0;
+          final volumeOn = prefs.getBool('volumeButtonsEnabled') ?? true;
+          const skinMeta = <List<String>>[
+            ['الزر الزجاجي', 'Glass button', 'Cam buton'],
+            ['شريط الخرز', 'Bead strip', 'Boncuk şerit'],
+            ['الحلقة الدائرية', 'Bead ring', 'Halka'],
+            ['خاتم التسبيح', 'Digital ring', 'Dijital yüzük'],
+            ['نبضة النور', 'Light pulse', 'Işık nabzı'],
+          ];
+          return SafeArea(
+            child: Padding(
+              padding: const EdgeInsets.fromLTRB(20, 18, 20, 22),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    widget.appState.tr('إعدادات السبحة', 'Tasbih settings', 'Tesbih ayarları'),
+                    style: const TextStyle(fontSize: 17, fontWeight: FontWeight.bold),
+                  ),
+                  const SizedBox(height: 14),
+                  Text(
+                    widget.appState.tr('شكل السبحة', 'Tasbih shape', 'Tesbih şekli'),
+                    style: const TextStyle(fontSize: 13, fontWeight: FontWeight.bold),
+                  ),
+                  const SizedBox(height: 8),
+                  ...List.generate(5, (i) {
+                    final label = lang == 'en'
+                        ? skinMeta[i][1]
+                        : (lang == 'tr' ? skinMeta[i][2] : skinMeta[i][0]);
+                    return RadioListTile<int>(
+                      value: i,
+                      groupValue: skin,
+                      dense: true,
+                      contentPadding: EdgeInsets.zero,
+                      activeColor: const Color(0xFF38BDF8),
+                      title: Text(label, style: const TextStyle(fontSize: 13.5)),
+                      onChanged: (v) {
+                        prefs.setInt('sabhaSkin', v ?? 0);
+                        setSheet(() {});
+                        setState(() {});
+                      },
+                    );
+                  }),
+                  const SizedBox(height: 8),
+                  SwitchListTile.adaptive(
+                    contentPadding: EdgeInsets.zero,
+                    value: volumeOn,
+                    activeColor: const Color(0xFF38BDF8),
+                    onChanged: (v) {
+                      prefs.setBool('volumeButtonsEnabled', v);
+                      setSheet(() {});
+                      _syncVolumeCapture();
+                    },
+                    title: Text(
+                      widget.appState.tr('التسبيح بأزرار الصوت',
+'Count with volume buttons', 'Ses tuşlarıyla say'),
+                      style: const TextStyle(fontSize: 13.5),
+                    ),
+                    subtitle: Text(
+                      widget.appState.tr(
+'زر رفع أو خفض الصوت يزيد العداد ويمنع تغيير صوت الهاتف داخل السبحة.',
+'Inside the Tasbih page the volume keys count instead of changing volume.',
+'Tesbih sayfasında ses tuşları sayar, sesi değiştirmez.',
+                      ),
+                      style: const TextStyle(fontSize: 11),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          );
+        },
+      ),
+    );
+    _syncVolumeCapture();
   }
 
   /// يضبط عدد التسبيح المطلوب للدورة ويحفظه.
@@ -3473,6 +3732,11 @@ class _MainShellScreenState extends State<MainShellScreen> {
             children: [
               Row(
                 children: [
+                  IconButton(
+                    tooltip: s.tr('إعدادات السبحة', 'Tasbih settings', 'Tesbih ayarları'),
+                    onPressed: () => _openTasbihSettings(s.widget.prefs),
+                    icon: const Icon(Icons.tune_rounded, size: 21),
+                  ),
                   _assetIcon('assets/images/icon_tasbih.png', Icons.scatter_plot_rounded, size: 28),
                   const SizedBox(width: 8),
                   Text(s.tr('السبحة الإلكترونية', 'Tasbih', 'Tesbih'),
@@ -3644,24 +3908,51 @@ class _MainShellScreenState extends State<MainShellScreen> {
             ),
           ),
           const SizedBox(height: 22),
-          RoundedSquareCounterButton(
+          KeyedSubtree(
             key: _tasbihBtnKey,
-            progress: cycleProgress,
-            title: '${s.tasbihCount}',
-            subtitle: s.tr('سبّح', 'Tap', 'Dokun'),
-            gradientColors: s.sabhaColors,
-            borderGlowColor: AppColors.skyBlue,
-            size: 190,
-            onTap: () {
-              s.tasbihCount += 1;
-              s.tasbihLifetime += 1;
-              s.playTapFeedback(
-                  stronger: !isOpenEnded &&
-                      target > 0 &&
-                      s.tasbihCount % target == 0);
-              s.saveLightState();
-              setState(() {});
-            },
+            child: Builder(builder: (_) {
+              final onTap = () => _tasbihTap(s, isOpenEnded, target);
+              switch (s.sabhaSkinIndex) {
+                case 1:
+                  return BeadStripTasbih(
+                    count: s.tasbihCount,
+                    target: target,
+                    onCount: onTap,
+                  );
+                case 2:
+                  return RingTasbih(
+                    count: s.tasbihCount,
+                    target: target,
+                    onCount: onTap,
+                  );
+                case 3:
+                  return DigitalRingTasbih(
+                    count: s.tasbihCount,
+                    target: target,
+                    onCount: onTap,
+                    onReset: () {
+                      s.tasbihCount = 0;
+                      s.saveAllState(resyncTimers: false);
+                      s.syncTasbihWidget();
+                      setState(() {});
+                    },
+                  );
+                case 4:
+                  return LightPulseTasbih(
+                    count: s.tasbihCount,
+                    target: target,
+                    onCount: onTap,
+                  );
+                default:
+                  return GlassCounterTasbih(
+                    size: 190,
+                    count: s.tasbihCount,
+                    target: target,
+                    gradientColors: s.sabhaColors,
+                    onCount: onTap,
+                  );
+              }
+            }),
           ),
         ],
       ),
@@ -3810,7 +4101,7 @@ class _MainShellScreenState extends State<MainShellScreen> {
                   ),
                   child: Text(
                     s.tr('من مساهمي تطوير أذكاري • بارك الله فيك',
-                        'Azkari Development Contributor • Thank you'),
+'Azkari Development Contributor • Thank you'),
                     style: const TextStyle(color: Color(0xFFFDE047), fontSize: 11, fontWeight: FontWeight.bold),
                   ),
                 ),
@@ -3819,7 +4110,7 @@ class _MainShellScreenState extends State<MainShellScreen> {
                 const SizedBox(height: 8),
                 Text(
                   s.tr('تنبيه هادئ: ينتهي اشتراك PRO خلال أقل من 3 أيام — يمكنك التجديد براحتك في أي وقت.',
-                      'Friendly reminder: PRO expires within 3 days.'),
+'Friendly reminder: PRO expires within 3 days.'),
                   style: const TextStyle(color: Color(0xFFFDE047), fontSize: 11.5),
                 ),
               ],
@@ -4017,7 +4308,7 @@ class _MainShellScreenState extends State<MainShellScreen> {
                 onTap: () {
                   final accountId = s.widget.prefs.getString('fbUserId') ??
                       s.widget.prefs.getString('userName') ??
-                      'azkari_local_user';
+'azkari_local_user';
                   showModalBottomSheet(
                     context: context,
                     shape: const RoundedRectangleBorder(
@@ -4203,7 +4494,7 @@ class _MainShellScreenState extends State<MainShellScreen> {
                 trailing: const Icon(Icons.open_in_new_rounded, size: 18),
                 onTap: () => launchUrl(
                   Uri.parse(
-                      'https://docs.google.com/document/d/1CRS1CVXWhUAgwBNWYXHooPk2JyUAiS6CSepioB6oZgA/edit?usp=drivesdk'),
+'https://docs.google.com/document/d/1CRS1CVXWhUAgwBNWYXHooPk2JyUAiS6CSepioB6oZgA/edit?usp=drivesdk'),
                   mode: LaunchMode.externalApplication,
                 ),
               ),
@@ -4246,9 +4537,9 @@ Future<void> showDoubleRewardShareDialog(
           ),
           title: Text(
             s.tr(
-              'هل تريد مضاعفة أجرك؟ 😍',
-              'Want to double your reward? 😍',
-              'Sevabını katlamak ister misin? 😍',
+'هل تريد مضاعفة أجرك؟ ',
+'Want to double your reward? ',
+'Sevabını katlamak ister misin? ',
             ),
             textAlign: TextAlign.center,
             style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 19),
@@ -4258,9 +4549,9 @@ Future<void> showDoubleRewardShareDialog(
             children: [
               Text(
                 s.tr(
-                  'شارك التطبيق لغيرك، وكل حسنة يكسبها غيرك لك مثلها 😁',
-                  'Share the app with others, and every good deed they earn brings you the same reward 😁',
-                  'Uygulamayı başkalarıyla paylaş, onların kazandığı her sevap sana da yazılsın 😁',
+'شارك التطبيق لغيرك، وكل حسنة يكسبها غيرك لك مثلها ',
+'Share the app with others, and every good deed they earn brings you the same reward ',
+'Uygulamayı başkalarıyla paylaş, onların kazandığı her sevap sana da yazılsın ',
                 ),
                 textAlign: TextAlign.center,
                 style: const TextStyle(fontSize: 14.5, height: 1.6),
@@ -4268,7 +4559,7 @@ Future<void> showDoubleRewardShareDialog(
               if (!canTap) ...[
                 const SizedBox(height: 14),
                 Text(
-                  '$countdown',
+'$countdown',
                   style: const TextStyle(
                     fontSize: 22,
                     fontWeight: FontWeight.bold,
@@ -4299,9 +4590,9 @@ Future<void> showDoubleRewardShareDialog(
                               borderRadius: BorderRadius.circular(24)),
                           title: Text(
                             s.tr(
-                              'لقد ضيعت أجراً عظيماً 😢',
-                              'You missed a great reward 😢',
-                              'Büyük bir sevabı kaçırdın 😢',
+'لقد ضيعت أجراً عظيماً ',
+'You missed a great reward ',
+'Büyük bir sevabı kaçırdın ',
                             ),
                             textAlign: TextAlign.center,
                           ),
@@ -4324,9 +4615,9 @@ Future<void> showDoubleRewardShareDialog(
                                 Navigator.pop(c2);
                                 Share.share(
                                   s.tr(
-                                    'تطبيق أذكاري: رفيقك اليومي للقرآن والأذكار والسبحة بدون إعلانات\n$kAppDownloadLink',
-                                    'Azkari App: Your ad-free daily Quran, Azkar & Tasbih companion\n$kAppDownloadLink',
-                                    'Zikirlerim: Reklamsız günlük Kur’an, Zikir ve Tesbih rehberin\n$kAppDownloadLink',
+'تطبيق أذكاري: رفيقك اليومي للقرآن والأذكار والسبحة بدون إعلانات\n$kAppDownloadLink',
+'Azkari App: Your ad-free daily Quran, Azkar & Tasbih companion\n$kAppDownloadLink',
+'Zikirlerim: Reklamsız günlük Kur’an, Zikir ve Tesbih rehberin\n$kAppDownloadLink',
                                   ),
                                 );
                               },
@@ -4355,9 +4646,9 @@ Future<void> showDoubleRewardShareDialog(
                       Navigator.pop(ctx);
                       Share.share(
                         s.tr(
-                          'تطبيق أذكاري: رفيقك اليومي للقرآن والأذكار والسبحة بدون إعلانات\n$kAppDownloadLink',
-                          'Azkari App: Your ad-free daily Quran, Azkar & Tasbih companion\n$kAppDownloadLink',
-                          'Zikirlerim: Reklamsız günlük Kur’an, Zikir ve Tesbih rehberin\n$kAppDownloadLink',
+'تطبيق أذكاري: رفيقك اليومي للقرآن والأذكار والسبحة بدون إعلانات\n$kAppDownloadLink',
+'Azkari App: Your ad-free daily Quran, Azkar & Tasbih companion\n$kAppDownloadLink',
+'Zikirlerim: Reklamsız günlük Kur’an, Zikir ve Tesbih rehberin\n$kAppDownloadLink',
                         ),
                       );
                     },
@@ -4502,7 +4793,7 @@ class AchievementsScreen extends StatelessWidget {
                 ),
                 const SizedBox(height: 6),
                 Text(
-                  '$score / $nextGoal',
+'$score / $nextGoal',
                   style: const TextStyle(fontSize: 11.5, color: Colors.grey),
                 ),
                 const Divider(height: 20),
@@ -4512,7 +4803,7 @@ class AchievementsScreen extends StatelessWidget {
                     const SizedBox(width: 8),
                     Expanded(
                       child: Text(
-                        '${s.tr('منذ متى تعرف أذكاري:', 'With Azkari for:', 'Zikirlerim ile geçen süre:')} ${_companionDurationText(s)}',
+'${s.tr('منذ متى تعرف أذكاري:', 'With Azkari for:', 'Zikirlerim ile geçen süre:')} ${_companionDurationText(s)}',
                         style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 13.5),
                       ),
                     ),
@@ -4535,7 +4826,7 @@ class AchievementsScreen extends StatelessWidget {
                 Row(
                   children: [
                     Image.asset(
-                      'assets/images/flame_$tierLevel.gif',
+'assets/images/flame_$tierLevel.gif',
                       width: 52,
                       height: 52,
                       errorBuilder: (_, __, ___) => const Icon(
@@ -4551,14 +4842,14 @@ class AchievementsScreen extends StatelessWidget {
                         children: [
                           Text(
                             s.tr('المواظبة الحالية: ${s.currentStreak} يوم',
-                                'Current Streak: ${s.currentStreak} days',
-                                'Mevcut Seri: ${s.currentStreak} gün'),
+'Current Streak: ${s.currentStreak} days',
+'Mevcut Seri: ${s.currentStreak} gün'),
                             style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 15),
                           ),
                           Text(
                             s.tr('أفضل مواظبة: ${s.bestStreak} يوم • إجمالي الأذكار: ${s.totalAzkarCompleted}',
-                                'Best: ${s.bestStreak} days • Total Azkar: ${s.totalAzkarCompleted}',
-                                'En iyi: ${s.bestStreak} gün • Toplam: ${s.totalAzkarCompleted}'),
+'Best: ${s.bestStreak} days • Total Azkar: ${s.totalAzkarCompleted}',
+'En iyi: ${s.bestStreak} gün • Toplam: ${s.totalAzkarCompleted}'),
                             style: const TextStyle(fontSize: 12.5, color: Colors.grey),
                           ),
                         ],
@@ -4580,9 +4871,9 @@ class AchievementsScreen extends StatelessWidget {
                       Expanded(
                         child: Text(
                           s.tr(
-                            'يوم تجميد مجاني أسبوعياً يحفظ مواظبتك عند الانشغال',
-                            '1 weekly Streak Freeze protects your streak on busy days',
-                            'Haftalık 1 Seri Dondurma hakkı yoğun günlerde serini korur',
+'يوم تجميد مجاني أسبوعياً يحفظ مواظبتك عند الانشغال',
+'1 weekly Streak Freeze protects your streak on busy days',
+'Haftalık 1 Seri Dondurma hakkı yoğun günlerde serini korur',
                           ),
                           style: const TextStyle(fontSize: 12),
                         ),
@@ -4760,7 +5051,7 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
                     ClipRRect(
                       borderRadius: BorderRadius.circular(28),
                       child: Image.asset(
-                        'assets/images/app_icon.png',
+'assets/images/app_icon.png',
                         width: 112,
                         height: 112,
                         errorBuilder: (_, __, ___) => const Icon(
@@ -4782,8 +5073,8 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
                     const SizedBox(height: 14),
                     Text(
                       s.tr(
-                        'رفيقك اليومي لأذكار الصباح والمساء والقرآن الكريم والسبحة الإلكترونية بدون إعلانات وبأعلى سلاسة.',
-                        'Your daily companion for Azkar, Quran, and Tasbih.',
+'رفيقك اليومي لأذكار الصباح والمساء والقرآن الكريم والسبحة الإلكترونية بدون إعلانات وبأعلى سلاسة.',
+'Your daily companion for Azkar, Quran, and Tasbih.',
                       ),
                       textAlign: TextAlign.center,
                       style: TextStyle(
@@ -4874,7 +5165,7 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
                             size: 64, color: AppColors.skyBlue),
                         const SizedBox(height: 20),
                         const Text(
-                          'اختر اللغة / Choose Language',
+'اختر اللغة / Choose Language',
                           textAlign: TextAlign.center,
                           style: TextStyle(
                               fontSize: 22, fontWeight: FontWeight.bold),
@@ -4928,7 +5219,7 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
                             const SizedBox(height: 18),
                             Text(
                               s.tr('اختر المظهر المريح لعينيك',
-                                  'Choose Your Theme', 'Temanızı Seçin'),
+'Choose Your Theme', 'Temanızı Seçin'),
                               textAlign: TextAlign.center,
                               style: const TextStyle(
                                   fontSize: 21, fontWeight: FontWeight.bold),
@@ -5029,7 +5320,7 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
                             ClipRRect(
                               borderRadius: BorderRadius.circular(24),
                               child: Image.asset(
-                                'assets/images/app_icon.png',
+'assets/images/app_icon.png',
                                 width: 88,
                                 height: 88,
                                 errorBuilder: (_, __, ___) => const Icon(
@@ -5042,9 +5333,9 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
                             const SizedBox(height: 24),
                             Text(
                               s.tr(
-                                'ربط الحساب أم الدخول كزائر؟',
-                                'Sign in or Continue as Guest?',
-                                'Giriş Yap veya Misafir Devam Et?',
+'ربط الحساب أم الدخول كزائر؟',
+'Sign in or Continue as Guest?',
+'Giriş Yap veya Misafir Devam Et?',
                               ),
                               textAlign: TextAlign.center,
                               style: const TextStyle(
@@ -5055,9 +5346,9 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
                             const SizedBox(height: 12),
                             Text(
                               s.tr(
-                                'اربط حسابك لحفظ ملفك أو تابع كزائر فوراً وابدأ جولتك في التطبيق.',
-                                'Link your account or jump right in as a guest.',
-                                'Hesabınızı bağlayın veya misafir olarak hemen başlayın.',
+'اربط حسابك لحفظ ملفك أو تابع كزائر فوراً وابدأ جولتك في التطبيق.',
+'Link your account or jump right in as a guest.',
+'Hesabınızı bağlayın veya misafir olarak hemen başlayın.',
                               ),
                               textAlign: TextAlign.center,
                               style: TextStyle(
@@ -5085,9 +5376,9 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
                                 icon: const Icon(Icons.facebook_rounded),
                                 label: Text(
                                   s.tr(
-                                    'تسجيل الدخول بفيسبوك',
-                                    'Sign in with Facebook',
-                                    'Facebook ile Giriş Yap',
+'تسجيل الدخول بفيسبوك',
+'Sign in with Facebook',
+'Facebook ile Giriş Yap',
                                   ),
                                   style: const TextStyle(
                                       fontSize: 16, fontWeight: FontWeight.bold),
@@ -5110,9 +5401,9 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
                                 icon: const Icon(Icons.person_outline_rounded),
                                 label: Text(
                                   s.tr(
-                                    'المتابعة كزائر',
-                                    'Continue as Guest',
-                                    'Misafir Olarak Devam Et',
+'المتابعة كزائر',
+'Continue as Guest',
+'Misafir Olarak Devam Et',
                                   ),
                                   style: const TextStyle(
                                       fontSize: 16, fontWeight: FontWeight.bold),
@@ -5175,7 +5466,7 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
                                     ClipRRect(
                                       borderRadius: BorderRadius.circular(8),
                                       child: Image.asset(
-                                        'assets/images/app_icon.png',
+'assets/images/app_icon.png',
                                         width: 30,
                                         height: 30,
                                         errorBuilder: (_, __, ___) => const Icon(
@@ -5192,7 +5483,7 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
                                         children: [
                                           Text(
                                             s.tr('أذكاري • الآن',
-                                                'Azkari • Now'),
+'Azkari • Now'),
                                             style: const TextStyle(
                                                 color: Colors.white70,
                                                 fontSize: 11),
@@ -5200,7 +5491,7 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
                                           const SizedBox(height: 2),
                                           Text(
                                             s.tr('سبحان الله وبحمده',
-                                                'SubhanAllah wa bihamdih'),
+'SubhanAllah wa bihamdih'),
                                             style: const TextStyle(
                                                 color: Colors.white,
                                                 fontWeight: FontWeight.bold,
@@ -5250,7 +5541,7 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
                                   const SizedBox(width: 10),
                                   Text(
                                     s.tr('فوق التطبيقات الأخرى',
-                                        'Floating Over Apps'),
+'Floating Over Apps'),
                                     style: const TextStyle(
                                         fontSize: 16,
                                         fontWeight: FontWeight.bold),
@@ -5288,7 +5579,7 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
                                           ),
                                           child: Text(
                                             s.tr('اللهم ارحمني',
-                                                'O Allah, have mercy'),
+'O Allah, have mercy'),
                                             style: const TextStyle(
                                                 color: Colors.white,
                                                 fontWeight: FontWeight.bold,
@@ -5428,8 +5719,8 @@ class _AzkarReaderScreenState extends State<AzkarReaderScreen> {
         duration: const Duration(seconds: 3),
         content: Text(
           s.tr(
-            'استغرقت ${_formatDuration(spent)} في $catLabel',
-            'Spent ${_formatDuration(spent)} in $catLabel',
+'استغرقت ${_formatDuration(spent)} في $catLabel',
+'Spent ${_formatDuration(spent)} in $catLabel',
           ),
         ),
       ),
@@ -5508,7 +5799,7 @@ class _AzkarReaderScreenState extends State<AzkarReaderScreen> {
                 SwitchListTile(
                   contentPadding: EdgeInsets.zero,
                   title: Text(s.tr('طيّ الذكر المكتمل تلقائياً',
-                      'Auto-collapse Completed', 'Tamamlanan Zikri Küçült')),
+'Auto-collapse Completed', 'Tamamlanan Zikri Küçült')),
                   value: s.collapseCompletedAzkar,
                   onChanged: (v) {
                     s.collapseCompletedAzkar = v;
@@ -5605,7 +5896,7 @@ class _AzkarReaderScreenState extends State<AzkarReaderScreen> {
                               ClipRRect(
                                 borderRadius: BorderRadius.circular(8),
                                 child: Image.asset(
-                                  'assets/images/app_icon.png',
+'assets/images/app_icon.png',
                                   width: 28,
                                   height: 28,
                                   errorBuilder: (_, __, ___) => Icon(
@@ -5624,7 +5915,7 @@ class _AzkarReaderScreenState extends State<AzkarReaderScreen> {
                                       fit: BoxFit.scaleDown,
                                       alignment: AlignmentDirectional.centerStart,
                                       child: Text(
-                                        'أذكاري - واذكر ربك إذا نسيت (Azkari)',
+'أذكاري - واذكر ربك إذا نسيت (Azkari)',
                                         style: TextStyle(
                                           color: textColor,
                                           fontSize: 10.5,
@@ -5776,8 +6067,8 @@ class _AzkarReaderScreenState extends State<AzkarReaderScreen> {
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(22)),
         title: Text(s.tr('تأكيد التصفير', 'Confirm Reset')),
         content: Text(s.tr(
-          'هل أنت متأكد من تصفير جميع العدادات في هذا القسم؟',
-          'Reset all counters in this category?',
+'هل أنت متأكد من تصفير جميع العدادات في هذا القسم؟',
+'Reset all counters in this category?',
         )),
         actions: [
           TextButton(
@@ -5900,9 +6191,9 @@ class _AzkarReaderScreenState extends State<AzkarReaderScreen> {
 
               if (existing != null) {
                 s.editedAzkarOverrides[existing.id] = {
-                  'text': fullText,
-                  'source': source,
-                  'target': target,
+'text': fullText,
+'source': source,
+'target': target,
                 };
                 final idx = s.azkarList.indexWhere((z) => z.id == existing.id);
                 if (idx != -1) {
@@ -5971,8 +6262,8 @@ class _AzkarReaderScreenState extends State<AzkarReaderScreen> {
                     ),
                     content: Text(
                       s.tr(
-                        'أتممت $categoryLabel بحمد الله. بارك الله في وقتك وزادك طمأنينة.',
-                        'You completed $categoryLabel.',
+'أتممت $categoryLabel بحمد الله. بارك الله في وقتك وزادك طمأنينة.',
+'You completed $categoryLabel.',
                       ),
                       textAlign: TextAlign.center,
                     ),
@@ -6056,6 +6347,21 @@ class _AzkarReaderScreenState extends State<AzkarReaderScreen> {
               icon: const Icon(Icons.refresh_rounded),
             ),
             IconButton(
+              tooltip: s.tr('قفل الخشوع', 'Khushu lock', 'Huşu kilidi'),
+              onPressed: () async {
+                await KhushuService.toggle();
+                if (mounted) setState(() {});
+              },
+              icon: Icon(
+                KhushuService.active.value
+                    ? Icons.dark_mode_rounded
+                    : Icons.dark_mode_outlined,
+                color: KhushuService.active.value
+                    ? const Color(0xFF38BDF8)
+                    : null,
+              ),
+            ),
+            IconButton(
               tooltip: s.tr('إعدادات العرض', 'Display Settings'),
               onPressed: _openAzkarPageSettings,
               icon: const Icon(Icons.tune_rounded),
@@ -6081,9 +6387,9 @@ class _AzkarReaderScreenState extends State<AzkarReaderScreen> {
                             children: [
                               Text(
                                 s.tr(
-                                  'تم $doneCount من ${items.length}',
-                                  'Done $doneCount of ${items.length}',
-                                  'Tamamlanan: $doneCount / ${items.length}',
+'تم $doneCount من ${items.length}',
+'Done $doneCount of ${items.length}',
+'Tamamlanan: $doneCount / ${items.length}',
                                 ),
                                 style: TextStyle(
                                   fontSize: 12.5,
@@ -6092,7 +6398,7 @@ class _AzkarReaderScreenState extends State<AzkarReaderScreen> {
                                 ),
                               ),
                               Text(
-                                '${(pct * 100).round()}%',
+'${(pct * 100).round()}%',
                                 style: TextStyle(
                                   fontSize: 12,
                                   fontWeight: FontWeight.bold,
@@ -6165,7 +6471,7 @@ class _AzkarReaderScreenState extends State<AzkarReaderScreen> {
                       child: Row(
                         children: [
                           Text(
-                            '${index + 1}',
+'${index + 1}',
                             style: const TextStyle(
                                 fontWeight: FontWeight.bold, color: Colors.redAccent),
                           ),
@@ -6182,7 +6488,7 @@ class _AzkarReaderScreenState extends State<AzkarReaderScreen> {
                           ),
                           const SizedBox(width: 8),
                           Text(
-                            '${item.target} / ${item.target}',
+'${item.target} / ${item.target}',
                             style: const TextStyle(
                                 fontSize: 12,
                                 fontWeight: FontWeight.bold,
@@ -6214,7 +6520,7 @@ class _AzkarReaderScreenState extends State<AzkarReaderScreen> {
                             mainAxisAlignment: MainAxisAlignment.spaceBetween,
                             children: [
                               Text(
-                                '${index + 1} / ${items.length}',
+'${index + 1} / ${items.length}',
                                 style: TextStyle(
                                   fontSize: 12,
                                   fontWeight: FontWeight.bold,
@@ -6254,7 +6560,7 @@ class _AzkarReaderScreenState extends State<AzkarReaderScreen> {
                                                 leading: const Icon(Icons.text_fields_rounded,
                                                     color: AppColors.skyBlue),
                                                 title: Text(s.tr('مشاركة كنص',
-                                                    'Share as Text', 'Metin Olarak Paylaş')),
+'Share as Text', 'Metin Olarak Paylaş')),
                                                 onTap: () {
                                                   Navigator.pop(shCtx);
                                                   Share.share('$shareBody\n\n— ${s.tr("تطبيق أذكاري", "Azkari App", "Zikirlerim")}');
@@ -6264,7 +6570,7 @@ class _AzkarReaderScreenState extends State<AzkarReaderScreen> {
                                                 leading: const Icon(Icons.image_rounded,
                                                     color: AppColors.skyBlue),
                                                 title: Text(s.tr('مشاركة كبطاقة',
-                                                    'Share as Image Card', 'Kart Olarak Paylaş')),
+'Share as Image Card', 'Kart Olarak Paylaş')),
                                                 onTap: () {
                                                   Navigator.pop(shCtx);
                                                   _shareZikrAsImage(shareBody, catLabel);
@@ -6921,55 +7227,55 @@ class _TikTokVectorIcon extends StatelessWidget {
 }
 
 const Map<String, String> kEnToTrUi = {
-  'Home': 'Ana Sayfa',
-  'Quran': 'Kur’an',
-  'Azkar': 'Zikirler',
-  'All Azkar': 'Tüm Zikirler',
-  'Tasbih': 'Tesbih',
-  'Settings': 'Ayarlar',
-  'Welcome to Azkari': 'Zikirlerim’e Hoş Geldiniz',
-  'Your daily companion for Azkar, Quran, and Tasbih.': 'Zikirler, Kur’an ve Tesbih için günlük manevi rehberiniz.',
-  'Continue': 'Devam Et',
-  'Reminder Style': 'Hatırlatma Yöntemi',
-  'Notification Bar': 'Bildirim Çubuğu',
-  'Quiet notification in status bar': 'Bildirim çubuğunda sessiz hatırlatma',
-  'Floating Over Apps': 'Uygulamalar Üzerinde',
-  'Floating Zikr card over other apps': 'Diğer uygulamaların üzerinde şık zikir penceresi',
-  'Reminder Frequency': 'Hatırlatma Sıklığı',
-  'Qibla, Habits & Backup': 'Kıble, Alışkanlıklar ve Yedekleme',
-  'Achievements & Tasks': 'Başarılar ve Görevler',
-  'Button Sound': 'Tuş Sesi',
-  'Share with a Friend': 'Arkadaşınla Paylaş',
-  'Rate App': 'Uygulamayı Değerlendir',
-  'Check for Updates': 'Güncellemeleri Kontrol Et',
-  'Follow Us': 'Bizi Takip Edin',
-  'Tap & Tasbih Sounds': 'Dokunma ve Tesbih Sesleri',
-  'Haptic Feedback': 'Titreşim',
-  'Light Tashkeel in Azkar': 'Zikirlerde Sade Hareke',
-  'Azkar Font Family': 'Zikir Yazı Tipi',
-  'Azkar Font Size': 'Zikir Yazı Boyutu',
-  'App Version': 'Uygulama Sürümü',
-  'Contact Us': 'Bize Ulaşın',
-  'Privacy Policy': 'Gizlilik Politikası',
-  'Add': 'Ekle',
-  'Reset': 'Sıfırla',
-  'Tap': 'Dokun',
-  'Done': 'Tamam',
-  'Edit Azkar': 'Zikirleri Düzenle',
-  'Restore Deleted': 'Silinenleri Geri Yükle',
-  'Reset All': 'Tümünü Sıfırla',
-  'Display Settings': 'Görünüm Ayarları',
-  'Add Zikr': 'Zikir Ekle',
-  'Add New Zikr Card': 'Yeni Zikir Kartı Ekle',
-  'Edit Zikr': 'Zikri Düzenle',
-  'Confirm Reset': 'Sıfırlamayı Onayla',
-  'Reset all counters in this category?': 'Bu bölümdeki tüm sayaçlar sıfırlansın mı?',
-  'Cancel': 'İptal',
-  'Save': 'Kaydet',
-  'Delete': 'Sil',
-  'Next': 'Sonraki',
-  'Prev': 'Önceki',
-  'Tafsir': 'Tefsir',
-  'Info': 'Bilgi',
-  'Alhamdulillah': 'Elhamdülillah',
+'Home': 'Ana Sayfa',
+'Quran': 'Kur’an',
+'Azkar': 'Zikirler',
+'All Azkar': 'Tüm Zikirler',
+'Tasbih': 'Tesbih',
+'Settings': 'Ayarlar',
+'Welcome to Azkari': 'Zikirlerim’e Hoş Geldiniz',
+'Your daily companion for Azkar, Quran, and Tasbih.': 'Zikirler, Kur’an ve Tesbih için günlük manevi rehberiniz.',
+'Continue': 'Devam Et',
+'Reminder Style': 'Hatırlatma Yöntemi',
+'Notification Bar': 'Bildirim Çubuğu',
+'Quiet notification in status bar': 'Bildirim çubuğunda sessiz hatırlatma',
+'Floating Over Apps': 'Uygulamalar Üzerinde',
+'Floating Zikr card over other apps': 'Diğer uygulamaların üzerinde şık zikir penceresi',
+'Reminder Frequency': 'Hatırlatma Sıklığı',
+'Qibla, Habits & Backup': 'Kıble, Alışkanlıklar ve Yedekleme',
+'Achievements & Tasks': 'Başarılar ve Görevler',
+'Button Sound': 'Tuş Sesi',
+'Share with a Friend': 'Arkadaşınla Paylaş',
+'Rate App': 'Uygulamayı Değerlendir',
+'Check for Updates': 'Güncellemeleri Kontrol Et',
+'Follow Us': 'Bizi Takip Edin',
+'Tap & Tasbih Sounds': 'Dokunma ve Tesbih Sesleri',
+'Haptic Feedback': 'Titreşim',
+'Light Tashkeel in Azkar': 'Zikirlerde Sade Hareke',
+'Azkar Font Family': 'Zikir Yazı Tipi',
+'Azkar Font Size': 'Zikir Yazı Boyutu',
+'App Version': 'Uygulama Sürümü',
+'Contact Us': 'Bize Ulaşın',
+'Privacy Policy': 'Gizlilik Politikası',
+'Add': 'Ekle',
+'Reset': 'Sıfırla',
+'Tap': 'Dokun',
+'Done': 'Tamam',
+'Edit Azkar': 'Zikirleri Düzenle',
+'Restore Deleted': 'Silinenleri Geri Yükle',
+'Reset All': 'Tümünü Sıfırla',
+'Display Settings': 'Görünüm Ayarları',
+'Add Zikr': 'Zikir Ekle',
+'Add New Zikr Card': 'Yeni Zikir Kartı Ekle',
+'Edit Zikr': 'Zikri Düzenle',
+'Confirm Reset': 'Sıfırlamayı Onayla',
+'Reset all counters in this category?': 'Bu bölümdeki tüm sayaçlar sıfırlansın mı?',
+'Cancel': 'İptal',
+'Save': 'Kaydet',
+'Delete': 'Sil',
+'Next': 'Sonraki',
+'Prev': 'Önceki',
+'Tafsir': 'Tefsir',
+'Info': 'Bilgi',
+'Alhamdulillah': 'Elhamdülillah',
 };

@@ -27,6 +27,12 @@ jobs:
       - name: Create Android platform files
         run: flutter create --org com.flc --project-name azkari --platforms=android .
 
+      - name: Apply custom Android sources (home widgets & volume keys)
+        run: |
+          if [ -d android_custom ]; then
+            cp -R android_custom/. android/
+          fi
+
       - name: Ensure speech_to_text dependency in pubspec.yaml
         run: |
           python3 -c '
@@ -67,6 +73,9 @@ jobs:
           svcs = "\n        <service android:name=\"flutter.overlay.window.flutter_overlay_window.OverlayService\" android:foregroundServiceType=\"specialUse\" android:exported=\"false\"><property android:name=\"android.app.PROPERTY_SPECIAL_USE_FGS_SUBTYPE\" android:value=\"Floating Zikr Reminder Overlay\"/></service>\n        <service android:name=\"com.ryanheise.audioservice.AudioService\" android:foregroundServiceType=\"mediaPlayback\" android:stopWithTask=\"false\" android:exported=\"true\"><intent-filter><action android:name=\"android.media.browse.MediaBrowserService\" /></intent-filter></service>\n        <receiver android:name=\"com.ryanheise.audioservice.MediaButtonReceiver\" android:exported=\"true\"><intent-filter><action android:name=\"android.intent.action.MEDIA_BUTTON\" /></intent-filter></receiver>\n        <receiver android:exported=\"false\" android:name=\"com.dexterous.flutterlocalnotifications.ScheduledNotificationReceiver\" />\n        <receiver android:exported=\"false\" android:name=\"com.dexterous.flutterlocalnotifications.ScheduledNotificationBootReceiver\"><intent-filter><action android:name=\"android.intent.action.BOOT_COMPLETED\"/><action android:name=\"android.intent.action.MY_PACKAGE_REPLACED\"/></intent-filter></receiver>\n"
           if "OverlayService" not in m:
               m = m.replace("</application>", svcs + "</application>", 1)
+          widgets = "\n        <receiver android:name=\"com.flc.azkari.TasbihWidgetProvider\" android:exported=\"true\"><intent-filter><action android:name=\"android.appwidget.action.APPWIDGET_UPDATE\"/><action android:name=\"com.flc.azkari.TASBIH_WIDGET_INC\"/><action android:name=\"com.flc.azkari.TASBIH_WIDGET_NEXT\"/></intent-filter><meta-data android:name=\"android.appwidget.provider\" android:resource=\"@xml/widget_tasbih_info\"/></receiver>\n        <receiver android:name=\"com.flc.azkari.AyahWidgetProvider\" android:exported=\"true\"><intent-filter><action android:name=\"android.appwidget.action.APPWIDGET_UPDATE\"/></intent-filter><meta-data android:name=\"android.appwidget.provider\" android:resource=\"@xml/widget_ayah_info\"/></receiver>\n"
+          if "TasbihWidgetProvider" not in m:
+              m = m.replace("</application>", widgets + "</application>", 1)
           open(mp, "w", encoding="utf-8").write(m)
           kts = "android/app/build.gradle.kts"
           grv = "android/app/build.gradle"

@@ -134,7 +134,7 @@ class _ToolsHubScreenState extends State<ToolsHubScreen> {
                 if (ctx.mounted) Navigator.pop(ctx);
                 if (mounted) {
                   ScaffoldMessenger.of(context).showSnackBar(
-                    SnackBar(content: Text(tr('تمت الاستعادة بنجاح ✓', 'Restored ✓'))),
+                    SnackBar(content: Text(tr('تمت الاستعادة بنجاح ', 'Restored '))),
                   );
                 }
               } catch (_) {
@@ -168,7 +168,7 @@ class _ToolsHubScreenState extends State<ToolsHubScreen> {
       length: 4,
       child: Scaffold(
         appBar: AppBar(
-          title: Text(tr('الأدوات والعادات 🧭', 'Tools & Habits 🧭')),
+          title: Text(tr('الأدوات والعادات ', 'Tools & Habits ')),
           bottom: TabBar(
             isScrollable: true,
             tabs: [
@@ -246,8 +246,8 @@ class _ToolsHubScreenState extends State<ToolsHubScreen> {
                 const SizedBox(height: 20),
                 Text(
                   tr(
-                    'زاوية القبلة من الشمال الحقيقي: ${angle.toStringAsFixed(1)}°',
-                    'Qibla Bearing from True North: ${angle.toStringAsFixed(1)}°',
+'زاوية القبلة من الشمال الحقيقي: ${angle.toStringAsFixed(1)}°',
+'Qibla Bearing from True North: ${angle.toStringAsFixed(1)}°',
                   ),
                   textAlign: TextAlign.center,
                   style: const TextStyle(
@@ -256,8 +256,8 @@ class _ToolsHubScreenState extends State<ToolsHubScreen> {
                 const SizedBox(height: 8),
                 Text(
                   tr(
-                    'وجّه أعلى الهاتف نحو الشمال ثم اتبع اتجاه السهم نحو الكعبة المشرفة 🕋',
-                    'Face North and follow the arrow toward the Kaaba 🕋',
+'وجّه أعلى الهاتف نحو الشمال ثم اتبع اتجاه السهم نحو الكعبة المشرفة ',
+'Face North and follow the arrow toward the Kaaba ',
                   ),
                   textAlign: TextAlign.center,
                   style: const TextStyle(color: Colors.grey),
@@ -275,7 +275,7 @@ class _ToolsHubScreenState extends State<ToolsHubScreen> {
                         controller: _habitController,
                         decoration: InputDecoration(
                           hintText: tr('أضف ذكراً أو عادة يومية خاصة...',
-                              'Add custom habit or dhikr...'),
+'Add custom habit or dhikr...'),
                           border: OutlineInputBorder(
                               borderRadius: BorderRadius.circular(14)),
                         ),
@@ -300,7 +300,7 @@ class _ToolsHubScreenState extends State<ToolsHubScreen> {
                     child: Padding(
                       padding: const EdgeInsets.all(24),
                       child: Text(tr('لم تضف أي عادات مخصصة بعد',
-                          'No custom habits yet')),
+'No custom habits yet')),
                     ),
                   )
                 else
@@ -379,8 +379,8 @@ class _ToolsHubScreenState extends State<ToolsHubScreen> {
                         color: Color(0xFF38BDF8)),
                     title: Text(tr('تصدير نسخة احتياطية', 'Export Backup')),
                     subtitle: Text(tr(
-                        'احفظ سجل إنجازاتك وعاداتك في ملف أو شاركه لنفسك',
-                        'Save or share your progress & habits')),
+'احفظ سجل إنجازاتك وعاداتك في ملف أو شاركه لنفسك',
+'Save or share your progress & habits')),
                     onTap: _exportBackup,
                   ),
                 ),
@@ -400,16 +400,16 @@ class _ToolsHubScreenState extends State<ToolsHubScreen> {
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
                         Text(
-                          tr('حل مشكلة تأخر الإشعارات 🔋',
-                              'Fix Delayed Notifications 🔋'),
+                          tr('حل مشكلة تأخر الإشعارات ',
+'Fix Delayed Notifications '),
                           style: const TextStyle(
                               fontWeight: FontWeight.bold, fontSize: 16),
                         ),
                         const SizedBox(height: 8),
                         Text(
                           tr(
-                            'إذا لم تصلك تنبيهات أذكار الصباح والمساء في وقتها:\n1. افتح إعدادات الهاتف > التطبيقات > أذكاري.\n2. اختر البطارية > اختر "غير مقيد" (Unrestricted).\n3. فعّل إذن التنبيهات والظهور فوق التطبيقات.',
-                            'If reminders are delayed:\n1. Phone Settings > Apps > Azkari.\n2. Battery > Set to "Unrestricted".\n3. Enable Notifications & Alarms.',
+'إذا لم تصلك تنبيهات أذكار الصباح والمساء في وقتها:\n1. افتح إعدادات الهاتف > التطبيقات > أذكاري.\n2. اختر البطارية > اختر "غير مقيد" (Unrestricted).\n3. فعّل إذن التنبيهات والظهور فوق التطبيقات.',
+'If reminders are delayed:\n1. Phone Settings > Apps > Azkari.\n2. Battery > Set to "Unrestricted".\n3. Enable Notifications & Alarms.',
                           ),
                           style: const TextStyle(height: 1.7),
                         ),
