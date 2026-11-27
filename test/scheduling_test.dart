@@ -281,12 +281,15 @@ void main() {
         appCount: 33,
         appLifetime: 100,
         seenRevision: 5,
-        appCountForWidgetZikr: 12,
+        appCountsByPhrase: const {
+          'أستغفر الله': 12,
+          'سبحان الله وبحمده': 33,
+        },
       );
       expect(plan.zikr, 'أستغفر الله');
       expect(plan.adoptedZikr, isTrue);
       expect(plan.count, 12); // رصيد ذلك الذكر المحفوظ في التطبيق
-      expect(plan.lifetime, 120); // الأكبر
+      expect(plan.lifetime, 100); // لا ضغطات جديدة ⇒ الإجمالي كما هو
       expect(plan.seenRevision, 7);
     });
 
@@ -298,11 +301,11 @@ void main() {
         appCount: 33,
         appLifetime: 100,
         seenRevision: 8,
-        appCountForWidgetZikr: 33,
+        appCountsByPhrase: const {'سبحان الله وبحمده': 33},
       );
       expect(plan.zikr, 'سبحان الله وبحمده');
       expect(plan.count, 40);
-      expect(plan.lifetime, 140);
+      expect(plan.lifetime, 107); // 7 ضغطات جديدة فوق 100
       expect(plan.adoptedZikr, isFalse);
     });
 
@@ -314,7 +317,7 @@ void main() {
         appCount: 3,
         appLifetime: 900,
         seenRevision: 4,
-        appCountForWidgetZikr: 0,
+        appCountsByPhrase: const {'ذكر المستخدم الجديد': 3},
       );
       expect(plan.zikr, 'ذكر المستخدم الجديد');
       expect(plan.count, 3);
@@ -330,7 +333,7 @@ void main() {
         appCount: 10,
         appLifetime: 50,
         seenRevision: 0,
-        appCountForWidgetZikr: 0,
+        appCountsByPhrase: const {'الحمد لله': 10},
       );
       expect(plan.zikr, 'الحمد لله');
       expect(plan.count, 10);
@@ -346,7 +349,7 @@ void main() {
         appCount: 2,
         appLifetime: 10,
         seenRevision: 1,
-        appCountForWidgetZikr: 2,
+        appCountsByPhrase: const {'الله أكبر': 2},
       );
       expect(plan.zikr, 'الله أكبر');
       expect(plan.count, 4);
