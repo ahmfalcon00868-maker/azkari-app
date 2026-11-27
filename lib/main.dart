@@ -3753,24 +3753,31 @@ class _MainShellScreenState extends State<MainShellScreen> {
             children: [
               Row(
                 children: [
-                  IconButton(
-                    tooltip: s.tr('إعدادات السبحة', 'Tasbih settings', 'Tesbih ayarları'),
-                    onPressed: () => _openTasbihSettings(s.widget.prefs),
-                    icon: const Icon(Icons.tune_rounded, size: 21),
-                  ),
                   _assetIcon('assets/images/icon_tasbih.png', Icons.scatter_plot_rounded, size: 28),
                   const SizedBox(width: 8),
                   Text(s.tr('السبحة الإلكترونية', 'Tasbih', 'Tesbih'),
                       style: const TextStyle(fontSize: 22, fontWeight: FontWeight.bold)),
                 ],
               ),
-              TextButton.icon(
-                onPressed: () {
-                  s.tasbihCount = 0;
-                  s.saveAllState(resyncTimers: false);
-                },
-                icon: const Icon(Icons.refresh_rounded),
-                label: Text(s.tr('تصفير', 'Reset', 'Sıfırla')),
+              Row(
+                children: [
+                  TextButton.icon(
+                    onPressed: () {
+                      s.tasbihCount = 0;
+                      s.saveAllState(resyncTimers: false);
+                      s.syncTasbihWidget();
+                      setState(() {});
+                    },
+                    icon: const Icon(Icons.refresh_rounded),
+                    label: Text(s.tr('تصفير', 'Reset', 'Sıfırla')),
+                  ),
+                  // زر إعدادات الصفحة — أعلى يسار الصفحة في العربية (نهاية الصف).
+                  IconButton(
+                    tooltip: s.tr('إعدادات السبحة', 'Tasbih settings', 'Tesbih ayarları'),
+                    onPressed: () => _openTasbihSettings(s.widget.prefs),
+                    icon: const Icon(Icons.tune_rounded, size: 21),
+                  ),
+                ],
               ),
             ],
           ),

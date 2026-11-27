@@ -6,10 +6,6 @@ on:
   pull_request:
   workflow_dispatch:
 
-permissions:
-  contents: read
-  issues: write
-
 jobs:
   analyze-and-test:
     name: Analyze & Test
@@ -27,19 +23,7 @@ jobs:
         run: flutter pub get
 
       - name: Analyze (errors are fatal, warnings are not)
-        run: |
-          set -o pipefail
-          flutter analyze --no-fatal-warnings --no-fatal-infos 2>&1 | tee /tmp/analyze.log
-
-      - name: Report analyzer output when analysis fails
-        if: failure()
-        env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: |
-          if [ -f /tmp/analyze.log ]; then
-            { grep -E "error •|issues? found|No issues" /tmp/analyze.log || true; } | head -c 60000 > /tmp/analyze_trim.log
-            gh issue create --title "analyzer-output" --body-file /tmp/analyze_trim.log --repo "$GITHUB_REPOSITORY" || true
-          fi
+        run: flutter analyze --no-fatal-warnings --no-fatal-infos
 
       - name: Run tests
         run: flutter test --reporter expanded
