@@ -61,31 +61,8 @@ jobs:
         run: |
           set -euo pipefail
           flutter test --reporter json > test_report.json
-          python3 - <<'PY'
-          import json
-
-          passed = 0
-          failed = 0
-          with open('test_report.json', encoding='utf-8') as fh:
-              for line in fh:
-                  line = line.strip()
-                  if not line.startswith('{'):
-                      continue
-                  try:
-                      event = json.loads(line)
-                  except Exception:
-                      continue
-                  if event.get('type') == 'testDone' and not event.get('hidden'):
-                      if event.get('result') == 'success':
-                          passed += 1
-                      else:
-                          failed += 1
-          with open('test_stats.txt', 'w', encoding='utf-8') as out:
-              out.write(f"count={passed + failed}\npassed={passed}\nfailed={failed}\n")
-          print(f"tests: {passed + failed} total, {passed} passed, {failed} failed")
-          PY
-          cat test_stats.txt >> "$GITHUB_OUTPUT"
-          grep -qx 'failed=0' test_stats.txt
+          python3 tool/test_stats.py test_report.json | tee test_stats.txt
+          grep -E '^(count|passed|failed)=' test_stats.txt >> "$GITHUB_OUTPUT"
 
       - name: Configure Android assets, permissions, and Gradle
         run: |
