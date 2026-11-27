@@ -4,8 +4,8 @@ import 'package:flutter/material.dart';
 import 'package:share_plus/share_plus.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
-import 'services/khushu_service.dart';
-import 'services/notification_service.dart';
+import '../services/khushu_service.dart';
+import '../services/notification_service.dart';
 
 /// هوية أذكاري داخل تبويب «المزيد».
 class MoreColors {
