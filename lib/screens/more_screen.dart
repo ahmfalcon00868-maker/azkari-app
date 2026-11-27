@@ -122,13 +122,13 @@ class _MoreHubScreenState extends State<MoreHubScreen> {
 
   Timer? _fridayBoundaryTimer;
   Timer? _fridayWatchTimer;
-  bool? _lastShowSunnah;
+  String? _lastFridayState;
 
   @override
   void initState() {
     super.initState();
     _syncFridayDefaults();
-    _lastShowSunnah = _isSunnahWindowOpen();
+    _lastFridayState = _fridayStateKey();
     _scheduleFridayWatch();
   }
 
@@ -215,6 +215,12 @@ class _MoreHubScreenState extends State<MoreHubScreen> {
     );
   }
 
+  /// بصمة حالة كارت الجمعة: (يوم الجمعة؟ + هل النافذة مفتوحة؟)
+  String _fridayStateKey() {
+    final isFriday = _cityToday.weekday == DateTime.friday;
+    return '$isFriday-${_isSunnahWindowOpen()}';
+  }
+
   bool _isSunnahWindowOpen() {
     final w = _fridayWindow;
     if (w.start == null || w.end == null) return false;
@@ -247,9 +253,9 @@ class _MoreHubScreenState extends State<MoreHubScreen> {
     }
     _fridayWatchTimer ??= Timer.periodic(const Duration(minutes: 1), (_) {
       if (!mounted) return;
-      final isOpen = _isSunnahWindowOpen();
-      if (_lastShowSunnah != isOpen) {
-        _lastShowSunnah = isOpen;
+      final stateKey = _fridayStateKey();
+      if (_lastFridayState != stateKey) {
+        _lastFridayState = stateKey;
         setState(() {});
         _scheduleFridayWatch();
       }
@@ -759,7 +765,8 @@ class FridaySunnahCard extends StatelessWidget {
   String _windowLabel() {
     final start = thursdayMaghribLabel;
     final end = fridayMaghribLabel;
-    final city = lang == 'en' ? cityEn : cityAr;
+    final cityName = lang == 'en' ? cityEn : cityAr;
+    final city = '$cityName · $timeZone';
     if (lang == 'en') {
       return 'From Thursday maghrib $start to Friday maghrib $end — $city';
     }
