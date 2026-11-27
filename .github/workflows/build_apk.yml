@@ -8,6 +8,7 @@ on:
 # صلاحية قراءة فقط: هذا المسار لا يستطيع نشر Release أو تعديل الإصدارات إطلاقاً.
 permissions:
   contents: read
+  issues: write
 
 jobs:
   build-android-apk:
@@ -63,6 +64,22 @@ jobs:
           flutter test --reporter json > test_report.json
           python3 tool/test_stats.py test_report.json | tee test_stats.txt
           grep -E '^(count|passed|failed)=' test_stats.txt >> "$GITHUB_OUTPUT"
+
+      - name: TEMP diagnostics — report test failure details
+        if: failure()
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          {
+            echo "==== test_report tail ===="
+            tail -40 test_report.json 2>/dev/null || echo "(no report file)"
+            echo "==== test files ===="
+            ls -la test || true
+            echo "==== pubspec version ===="
+            grep -n '^version:' pubspec.yaml || true
+          } > /tmp/diag.txt
+          head -c 55000 /tmp/diag.txt > /tmp/diag_trim.txt
+          gh issue create --repo "$GITHUB_REPOSITORY" --title "temp-diagnostics" --body-file /tmp/diag_trim.txt || true
 
       - name: Configure Android assets, permissions, and Gradle
         run: |
