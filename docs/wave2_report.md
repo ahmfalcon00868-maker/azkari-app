@@ -1,6 +1,7 @@
 # تقرير الموجة الثانية (نسخة 2.1) — Azkari 1.1.0+2
 
-> الفرع: `arena/61463075-azkari-app` · آخر commit: `00558b6`
+> الفرع: `arena/61463075-azkari-app` · كوميت الكود الذي بُني منه الـ APK: `00558b6`
+> (الكوميتان التاليان توثيق/تنظيف CI فقط ولا يغيّران أي ملف في `lib/` أو `android_custom/`).
 > **لم يُدمج شيء في `main`، ولا Release، ولا نشر، والتحديثات معطّلة (`kUpdatesEnabled = false`).**
 > هذه النسخة تُبطل البناء السابق؛ استخدم الأرتيفاكت المذكور في القسم 7 فقط.
 
@@ -148,6 +149,7 @@ adb install -r Azkari-1.1.0+2.apk                            # تحديث مكا
 | Build run | https://github.com/ahmfalcon00868-maker/azkari-app/actions/runs/46069887827 |
 | Code checks | https://github.com/ahmfalcon00868-maker/azkari-app/actions/runs/46069887969 |
 | الأرتيفاكت | `Azkari-1.1.0-2-sha256-007d127b…-cert-6656d653…-tests-74-apk-bytes-64752379` |
+| كوميت البناء | `00558b6` |
 | **حجم الـ APK الحقيقي** | **64,752,379 بايت (61.75 م.ب)** |
 | حجم ملف ZIP المحمّل | 32,279,914 بايت (لا يُستخدم كمقياس للـ APK) |
 | **SHA-256 للـ APK** | `007d127b12da6c1506edd0a12e2c963e77369d39f4923e87fffefa0ffad666ce` |
