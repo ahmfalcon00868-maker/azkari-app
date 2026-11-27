@@ -9,6 +9,7 @@ class WidgetTasbihSnapshot {
     this.revision = 0,
     this.totals = const <String, int>{},
     this.totalsSchema = 0,
+    this.seededZikr = '',
   });
 
   /// الذكر المعروض الآن على الويدجت.
@@ -31,6 +32,9 @@ class WidgetTasbihSnapshot {
 
   /// إصدار بنية السجل (1 = موجود). صفر يعني ويدجت من إصدار أقدم.
   final int totalsSchema;
+
+  /// الذكر الذي بُذر رصيده من العدّاد المعروض لحظة الترقية (فارغ عادةً).
+  final String seededZikr;
 
   /// هل الويدجت يوفّر سجل الضغطات لكل ذكر؟
   bool get hasTotals => totalsSchema >= 1 && totals.isNotEmpty;
@@ -106,18 +110,18 @@ class TasbihSyncPlan {
 Map<String, int> seedWidgetWatermarks({
   required Map<String, int> totals,
   required Map<String, int> appCountsByPhrase,
-  String lastPushedZikr = '',
-  int lastPushedCount = 0,
+  String seededZikr = '',
 }) {
+  final String seeded = seededZikr.trim();
   final Map<String, int> out = <String, int>{};
   totals.forEach((phrase, total) {
-    final key = phrase.trim();
+    final String key = phrase.trim();
     if (key.isEmpty) return;
-    final int baseline =
-        (key == lastPushedZikr && lastPushedCount > 0)
-            ? lastPushedCount
-            : (appCountsByPhrase[key] ?? 0);
-    out[key] = math.min(baseline, total);
+    // الذكر المزروع فقط يبدأ من رصيد التطبيق (ضغطاته محسوبة سابقاً)؛ أي ذكر
+    // آخر يبدأ من صفر لأن كل ضغطاته تمّت في الويدجت ولم يستوعبها التطبيق بعد.
+    out[key] = (key == seeded)
+        ? math.min(appCountsByPhrase[key] ?? 0, total)
+        : 0;
   });
   return out;
 }
@@ -182,8 +186,7 @@ TasbihSyncPlan planTasbihSync({
         ? seedWidgetWatermarks(
             totals: widget.totals,
             appCountsByPhrase: appCountsByPhrase,
-            lastPushedZikr: lastPushedZikr,
-            lastPushedCount: lastPushedCount,
+            seededZikr: widget.seededZikr,
           )
         : Map<String, int>.from(watermarks);
     newWatermarks = Map<String, int>.from(base);

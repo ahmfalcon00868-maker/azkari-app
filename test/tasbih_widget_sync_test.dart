@@ -19,6 +19,7 @@ class _Widget {
     this.revision = 0,
     Map<String, int>? totals,
     this.totalsSchema = 1,
+    this.seededZikr = '',
   }) : totals = Map<String, int>.from(totals ?? const <String, int>{});
 
   String zikr;
@@ -27,6 +28,7 @@ class _Widget {
   int revision;
   final Map<String, int> totals;
   final int totalsSchema;
+  final String seededZikr;
 
   /// ضغطة على عدّاد الويدجت (تُسجَّل في سجل الذكر الحالي).
   void tap([int times = 1]) {
@@ -52,6 +54,7 @@ class _Widget {
         revision: revision,
         totals: Map<String, int>.from(totals),
         totalsSchema: totalsSchema,
+        seededZikr: seededZikr,
       );
 }
 
@@ -133,7 +136,12 @@ void main() {
       );
       // ويدجت مُرقّى: سجله يبدأ من الرصيد المعروض للذكر الحالي.
       final widget = _Widget(
-          zikr: kA, count: 12, lifetime: 100, totals: {kA: 12});
+        zikr: kA,
+        count: 12,
+        lifetime: 100,
+        totals: {kA: 12},
+        seededZikr: kA,
+      );
       app.sync(widget); // مزامنة أولى: تبني العلامة المائية دون إضافة شيء
       expect(app.count, 12);
 
@@ -160,7 +168,13 @@ void main() {
         lifetime: 20,
         storedCounts: {kA: 6},
       );
-      final widget = _Widget(zikr: kA, count: 6, lifetime: 6, totals: {kA: 6});
+      final widget = _Widget(
+        zikr: kA,
+        count: 6,
+        lifetime: 6,
+        totals: {kA: 6},
+        seededZikr: kA,
+      );
       app.sync(widget);
       expect(app.count, 6);
 
@@ -188,7 +202,13 @@ void main() {
         lifetime: 4,
         storedCounts: {kA: 4},
       );
-      final widget = _Widget(zikr: kA, count: 4, lifetime: 4, totals: {kA: 4});
+      final widget = _Widget(
+        zikr: kA,
+        count: 4,
+        lifetime: 4,
+        totals: {kA: 4},
+        seededZikr: kA,
+      );
       app.sync(widget);
 
       // حالة محفوظة على القرص قبل الإغلاق (ما كتبه التطبيق آخر مرة).
@@ -378,6 +398,7 @@ void main() {
         lifetime: 20,
         totals: {kA: 20},
         revision: 1,
+        seededZikr: kA,
       );
       app.sync(widget);
 
@@ -400,6 +421,7 @@ void main() {
         lifetime: 10,
         totals: {kA: 10},
         revision: 1,
+        seededZikr: kA,
       );
       app.sync(widget);
       expect(app.seen[kA], 10);
@@ -412,15 +434,41 @@ void main() {
       expect(app.seen[kA], 10);
     });
 
-    test('بذور العلامات المائية تحترم آخر عدّاد مدفوع', () {
+    test('بذور العلامات المائية تبدأ من صفر إلا للذكر المزروع', () {
       final seeds = seedWidgetWatermarks(
         totals: {kA: 12, kB: 3},
         appCountsByPhrase: {kA: 12},
-        lastPushedZikr: kB,
-        lastPushedCount: 5,
+        seededZikr: kA,
       );
-      expect(seeds[kA], 12);
-      expect(seeds[kB], 3, reason: 'لا تتجاوز مجموع السجل الأصلي');
+      expect(seeds[kA], 12, reason: 'الذكر المزروع رصيده محسوب مسبقاً');
+      expect(seeds[kB], 0, reason: 'ضغطات أي ذكر آخر جديدة بالكامل');
+    });
+
+    test('الترقية: رصيد الويدجت المزروع لا يُضاف مرتين', () {
+      final app = _App(
+        zikr: kA,
+        count: 12,
+        lifetime: 40,
+        storedCounts: {kA: 12},
+      );
+      // ويدجت قديم حُدِّث: بذر سجله من العدّاد المعروض (12) للذكر A.
+      final widget = _Widget(
+        zikr: kA,
+        count: 12,
+        lifetime: 12,
+        totals: {kA: 12},
+        revision: 1,
+        seededZikr: kA,
+      );
+      final plan = app.sync(widget);
+      expect(plan.addedFromWidget, 0);
+      expect(app.count, 12);
+      expect(app.lifetime, 40);
+
+      // وبعدها ضغطة جديدة تُحسب مرة واحدة.
+      widget.tap(1);
+      expect(app.sync(widget).addedFromWidget, 1);
+      expect(app.count, 13);
     });
   });
 }

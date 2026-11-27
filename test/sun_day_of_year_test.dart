@@ -119,8 +119,14 @@ void main() {
         latitude: kCairoLat,
         longitude: kCairoLng,
       );
-      final diff = b.sunset!.difference(a.sunset!).inMinutes;
-      expect(diff, inInclusiveRange(-60, 60),
+      // اللحظتان تفصل بينهما ~24 ساعة (يوم تقويمي واحد).
+      final elapsed = b.sunset!.difference(a.sunset!).inMinutes;
+      expect(elapsed, inInclusiveRange(1435, 1445));
+
+      // ووقت الغروب داخل اليوم UTC لا يقفز ساعة عند تغيير التوقيت المدني.
+      final aMinutes = a.sunset!.hour * 60 + a.sunset!.minute;
+      final bMinutes = b.sunset!.hour * 60 + b.sunset!.minute;
+      expect((bMinutes - aMinutes).abs(), lessThanOrEqualTo(5),
           reason: 'لا قفزة ساعة في حساب الشمس عند تغيير التوقيت المدني');
     });
 

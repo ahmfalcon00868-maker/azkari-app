@@ -82,6 +82,15 @@ object WidgetPrefs {
     // ---------------------------------------------------------------------
     const val KEY_TOTALS = "widget_totals"
     const val KEY_TOTALS_SCHEMA = "widget_totals_schema"
+
+    /**
+     * الذكر الذي بُذر رصيده من العدّاد المعروض لحظة الترقية.
+     *
+     * التطبيق يستخدمه ليبدأ علامته المائية من عدّاده المحفوظ لهذا الذكر فقط
+     * (لأن الرصيد المزروع يمثّل ضغطات سابقة استوعبها التطبيق أصلاً)، بينما تبدأ
+     * بقية الأذكار من صفر لأن ضغطاتها جديدة بالكامل.
+     */
+    const val KEY_TOTALS_SEED_ZIKR = "widget_totals_seed_zikr"
     const val TOTALS_SCHEMA_V1 = "1"
 
     fun readTotals(context: Context): MutableMap<String, Int> {
@@ -114,6 +123,7 @@ object WidgetPrefs {
         val display = readInt(context, "widget_count", 0)
         if (current.isNotEmpty() && display > 0 && !totals.containsKey(current)) {
             totals[current] = display
+            writeString(context, KEY_TOTALS_SEED_ZIKR, current)
         }
         writeTotals(context, totals)
         writeString(context, KEY_TOTALS_SCHEMA, TOTALS_SCHEMA_V1)

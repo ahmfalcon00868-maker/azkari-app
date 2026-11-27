@@ -30,6 +30,7 @@ class WidgetService {
   /// سجل الضغطات الدائم لكل ذكر (يكتبه الجانب الأصلي، لا يُستهلك هنا).
   static const String kTotalsKey = 'widget_totals';
   static const String kTotalsSchemaKey = 'widget_totals_schema';
+  static const String kTotalsSeedKey = 'widget_totals_seed_zikr';
 
   bool _initialized = false;
 
@@ -101,6 +102,8 @@ class WidgetService {
       final totalsSchema = int.tryParse(rawSchema.trim()) ?? 0;
       final rawTotals =
           await HomeWidget.getWidgetData<String>(kTotalsKey) ?? '';
+      final seededZikr =
+          await HomeWidget.getWidgetData<String>(kTotalsSeedKey) ?? '';
       return WidgetTasbihSnapshot(
         zikr: zikr,
         count: count,
@@ -108,6 +111,7 @@ class WidgetService {
         revision: revision,
         totals: _parseTotals(rawTotals),
         totalsSchema: totalsSchema,
+        seededZikr: seededZikr,
       );
     } catch (_) {
       return WidgetTasbihSnapshot.empty;
