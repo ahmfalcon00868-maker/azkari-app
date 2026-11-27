@@ -12,6 +12,7 @@ permissions:
 jobs:
   build-android-apk:
     name: Build Azkari v1.1.0+2 APK
+    if: false
     runs-on: ubuntu-latest
     steps:
       - name: Checkout code
@@ -326,9 +327,10 @@ jobs:
             SDK="${ANDROID_SDK_ROOT:-$ANDROID_HOME}"
             A=$(ls -d "$SDK"/build-tools/*/apksigner 2>/dev/null | tail -1)
             echo "using: ${A:-none}"
-            [ -n "$A" ] && "$A" verify --print-certs old.apk 2>&1 | head -20
+            if [ -n "$A" ]; then "$A" verify --print-certs old.apk 2>&1 | head -20 || true; fi
           } >> out.txt
       - name: Publish result as issue
+        if: always()
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
