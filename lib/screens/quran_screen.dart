@@ -456,7 +456,7 @@ void showSpotlightTour(
               Positioned(
                 left: 18,
                 right: 18,
-                top: showAbove ? null : ((hole?.bottom ?? 120) + 18).clamp(48.0, screenH - 220),
+                top: showAbove ? null : ((hole.bottom ?? 120) + 18).clamp(48.0, screenH - 220),
                 bottom: showAbove ? (screenH - (hole?.top ?? screenH * 0.6) + 18).clamp(48.0, screenH - 220) : null,
                 child: Container(
                   padding: const EdgeInsets.all(16),
@@ -1447,9 +1447,6 @@ class _SurahReaderScreenState extends State<SurahReaderScreen> {
     return 'https://everyayah.com/data/${_currentReciter.everyAyahFolder}/$sStr$aStr.mp3';
   }
 
-  String get _surahAudioUrl =>
-'https://cdn.islamic.network/quran/audio-surah/128/$_reciterId/$_surahNumber.mp3';
-
   Future<void> _ensureMediaArtUri() async {
     if (QuranAudioManager.instance.cachedArtUri != null) return;
     try {
@@ -2112,7 +2109,6 @@ class _SurahReaderScreenState extends State<SurahReaderScreen> {
         builder: (ctx, setSheetState) {
           final ayah = _ayahs[idx] as Map<String, dynamic>;
           final numInSurah = ayah['numberInSurah'] as int;
-          final globalNum = ayah['number'] as int;
           final text = (ayah['text'] ?? '').toString();
           final tafsir = (_tafsirAyahs[idx]['text'] ?? '').toString();
           final surahName = (_currentSurah['name'] ?? '').toString();

@@ -17,7 +17,6 @@ class AzkariProManager {
   static const String _kSupportTotalKey = 'pro_support_total_egp';
   static const String _kFreeTasteDateKey = 'pro_free_taste_date';
   static const String _kFreeTasteCountKey = 'pro_free_taste_count';
-  static const String _kStreakRewardedKey = 'pro_streak_7_rewarded';
 
   static const String kBybitUid = '105501004';
 

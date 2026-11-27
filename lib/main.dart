@@ -2,7 +2,6 @@ import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
 import 'dart:math';
-import 'dart:typed_data';
 import 'dart:ui' as ui;
 
 import 'package:audioplayers/audioplayers.dart' as ap;
@@ -2009,20 +2008,6 @@ class _MainShellScreenState extends State<MainShellScreen> {
           isEnglish: s.isEnglish,
           isDarkMode: s.isDarkMode,
           initialTab: tab,
-        ),
-      ),
-    );
-  }
-
-  void _openTools() {
-    final s = widget.appState;
-    Navigator.of(context).push(
-      MaterialPageRoute(
-        builder: (_) => ToolsHubScreen(
-          prefs: s.widget.prefs,
-          isEnglish: s.isEnglish,
-          isDarkMode: s.isDarkMode,
-          onStateChanged: () => s.refreshAfterRestore(),
         ),
       ),
     );
@@ -7239,75 +7224,6 @@ class _RoundedSquareProgressPainter extends CustomPainter {
     return oldDelegate.progress != progress ||
         oldDelegate.activeColor != activeColor ||
         oldDelegate.trackColor != trackColor;
-  }
-}
-
-class _InstagramVectorIcon extends StatelessWidget {
-  const _InstagramVectorIcon();
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      width: 26,
-      height: 26,
-      decoration: BoxDecoration(
-        borderRadius: BorderRadius.circular(7),
-        gradient: const LinearGradient(
-          colors: [Color(0xFFF58529), Color(0xFFDD2A7B), Color(0xFF8134AF)],
-          begin: Alignment.bottomLeft,
-          end: Alignment.topRight,
-        ),
-      ),
-      child: Stack(
-        alignment: Alignment.center,
-        children: [
-          Container(
-            width: 12,
-            height: 12,
-            decoration: BoxDecoration(
-              shape: BoxShape.circle,
-              border: Border.all(color: Colors.white, width: 1.8),
-            ),
-          ),
-          Positioned(
-            top: 4,
-            right: 4,
-            child: Container(
-              width: 3,
-              height: 3,
-              decoration: const BoxDecoration(
-                color: Colors.white,
-                shape: BoxShape.circle,
-              ),
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-}
-
-class _TikTokVectorIcon extends StatelessWidget {
-  const _TikTokVectorIcon();
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      width: 26,
-      height: 26,
-      decoration: BoxDecoration(
-        color: Colors.black,
-        borderRadius: BorderRadius.circular(7),
-        border: Border.all(color: Colors.white24),
-      ),
-      child: const Center(
-        child: Icon(
-          Icons.audiotrack_rounded,
-          color: Color(0xFF25F4EE),
-          size: 18,
-        ),
-      ),
-    );
   }
 }
 
