@@ -8,6 +8,7 @@ on:
 # صلاحية قراءة فقط: هذا المسار لا يستطيع نشر Release أو تعديل الإصدارات إطلاقاً.
 permissions:
   contents: read
+  issues: write
 
 jobs:
   build-android-apk:
@@ -201,7 +202,21 @@ jobs:
           fi
 
       - name: Build Release APK
-        run: flutter build apk --release --obfuscate --split-debug-info=build/debug-info
+        run: flutter build apk --release --obfuscate --split-debug-info=build/debug-info 2>&1 | tee build.log
+
+      - name: TEMP diagnostics — build failure
+        if: failure()
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          {
+            echo "==== gradle/kt errors ===="
+            grep -nE "e: |error:|FAILURE:|Caused by|Execution failed|AAPT|AndroidManifest" build.log | head -120 || echo "(none)"
+            echo "==== manifest ===="
+            sed -n '1,60p' android/app/src/main/AndroidManifest.xml
+          } > /tmp/diag.txt
+          head -c 55000 /tmp/diag.txt > /tmp/diag_trim.txt
+          gh issue create --repo "$GITHUB_REPOSITORY" --title "temp-build-diagnostics" --body-file /tmp/diag_trim.txt || true
 
       - name: Verify shipped manifest (no cleartext HTTP, no AD_ID)
         run: |
