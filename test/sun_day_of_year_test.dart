@@ -8,8 +8,8 @@ const double kCairoLng = 31.2357;
 
 /// تواريخ تغيّر التوقيت الصيفي في مصر لعام 2026 (يبدأ الجمعة الأخيرة من أبريل
 /// وينتهي الخميس الأخير من أكتوبر).
-const DateTime kDstStart = DateTime(2026, 4, 24);
-const DateTime kDstEnd = DateTime(2026, 10, 29);
+final DateTime kDstStart = DateTime(2026, 4, 24);
+final DateTime kDstEnd = DateTime(2026, 10, 29);
 
 void main() {
   group('dayOfYearUtc — حساب اليوم في السنة', () {
