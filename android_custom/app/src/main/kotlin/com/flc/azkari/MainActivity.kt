@@ -32,18 +32,35 @@ class MainActivity : FlutterActivity() {
         }
     }
 
+    private var lastVolumeEventAt: Long = 0L
+    private var lastVolumeDirection: Int = 0
+
     override fun dispatchKeyEvent(event: KeyEvent): Boolean {
         val code = event.keyCode
         val isVolume = code == KeyEvent.KEYCODE_VOLUME_UP ||
             code == KeyEvent.KEYCODE_VOLUME_DOWN
         if (isVolume && captureVolume) {
-            if (event.action == KeyEvent.ACTION_DOWN) {
-                val dir = if (code == KeyEvent.KEYCODE_VOLUME_UP) 1 else -1
+            val dir = if (code == KeyEvent.KEYCODE_VOLUME_UP) 1 else -1
+            // الضغط المستمر يولّد أحداث ACTION_DOWN متكررة بنفس النوع؛ تُحتسب
+            // تسبيحة واحدة فقط عند أول ضغطة، وأي حدث تكرار يُبتلع بلا عدّ.
+            val isRepeat = event.repeatCount > 0 ||
+                event.action == KeyEvent.ACTION_MULTIPLE
+            val now = System.currentTimeMillis()
+            val tooSoon = dir == lastVolumeDirection &&
+                now - lastVolumeEventAt < MIN_PRESS_GAP_MS
+            if (!isRepeat && event.action == KeyEvent.ACTION_DOWN && !tooSoon) {
+                lastVolumeEventAt = now
+                lastVolumeDirection = dir
                 channel?.invokeMethod("volumeKey", dir)
             }
-            // منع تغيير صوت الهاتف تماماً
+            // منع تغيير صوت الهاتف تماماً (سواء ضغطة أصلية أو تكراراً)
             return true
         }
         return super.dispatchKeyEvent(event)
+    }
+
+    private companion object {
+        /** أقل فاصل بين ضغطتين منفصلتين على نفس الزر (مللي ثانية). */
+        const val MIN_PRESS_GAP_MS = 150L
     }
 }

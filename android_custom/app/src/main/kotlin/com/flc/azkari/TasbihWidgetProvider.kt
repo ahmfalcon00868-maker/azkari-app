@@ -49,13 +49,17 @@ class TasbihWidgetProvider : AppWidgetProvider() {
                 val lifetime = WidgetPrefs.readInt(context, KEY_LIFETIME, 0) + 1
                 WidgetPrefs.writeInt(context, KEY_COUNT, count)
                 WidgetPrefs.writeInt(context, KEY_LIFETIME, lifetime)
+                WidgetPrefs.bumpRevision(context)
                 refreshAll(context)
             }
             ACTION_NEXT -> {
                 val current = WidgetPrefs.readString(context, KEY_ZIKR, "")
                 val idx = ZIKR_POOL.indexOf(current)
                 val next = ZIKR_POOL[(idx + 1) % ZIKR_POOL.size]
-                WidgetPrefs.of(context).edit().putString(KEY_ZIKR, next).apply()
+                WidgetPrefs.writeString(context, KEY_ZIKR, next)
+                // ذكر جديد => عدّاد جديد (التطبيق سيضيف رصيده المحفوظ لهذا الذكر)
+                WidgetPrefs.writeInt(context, KEY_COUNT, 0)
+                WidgetPrefs.bumpRevision(context)
                 refreshAll(context)
             }
             else -> refreshAll(context)

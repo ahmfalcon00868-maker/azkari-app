@@ -1,5 +1,7 @@
 import 'package:home_widget/home_widget.dart';
 
+import 'widget_sync_logic.dart';
+
 /// مزامنة بيانات التطبيق مع تطبيقات الشاشة الرئيسية (Android Home Widgets).
 ///
 /// الويدجت الأولى: «السبحة والذكر السريع» — عداد + ذكر + رصيد التطبيق.
@@ -19,6 +21,9 @@ class WidgetService {
   static const String kMorningKey = 'widget_morning_done';
   static const String kEveningKey = 'widget_evening_done';
   static const String kAppLinkKey = 'widget_app_link';
+
+  /// مراجعة يزيدها الجانب الأصلي عند كل تعديل يتم من الويدجت نفسه.
+  static const String kRevisionKey = 'widget_revision';
 
   bool _initialized = false;
 
@@ -72,16 +77,43 @@ class WidgetService {
     } catch (_) {}
   }
 
-  /// يقرأ العداد الذي زاده المستخدم من ويدجت الشاشة الرئيسية.
-  Future<({int count, int lifetime})> readTasbihFromWidget() async {
+  /// يقرأ حالة ويدجت السبحة كاملة (الذكر + العداد + المراجعة).
+  ///
+  /// المراجعة تُخزَّن كنص من الجانب الأصلي لتفادي اختلاف أنواع الترميز بين
+  /// المنصات، وتُقرأ هنا بأمان.
+  Future<WidgetTasbihSnapshot> readTasbihState() async {
     await init();
     try {
-      final count = await HomeWidget.getWidgetData<int>(kCountKey) ?? 0;
-      final lifetime = await HomeWidget.getWidgetData<int>(kLifetimeKey) ?? 0;
-      return (count: count, lifetime: lifetime);
+      final zikr = await HomeWidget.getWidgetData<String>(kZikrKey) ?? '';
+      final count = await _readInt(kCountKey);
+      final lifetime = await _readInt(kLifetimeKey);
+      final rawRevision =
+          await HomeWidget.getWidgetData<String>(kRevisionKey) ?? '';
+      final revision = int.tryParse(rawRevision.trim()) ?? 0;
+      return WidgetTasbihSnapshot(
+        zikr: zikr,
+        count: count,
+        lifetime: lifetime,
+        revision: revision,
+      );
     } catch (_) {
-      return (count: 0, lifetime: 0);
+      return WidgetTasbihSnapshot.empty;
     }
+  }
+
+  Future<int> _readInt(String key) async {
+    try {
+      return await HomeWidget.getWidgetData<int>(key) ?? 0;
+    } catch (_) {
+      final raw = await HomeWidget.getWidgetData<String>(key);
+      return int.tryParse((raw ?? '').trim()) ?? 0;
+    }
+  }
+
+  /// يقرأ العداد الذي زاده المستخدم من ويدجت الشاشة الرئيسية.
+  Future<({int count, int lifetime})> readTasbihFromWidget() async {
+    final snapshot = await readTasbihState();
+    return (count: snapshot.count, lifetime: snapshot.lifetime);
   }
 
   /// تحديث كامل بعد أي تغيير في السبحة أو الورد.

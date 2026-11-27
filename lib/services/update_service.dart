@@ -17,6 +17,19 @@ class UpdateService {
   /// جاهزة للتوزيع على المستخدمين.
   static const bool kUpdatesEnabled = false;
 
+  /// حماية ثانية مستقلة عن الفرع: حتى لو فُتح [kUpdatesEnabled] في مكان ما،
+  /// لا يعمل أي فحص/تنزيل/تثبيت إلا في بناء صُرّح له صراحةً وقت البناء:
+  ///
+  ///     flutter build apk --dart-define=AZKARI_ALLOW_UPDATES=true
+  ///
+  /// بناؤنا الحالي (وبناء أي فرع تجريبي) لا يمرّر هذا التعريف، فالتحديثات
+  /// ميتة تماماً بغضّ النظر عن قيمة المفتاح أعلاه.
+  static const bool kUpdatesBuildFlag =
+      bool.fromEnvironment('AZKARI_ALLOW_UPDATES', defaultValue: false);
+
+  /// هل نظام التحديث فعّال فعلاً في هذا البناء؟
+  static bool get updatesActive => kUpdatesEnabled && kUpdatesBuildFlag;
+
   static const String _versionUrl =
       'https://raw.githubusercontent.com/ahmfalcon00868-maker/azkari-app/main/version.json';
   static const String _releasesApiUrl =
@@ -41,7 +54,7 @@ class UpdateService {
     bool showNoUpdateMessage = false,
   }) async {
     // Kill switch: لا يصل أي تحديث للمستخدمين أثناء التطوير.
-    if (!kUpdatesEnabled) {
+    if (!updatesActive) {
       if (showNoUpdateMessage && context.mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
@@ -324,7 +337,7 @@ class UpdateService {
     bool isEnglish, {
     bool reset = false,
   }) async {
-    if (!kUpdatesEnabled) return;
+    if (!updatesActive) return;
     _activeApkUrl = apkUrl;
     _isCancelled = false;
     _isPaused = false;

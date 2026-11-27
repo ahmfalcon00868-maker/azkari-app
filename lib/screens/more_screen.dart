@@ -5,7 +5,9 @@ import 'package:share_plus/share_plus.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import '../services/khushu_service.dart';
-import '../services/notification_service.dart';
+import '../services/sun_times.dart';
+import '../services/sunna_reminders.dart';
+import 'tools_screen.dart' show kQiblaCities, QiblaCity;
 
 /// هوية أذكاري داخل تبويب «المزيد».
 class MoreColors {
@@ -50,13 +52,6 @@ class MoreStats {
   final int azkarDoneToday;
   final int azkarTotalToday;
   final int azkarDaysThisWeek;
-}
-
-/// هل نعرض بطاقة سنن الجمعة الآن؟ (من مغرب الخميس حتى مغرب الجمعة)
-bool isFridaySunnahWindow(DateTime now) {
-  if (now.weekday == DateTime.thursday && now.hour >= 17) return true;
-  if (now.weekday == DateTime.friday && now.hour < 18) return true;
-  return false;
 }
 
 /// مفتاح أسبوع الجمعة (السنة-رقم الأسبوع) لتخزين قائمة التحقق.
@@ -129,6 +124,48 @@ class _MoreHubScreenState extends State<MoreHubScreen> {
     _syncFridayDefaults();
   }
 
+  Future<void> _pickCity() async {
+    await showModalBottomSheet(
+      context: context,
+      backgroundColor: MoreColors.card(dark),
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(22)),
+      ),
+      builder: (ctx) => SafeArea(
+        child: ListView(
+          shrinkWrap: true,
+          children: [
+            Padding(
+              padding: const EdgeInsets.fromLTRB(16, 16, 16, 8),
+              child: Text(
+                _t(lang, 'مدينتك لحساب وقت المغرب', 'Your city for maghrib time',
+                    'Meğrib vakti için şehriniz'),
+                style: const TextStyle(fontSize: 15, fontWeight: FontWeight.bold),
+              ),
+            ),
+            for (var i = 0; i < kQiblaCities.length; i++)
+              ListTile(
+                dense: true,
+                leading: const Icon(Icons.location_city_rounded,
+                    size: 20, color: MoreColors.sky),
+                title: Text(lang == 'en' ? kQiblaCities[i].nameEn : kQiblaCities[i].nameAr,
+                    style: const TextStyle(fontSize: 13.5)),
+                trailing: (widget.prefs.getInt('qiblaCityIdx') ?? 0) == i
+                    ? const Icon(Icons.check_circle_rounded,
+                        size: 18, color: MoreColors.sky)
+                    : null,
+                onTap: () {
+                  widget.prefs.setInt('qiblaCityIdx', i);
+                  Navigator.pop(ctx);
+                  setState(() {});
+                },
+              ),
+          ],
+        ),
+      ),
+    );
+  }
+
   void _syncFridayDefaults() {
     final key = fridayWeekKey(DateTime.now());
     if (widget.prefs.getString('friday_checklist_week') != key) {
@@ -140,11 +177,35 @@ class _MoreHubScreenState extends State<MoreHubScreen> {
     }
   }
 
+  /// المدينة المستخدمة لحساب المغرب (نفس مدينة القبلة لتفادي ازدواج الإعداد).
+  QiblaCity get _city {
+    final idx = widget.prefs.getInt('qiblaCityIdx') ?? 0;
+    if (idx < 0 || idx >= kQiblaCities.length) return kQiblaCities.first;
+    return kQiblaCities[idx];
+  }
+
+  /// مغرب الخميس والجمعة لهذا الأسبوع بحسب موقع المدينة المختارة.
+  ({DateTime? start, DateTime? end}) get _fridayWindow {
+    final c = _city;
+    return fridaySunnahWindow(
+      DateTime.now(),
+      latitude: c.lat,
+      longitude: c.lng,
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final now = DateTime.now();
     final showFriday = now.weekday == DateTime.friday;
-    final showSunnah = isFridaySunnahWindow(now);
+    final window = _fridayWindow;
+    final showSunnah = window.start != null &&
+        window.end != null &&
+        isFridaySunnahWindow(
+          now,
+          thursdayMaghrib: window.start!,
+          fridayMaghrib: window.end!,
+        );
 
     return ListView(
       padding: const EdgeInsets.fromLTRB(16, 12, 16, 110),
@@ -165,6 +226,11 @@ class _MoreHubScreenState extends State<MoreHubScreen> {
             prefs: widget.prefs,
             lang: lang,
             isDarkMode: dark,
+            thursdayMaghrib: window.start!,
+            fridayMaghrib: window.end!,
+            cityAr: _city.nameAr,
+            cityEn: _city.nameEn,
+            onChangeCity: _pickCity,
             onChanged: () => setState(() {}),
           ),
           const SizedBox(height: 12),
@@ -600,13 +666,25 @@ class FridaySunnahCard extends StatelessWidget {
     required this.prefs,
     required this.lang,
     required this.isDarkMode,
+    required this.thursdayMaghrib,
+    required this.fridayMaghrib,
+    required this.cityAr,
+    required this.cityEn,
     required this.onChanged,
+    this.onChangeCity,
   });
 
   final SharedPreferences prefs;
   final String lang;
   final bool isDarkMode;
+
+  /// مغرب الخميس (بداية النافذة) ومغرب الجمعة (نهايتها) بالتوقيت المحلي.
+  final DateTime thursdayMaghrib;
+  final DateTime fridayMaghrib;
+  final String cityAr;
+  final String cityEn;
   final VoidCallback onChanged;
+  final VoidCallback? onChangeCity;
 
   static const List<List<String>> _items = [
     ['friday_kahf', 'سورة الكهف', 'Surah Al-Kahf', 'Kehf Suresi'],
@@ -614,6 +692,20 @@ class FridaySunnahCard extends StatelessWidget {
     ['friday_tabkeer', 'التبكير إلى الصلاة', 'Going early to prayer', 'Namaza erken gitmek'],
     ['friday_saah', 'الدعاء في ساعة الاستجابة', 'Dua in the hour of response', 'İcabet saatinde dua'],
   ];
+
+  /// نص يوضح النافذة الفعلية (مغرب الخميس ← مغرب الجمعة) والمدينة المستخدمة.
+  String _windowLabel() {
+    final start = _clock(thursdayMaghrib);
+    final end = _clock(fridayMaghrib);
+    final city = lang == 'en' ? cityEn : cityAr;
+    if (lang == 'en') {
+      return 'From Thursday maghrib $start to Friday maghrib $end — $city';
+    }
+    if (lang == 'tr') {
+      return 'Perşembe meğribi $start — Cuma meğribi $end';
+    }
+    return 'من مغرب الخميس $start إلى مغرب الجمعة $end — $city';
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -644,6 +736,28 @@ class FridaySunnahCard extends StatelessWidget {
                       fontSize: 12,
                       fontWeight: FontWeight.bold,
                       color: MoreColors.gold)),
+            ],
+          ),
+          const SizedBox(height: 2),
+          Row(
+            children: [
+              const Icon(Icons.wb_twilight_rounded,
+                  size: 14, color: MoreColors.sky),
+              const SizedBox(width: 6),
+              Expanded(
+                child: Text(
+                  _windowLabel(),
+                  style: TextStyle(
+                      fontSize: 10.5, color: MoreColors.textSoft(isDarkMode)),
+                ),
+              ),
+              if (onChangeCity != null)
+                IconButton(
+                  visualDensity: VisualDensity.compact,
+                  tooltip: _t(lang, 'تغيير المدينة', 'Change city', 'Şehri değiştir'),
+                  onPressed: onChangeCity,
+                  icon: const Icon(Icons.edit_location_alt_rounded, size: 16),
+                ),
             ],
           ),
           const SizedBox(height: 6),
@@ -982,6 +1096,23 @@ class QadaTrackerScreen extends StatefulWidget {
 
 class _QadaTrackerScreenState extends State<QadaTrackerScreen> {
   String get lang => widget.lang;
+  final SunnaReminders _reminders = SunnaReminders();
+
+  @override
+  void initState() {
+    super.initState();
+    // إعادة تثبيت التذكيرات الأسبوعية إن كانت مفعّلة (تستبدل أي جدولة يومية قديمة).
+    if (widget.prefs.getBool('sunna_fast_reminder') ?? false) {
+      _reminders.apply(
+        enabled: true,
+        mondayTitle: _t(lang, 'صيام الإثنين', 'Monday fasting', 'Pazartesi orucu'),
+        thursdayTitle:
+            _t(lang, 'صيام الخميس', 'Thursday fasting', 'Perşembe orucu'),
+        body: _t(lang, 'لا تنس صيام اليوم إن شاء الله.',
+            'Do not forget today\u2019s fast.', 'Bugünkü orucu unutmayın.'),
+      );
+    }
+  }
 
   int get _owed => widget.prefs.getInt('qada_days_total') ?? 0;
   int get _done => widget.prefs.getInt('qada_days_done') ?? 0;
@@ -1125,30 +1256,30 @@ class _QadaTrackerScreenState extends State<QadaTrackerScreen> {
                   contentPadding: EdgeInsets.zero,
                   value: reminderOn,
                   onChanged: (v) async {
-                    widget.prefs.setBool('sunna_fast_reminder', v);
-                    if (v) {
-                      await NotificationService.instance.scheduleDaily(
-                        id: 201,
-                        title: _t(lang, 'صيام الإثنين', 'Monday fasting', 'Pazartesi orucu'),
-                        body: _t(lang, 'لا تنس صيام اليوم إن شاء الله.',
-                            'Do not forget today’s fast.', 'Bugünkü orucu unutmayın.'),
-                        hour: 4,
-                        minute: 30,
-                      );
-                      await NotificationService.instance.scheduleDaily(
-                        id: 202,
-                        title: _t(lang, 'صيام الخميس', 'Thursday fasting', 'Perşembe orucu'),
-                        body: _t(lang, 'لا تنس صيام اليوم إن شاء الله.',
-                            'Do not forget today’s fast.', 'Bugünkü orucu unutmayın.'),
-                        hour: 4,
-                        minute: 35,
-                      );
-                    } else {
-                      await NotificationService.instance.cancel(201);
-                      await NotificationService.instance.cancel(202);
-                    }
+                    // 1) نحفظ اختيار المستخدم 2) نطبّق الجدولة الأسبوعية (أو نلغيها).
+                    await widget.prefs.setBool('sunna_fast_reminder', v);
+                    await _reminders.apply(
+                      enabled: v,
+                      mondayTitle: _t(lang, 'صيام الإثنين', 'Monday fasting',
+                          'Pazartesi orucu'),
+                      thursdayTitle: _t(lang, 'صيام الخميس', 'Thursday fasting',
+                          'Perşembe orucu'),
+                      body: _t(lang, 'لا تنس صيام اليوم إن شاء الله.',
+                          'Do not forget today\u2019s fast.',
+                          'Bugünkü orucu unutmayın.'),
+                    );
+                    if (!mounted) return;
                     setState(() {});
                   },
+                  subtitle: Text(
+                    _t(
+                      lang,
+                      'تذكير أسبوعي: الإثنين ٤:٣٠ ص والخميس ٤:٣٥ ص فقط',
+                      'Weekly only: Monday 4:30 AM and Thursday 4:35 AM',
+                      'Haftalık: Pazartesi 04:30 ve Perşembe 04:35',
+                    ),
+                    style: const TextStyle(fontSize: 11),
+                  ),
                   title: Text(
                     _t(lang, 'تذكير هادئ بالصيام', 'Gentle fasting reminder',
                         'Nazik oruç hatırlatması'),
@@ -1175,3 +1306,8 @@ class _QadaTrackerScreenState extends State<QadaTrackerScreen> {
 
 /// أداة مساعدة للاختبارات: تحويل قائمة إلى JSON آمن.
 String encodeChecklist(Map<String, bool> map) => jsonEncode(map);
+
+
+/// توقيت محلي بصيغة 24 ساعة (مثلاً 17:23).
+String _clock(DateTime d) =>
+    '${d.hour.toString().padLeft(2, '0')}:${d.minute.toString().padLeft(2, '0')}';

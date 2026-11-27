@@ -27,6 +27,7 @@ import 'screens/tools_screen.dart';
 import 'screens/more_screen.dart';
 import 'widgets/tasbih_skins.dart';
 import 'services/volume_button_service.dart';
+import 'services/widget_sync_logic.dart';
 import 'services/widget_service.dart';
 import 'services/khushu_service.dart';
 import 'services/notification_service.dart';
@@ -779,7 +780,8 @@ class _AzkariAppState extends State<AzkariApp> with WidgetsBindingObserver {
     _rebuildAzkarList();
     resetDailyAzkarIfNeeded();
     _scheduleMidnightReset();
-    syncTasbihWidget();
+    // مهم: نقرأ حالة الويدجت أولاً ثم نكتبها، حتى لا يعود ذكر قديم عند الفتح.
+    _pullTasbihFromWidget();
     syncAyahWidget();
     _syncReminders();
     _syncFloatingTimer();
@@ -1175,16 +1177,49 @@ class _AzkariAppState extends State<AzkariApp> with WidgetsBindingObserver {
     }
   }
 
-  /// أي تسبيح تم من ويدجت الشاشة الرئيسية يُضاف لرصيد التطبيق عند العودة.
-  Future<void> _pullTasbihFromWidget() async {
-    final data = await WidgetService.instance.readTasbihFromWidget();
-    if (data.count > tasbihCount) {
-      final delta = data.count - tasbihCount;
-      tasbihCount = data.count;
-      tasbihLifetime += delta;
+  /// يدمج ما تم في ويدجت الشاشة الرئيسية (ذكر جديد أو عدّاد) مع حالة التطبيق.
+  ///
+  /// القاعدة: تُتبنّى حالة الويدجت فقط إذا زادت مراجعتها عن آخر مراجعة رآها
+  /// التطبيق، ثم يُعاد دفع حالة التطبيق النهائية إلى الويدجت — فلا يعود ذكر قديم
+  /// ولا يُكتب فوق اختيار المستخدم من الويدجت.
+  Future<void> _pullTasbihFromWidget({bool pushBack = true}) async {
+    final snapshot = await WidgetService.instance.readTasbihState();
+    final seenRevision = widget.prefs.getInt('widget_revision_seen') ?? 0;
+    final plan = planTasbihSync(
+      widget: snapshot,
+      appZikr: tasbihPhrase,
+      appCount: tasbihCount,
+      appLifetime: tasbihLifetime,
+      seenRevision: seenRevision,
+      appCountForWidgetZikr:
+          tasbihCountsByPhrase[snapshot.zikr] ?? snapshot.count,
+    );
+
+    if (plan.seenRevision != seenRevision) {
+      await widget.prefs.setInt('widget_revision_seen', plan.seenRevision);
+    }
+
+    var changed = false;
+    if (plan.zikr != tasbihPhrase) {
+      tasbihPhrase = plan.zikr;
+      await widget.prefs.setString('tasbihPhrase', plan.zikr);
+      changed = true;
+    }
+    if (plan.count != tasbihCount) {
+      tasbihCount = plan.count;
+      changed = true;
+    }
+    if (plan.lifetime != tasbihLifetime) {
+      tasbihLifetime = plan.lifetime;
+      changed = true;
+    }
+
+    if (changed) {
+      tasbihCountsByPhrase[tasbihPhrase] = tasbihCount;
       saveLightState();
       if (mounted) setState(() {});
     }
+    if (pushBack) syncTasbihWidget();
   }
 
   /// تاريخ اليوم بصيغة YYYY-MM-DD.

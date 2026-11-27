@@ -111,6 +111,12 @@ void main() {
       );
     });
 
+    test('التحديثات لا تعمل إلا في بناء صُرّح له صراحةً', () {
+      expect(UpdateService.updatesActive, isFalse,
+          reason: 'بدون --dart-define=AZKARI_ALLOW_UPDATES=true يجب أن يبقى النظام ميتاً');
+      expect(UpdateService.kUpdatesBuildFlag, isFalse);
+    });
+
     test('مقارنة الإصدارات تعتبر الأحدث فقط تحديثًا', () {
       expect(UpdateService.isNewerVersion('1.1.0', '1.0.0'), isTrue);
       expect(UpdateService.isNewerVersion('v1.2.0', '1.1.9'), isTrue);

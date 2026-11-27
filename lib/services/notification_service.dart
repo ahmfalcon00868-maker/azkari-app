@@ -2,6 +2,8 @@ import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 import 'package:timezone/data/latest_all.dart' as tz;
 import 'package:timezone/timezone.dart' as tz;
 
+import 'reminder_schedule.dart';
+
 class NotificationService {
   static final NotificationService instance = NotificationService._();
   final FlutterLocalNotificationsPlugin _plugin =
@@ -61,5 +63,59 @@ class NotificationService {
       matchDateTimeComponents: DateTimeComponents.time, ); } catch (_) {}
   }
 
-  Future<void> cancel(int id) async => _plugin.cancel(id);
+  /// تذكير أسبوعي: يتكرر في يوم محدد من الأسبوع فقط (مثل الإثنين والخميس).
+  Future<void> scheduleWeekly({
+    required int id,
+    required String title,
+    required String body,
+    required int weekday,
+    required int hour,
+    required int minute,
+  }) async {
+    final now = tz.TZDateTime.now(tz.local);
+    final next = nextWeeklyOccurrence(
+      DateTime(now.year, now.month, now.day, now.hour, now.minute),
+      weekday: weekday,
+      hour: hour,
+      minute: minute,
+    );
+    final scheduled = tz.TZDateTime(
+      tz.local,
+      next.year,
+      next.month,
+      next.day,
+      next.hour,
+      next.minute,
+    );
+
+    const androidDetails = AndroidNotificationDetails(
+      'azkari_sunna_fasting_channel',
+      'تذكيرات صيام السنن',
+      channelDescription: 'تذكير أسبوعي بصيام الإثنين والخميس',
+      importance: Importance.defaultImportance,
+      priority: Priority.defaultPriority,
+      icon: 'ic_notification',
+      playSound: true,
+    );
+
+    try {
+      await _plugin.zonedSchedule(
+        id,
+        title,
+        body,
+        scheduled,
+        const NotificationDetails(android: androidDetails),
+        androidScheduleMode: AndroidScheduleMode.inexactAllowWhileIdle,
+        uiLocalNotificationDateInterpretation:
+            UILocalNotificationDateInterpretation.absoluteTime,
+        matchDateTimeComponents: DateTimeComponents.dayOfWeekAndTime,
+      );
+    } catch (_) {}
+  }
+
+  Future<void> cancel(int id) async {
+    try {
+      await _plugin.cancel(id);
+    } catch (_) {}
+  }
 }

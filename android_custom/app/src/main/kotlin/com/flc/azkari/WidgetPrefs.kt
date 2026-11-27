@@ -46,4 +46,26 @@ object WidgetPrefs {
     fun writeInt(context: Context, key: String, value: Int) {
         of(context).edit().putInt(key, value).apply()
     }
+
+    fun writeString(context: Context, key: String, value: String) {
+        of(context).edit().putString(key, value).apply()
+    }
+
+    /**
+     * يزيد «مراجعة» الويدجت: التطبيق يقارنها بآخر مراجعة رآها ليتبنّى ما فعله
+     * المستخدم من الويدجت (ذكر جديد / عدّاد) بدل الكتابة فوقه.
+     */
+    fun bumpRevision(context: Context): Int {
+        val next = (readRevision(context) + 1)
+        writeString(context, KEY_REVISION, next.toString())
+        return next
+    }
+
+    fun readRevision(context: Context): Int {
+        val raw = readString(context, KEY_REVISION, "0").trim()
+        return raw.toLongOrNull()?.toInt() ?: 0
+    }
+
+    const val KEY_REVISION = "widget_revision"
+}
 }
