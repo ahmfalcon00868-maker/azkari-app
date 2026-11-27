@@ -224,19 +224,19 @@ jobs:
 
       - name: Verify shipped manifest (no cleartext HTTP, no AD_ID)
         run: |
-          set -e
-          MERGED=$(find build/app/intermediates -path "*merged*" -name AndroidManifest.xml | head -n 1)
-          echo "merged manifest: $MERGED"
-          test -n "$MERGED"
-          if grep -q 'usesCleartextTraffic="true"' "$MERGED"; then
+          set -euo pipefail
+          MAPS=$(grep -rl 'com.flc.azkari' --include=AndroidManifest.xml build/app/intermediates 2>/dev/null || true)
+          echo "manifests inspected:"; echo "$MAPS"
+          test -n "$MAPS"
+          if grep -l 'usesCleartextTraffic="true"' $MAPS 2>/dev/null | grep -q .; then
             echo "::error::cleartext HTTP is still allowed in the shipped manifest"
             exit 1
           fi
-          if grep -q 'com.google.android.gms.permission.AD_ID' "$MERGED"; then
+          if grep -l 'com.google.android.gms.permission.AD_ID' $MAPS 2>/dev/null | grep -q .; then
             echo "::error::AD_ID permission is still present in the shipped manifest"
             exit 1
           fi
-          grep -q 'com.flc.azkari.TasbihWidgetProvider' "$MERGED"
+          grep -q 'com.flc.azkari.TasbihWidgetProvider' $MAPS
           echo "manifest hardened ✔"
 
       - name: Verify signature & compute checksums
