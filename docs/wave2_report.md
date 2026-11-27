@@ -1,183 +1,179 @@
-# تقرير الموجة الثانية (نسخة 2.1) — Azkari 1.1.0+2
+# تقرير الموجة الثانية (نسخة 2.2) — Azkari 1.1.0+2
 
-> الفرع: `arena/61463075-azkari-app` · كوميت الكود الذي بُني منه الـ APK: `00558b6`
-> (الكوميتان التاليان توثيق/تنظيف CI فقط ولا يغيّران أي ملف في `lib/` أو `android_custom/`).
-> **لم يُدمج شيء في `main`، ولا Release، ولا نشر، والتحديثات معطّلة (`kUpdatesEnabled = false`).**
-> هذه النسخة تُبطل البناء السابق؛ استخدم الأرتيفاكت المذكور في القسم 7 فقط.
+> الفرع: `arena/61463075-azkari-app` · كوميت الكود الذي بُني منه الـ APK: `d6483e3`
+> **لا دمج في `main`، لا Release، لا نشر، والتحديثات معطّلة (`kUpdatesEnabled = false`).**
+> هذه النسخة تُبطل كل بناء سابق؛ استخدم أرتيفاكت القسم 7.
 
 ---
 
-## 1) مزامنة الويدجت — إعادة بناء كاملة على سجل ضغطات لكل ذكر
+## 1) مزامنة الويدجت — سجل ضغطات لكل ذكر + معاملة ذرّية
 
-**ما كان خطأً:** النسخة السابقة اشتقّت الضغطات من `widget.count - baseline`. العدّاد المعروض
-يُصفَّر عند تبديل الذكر، فحالتان كانتا تُفقدان: (أ) A فيه 12 ثم B ثم العودة إلى A و3 ضغطات،
-(ب) ضغطات على B ثم الانتقال إلى C.
+### 1.1 الجانب الأصلي (Android): منطق خالص + معاملة واحدة
 
-**الحل الآن — سجل أحداث على الجانب الأصلي (Android):**
+ملف جديد `TasbihPressLog.kt` (بلا أي `import android.*`، لذلك قابل للاختبار على JVM):
 
-* `WidgetPrefs.recordPress(zikr)` يزيد **مجموع الضغطات لذلك الذكر** في
-  `widget_totals` (JSON) داخل نفس ملف `HomeWidgetPreferences`.
-* المجاميع **لا تتناقص ولا تُصفَّر** عند تبديل الذكر؛ التصفير يخصّ العدّاد المعروض فقط.
-* عند كل ضغطة: العرض +1، الإجمالي العمري +1، سجل الذكر +1، والمراجعة +1.
-* زر تبديل الذكر لا يمسّ السجل إطلاقًا.
+* **الترتيب الصحيح:** `press()` تُهيّئ السجل **قبل** الزيادة. البذر يأخذ قيمة العدّاد
+  *قبل* الضغطة (12)، ثم تُضاف الضغطة ⇒ 13. لا 14.
+* **معاملة واحدة:** التهيئة + `widget_count` + `widget_lifetime` + `widget_totals`
+  + `widget_revision` + `widget_totals_seed_zikr` تُكتب في `Map` واحد يُطبَّق عبر
+  `WidgetStateStore.apply` ⇒ `SharedPreferences.Editor` واحد ثم `commit()` متزامن.
+  لا يمكن أن يُحفظ السجل دون مراجعة أو العكس.
+* `switchZikr()` (زر تبديل الذكر): تصفير العرض + مراجعة + تهيئة السجل في معاملة واحدة،
+  والسجل السابق لا يُمسّ.
+* `ensureSchema()` (من `onUpdate`): تهيئة فقط، ولا تزيد المراجعة، وتتوقف إن كانت مهيّأة.
+* `TasbihWidgetProvider` صار يفوّض كل شيء لـ `WidgetPrefs.pressLog(context)` بدل
+  الكتابات المتفرقة (`bumpRevision`, `recordPress`, `ensureTotalsSchema` حُذفت).
 
-**على جانب التطبيق:**
+### 1.2 جانب التطبيق (Dart): المراجعة داخل الحالة الذرّية
 
-* `WidgetTasbihSnapshot` صار يحمل `totals` (سجل كل ذكر) + `totalsSchema` + `seededZikr`.
-* لكل ذكر **علامة مائية** = آخر مجموع استوعبه التطبيق. الجديد = `total − watermark`
-  (لا سالب)، ويُضاف إلى عدّاد ذلك الذكر مهما تعددت عمليات التبديل.
-* العلامات المائية + العدّادات + الإجمالي تُكتب في **مفتاح واحد**
-  (`widget_sync_state`) ⇒ لا تضاعف ولا فقد إذا أُغلق التطبيق بعد المزامنة مباشرة.
-* إن أُغلق التطبيق **قبل** المزامنة، السجل الأصلي لم يُستهلك بعد ⇒ تُستعاد كل الضغطات
-  عند أول فتح.
-* الترقية: الجانب الأصلي يبذر سجل الذكر الحالي من العدّاد المعروض مرة واحدة ويكتب
-  `widget_totals_seed_zikr`، فيبدأ التطبيق علامته من رصيده المحفوظ لذلك الذكر فقط
-  (بقية الأذكار تبدأ من صفر) ⇒ لا يُضاف رصيد قديم مرتين.
-* توافق خلفي: إن جاء ويدجت بلا سجل (`totalsSchema = 0`) يعود المنطق القديم بفرق العدّاد.
+* `widget_sync_state` صار يحمل: `counts` + `seen` (العلامات المائية) + `lifetime`
+  + `zikr` + **`revision`** + `v`.
+* المراجعة **لم تعد تُكتب في مفتاح منفصل** قبل الحالة؛ تُثبَّت معها في كتابة واحدة.
+  ولو انقطعت العملية قبلها فلا شيء استُهلك (لا عدّاد ولا مراجعة) ⇒ إعادة المحاولة تُنتج
+  نفس النتيجة تمامًا.
+* عند الإقلاع: المراجعة تُقرأ من الحالة الذرّية **أولًا**، والمفتاح القديم
+  `widget_revision_seen` يُستخدم فقط كاحتياطي للترقية.
+* الاستهلاك ما زال بالفرق: `total − watermark` لكل ذكر.
 
-**قاعدة العدّ الناتجة:** الإجمالي العام = إجمالي التطبيق + مجموع الضغطات الجديدة فعليًا،
-والاختبارات تتحقق من `sum(counts) == lifetime` في سيناريو متعدد الأذكار.
+### 1.3 الاختبارات
 
-**الملفات:** `android_custom/.../WidgetPrefs.kt`, `android_custom/.../TasbihWidgetProvider.kt`,
-`lib/services/widget_sync_logic.dart`, `lib/services/widget_service.dart`, `lib/main.dart`
+**أ) اختبار فعلي للكود الأصلي: `TasbihPressLogTest.kt` — 11 حالة، 0 فشل**
 
-**الاختبارات (13 حالة في `test/tasbih_widget_sync_test.dart`):**
+يُشغَّل عبر مشروع Gradle/JVM مستقل (`tool/kotlin_tests/`) يترجم **نفس** ملف
+`android_custom/.../TasbihPressLog.kt` المشحون في الـ APK (لا نسخة مقلّدة):
 
-| الحالة | المتوقع |
+| الحالة | ما تتحقق منه |
 | --- | --- |
-| A = 12 → B → العودة إلى A → 3 ضغطات | **A = 15**، الإجمالي +3 |
-| 3 على B ثم C ثم ضغطتان | **B +3، C +2**، الإجمالي +5، A سليم |
-| إغلاق التطبيق قبل المزامنة ثم فتحه | تُستعاد 5 ضغطات كاملة |
-| إعادة المزامنة 5 جولات × (2 ضغطة + 3 مزامنات فارغة) | لا مضاعفة ولا فقد |
-| الإجمالي = مجموع عدّادات الأذكار | 8 = 5 + 3 |
-| ترقية ويدجت قديم (بذر) | صفر إضافة، ثم ضغطة = +1 |
-| ويدجت بلا سجل (توافق خلفي) | +2 كما هو |
-| عدّاد عرض تراجع / سجل تالف | لا ينقص العدّاد ولا العلامة |
+| `firstPressAfterUpgrade_countsExactlyOne` | عدّاد قديم 12 + ضغطة واحدة ⇒ **13** (لا 14)، والضغطة الثانية ⇒ 14 |
+| `firstPressAfterUpgrade_withoutPriorWidgetUpdate` | أسوأ حالة: لا `onUpdate` قبل أول ضغطة |
+| `seedingUsesPreIncrementDisplayValue` | البذر بـ 12 قبل الزيادة، والسجل يصبح 13 |
+| `pressIsAtomic_nothingSavedWhenProcessDiesBeforeCommit` | انقطاع قبل `commit` ⇒ لا زيادة ولا سجل ولا مراجعة، ثم إعادة المحاولة = مرة واحدة |
+| `pressIsAtomic_everythingSavedWhenProcessDiesAfterCommit` | انقطاع بعد `commit` ⇒ القيم كلها محفوظة ومتسقة |
+| `totalsAndRevisionAreNeverSavedSeparately` | بعد ضغطتين: مراجعة 2 وسجل 2، وعدد المعاملات = 2 فقط |
+| `switchZikrKeepsTotalsAndResetsDisplay` | التبديل يصفر العرض ويحفظ سجل كل ذكر |
+| `switchZikrOnLegacyStateSeedsBeforeSwitching` | التبديل على جهاز مُرقّى يبذر أولاً |
+| `ensureSchemaIsIdempotent` | التهيئة لا تتكرر ولا تزيد المراجعة |
+| `pressOnEmptyZikrIsIgnored` | نص فارغ لا يعدّل شيئًا |
+| `totalsRoundTripHandlesArabicAndQuotes` | ترميز/فك سجل الضغطات (عربي، اقتباس، سطر جديد، شرطة مائلة) |
+
+المخزن الوهمي في الاختبار ينفّذ «معاملة واحدة» ويستطيع محاكاة الموت قبل/بعد الكتابة.
+
+**ب) اختبارات Dart: 79 حالة (كانت 74)، منها 18 في `tasbih_widget_sync_test.dart`**
+
+الخمس الجديدة:
+
+| الحالة | السيناريو |
+| --- | --- |
+| انقطاع بعد قراءة السجل وقبل الحفظ | إعادة التشغيل تستعيد 3 ضغطات دون فقد |
+| انقطاع بعد الحفظ | إعادة التشغيل لا تعيد استهلاكها (صفر إضافة) |
+| المراجعة تُستعاد من الحالة الذرّية | مفتاح قديم = 5 لا يطغى على المراجعة الذرّية = 7 |
+| إعادة تشغيل مرتين مع ضغطات بينهما | لا فقد ولا مضاعفة، والإجمالي صحيح |
+| حالة محفوظة من إصدار أقدم (بلا revision) | تُرقّى بأمان وتُكمل العدّ |
 
 ---
 
 ## 2) `_dayOfYear` — حساب UTC خالص
 
-```dart
-int dayOfYearUtc(DateTime date) {
-  final DateTime start = DateTime.utc(date.year, 1, 1);
-  final DateTime day = DateTime.utc(date.year, date.month, date.day);
-  return day.difference(start).inDays + 1;
-}
-```
-
-سبب العيب السابق: تواريخ محلية + `difference().inDays`؛ أي تغيير توقيت صيفي داخل السنة يجعل
-الفرق 133.958 يومًا فتقتطع `inDays` الكسر فينقص رقم اليوم واحدًا وتنزاح مواقيت الشمس يومًا.
-الآن كل يوم 24 ساعة بالضبط، والنتيجة لا تعتمد على منطقة الجهاز.
-
-**اختبارات `test/sun_day_of_year_test.dart` (8 حالات):**
-قيم تقويمية معروفة (2026 و2028 الكبيسة)، **كل يوم يزيد بواحد بالضبط على مدى 365 يومًا**،
-الفروق حول بداية/نهاية التوقيت الصيفي المصري (24 أبريل / 29 أكتوبر 2026) تساوي الفرق
-التقويمي نفسه، عدم تأثر النتيجة بنوع `DateTime`، ونطاقات غروب/شروق القاهرة بعد التوقيت
-الصيفي، و**عدم وجود قفزة ساعة** في وقت الغروب بين 28 و29 أكتوبر (فرق وقت اليوم ≤ 5 دقائق
-مع بقاء 24 ساعة زمنية بين اللحظتين)، ونافذة الجمعة ≈ 24 ساعة في يوليو.
+`dayOfYearUtc` تبني `DateTime.utc` للبداية واليوم ⇒ كل يوم 24 ساعة، والنتيجة لا تتأثر
+بتوقيت الجهاز ولا بالتوقيت الصيفي. الاختبارات (8) تشمل: قيم تقويمية معروفة، +1 بالضبط
+على مدى 365 يومًا، فروق التواريخ حول بداية/نهاية التوقيت الصيفي المصري، وعدم وجود
+قفزة ساعة في مواقيت الشمس بعد التغيير.
 
 ---
 
-## 3) سكربت حماية `main` — لا شرط غير موجود
+## 3) سكربت حماية `main`
 
-* الوضع الافتراضي يفرض **`Analyze & Test` فقط**.
-* يتحقق أولًا من وجود تشغيل لهذا الفحص على الفرع المستهدف، وإلا يتوقف برسالة توضّح
-  كيف يُشغّله (بدل تفعيل شرط مستحيل يقفل الدمج).
-* `--with-freeze` (أو `INCLUDE_FREEZE=1`) يضيف `Freeze guard (no user-facing updates)`
-  **بشرطين**: وجود `.github/workflows/release_guard.yml` على `main`، و**نجاح** آخر تشغيل
-  لهذا الفحص على `main`؛ وإلا يتوقف دون تعديل.
-* `DRY_RUN=1` يطبع الحمولة دون إرسال، و`--dry-run`/`--help` مدعومة.
-* `tool/release_guard.py` وسكربت الحماية متوافقان مع ما في `docs/main_protection.md`
-  (حُدِّث المستند بنفس الصياغة والأوامر).
+* الافتراضي: `Analyze & Test` فقط، مع تحقق من وجود تشغيل له على الفرع.
+* `--with-freeze`: يضيف `Freeze guard (no user-facing updates)` **بعد** التأكد من وجود
+  `release_guard.yml` على الفرع ونجاح آخر تشغيل له.
+* `DRY_RUN=1` لطباعة الحمولة دون إرسال، و`--help`.
 
-**الوضع الفعلي:** `main` **غير محمي** (`protection.enabled = false`)، وتوكن الجلسة يرفض
-إدارة الحماية بـ `403`. لم يُفعّل شيء من قِبَلي، والخطوات اليدوية موثّقة.
+`main` ما زال **غير محمي** (`protection.enabled = false`)؛ توكن الجلسة يرفض إدارة
+الحماية بـ 403، والتنفيذ يحتاج جلسة مالك.
 
 ---
 
-## 4) الاختبارات والتحليل (المراجعة النهائية)
+## 4) الاختبارات والتحليل
 
 | البند | النتيجة |
 | --- | --- |
-| الاختبارات | **74/74 ناجحة** (كانت 62) |
+| اختبارات Dart | **79/79 ناجحة** |
+| اختبارات Kotlin الأصلية | **11/11 ناجحة** (0 فشل، 0 متخطى) |
 | `flutter analyze` | **0 أخطاء · 0 تحذيرات · 179 ملاحظة info** |
 
-توزيع الاختبارات: `app_core_test` 11 · `friday_window_test` 13 · `reminder_bootstrap_test` 5 ·
-`scheduling_test` 24 · `sun_day_of_year_test` 8 · `tasbih_widget_sync_test` 13.
+التوزيع: `app_core` 11 · `friday_window` 13 · `reminder_bootstrap` 5 · `scheduling` 24 ·
+`sun_day_of_year` 8 · `tasbih_widget_sync` 18.
 
-الـ 179 ملاحظة `info` كلها إهمالات إصدار (`withOpacity`, واجهات Flutter 3.47 المهجورة)؛
-التحليل ليس «نظيفًا تمامًا» لكنه **خالٍ من الأخطاء والتحذيرات**.
-
-**Manifest والصلاحيات:** `AD_ID` غير موجود في manifest الـ APK المدمج،
-`usesCleartextTraffic=false`، وفحصا البناء المخصّصان ناجحان.
-**التحديثات:** `kUpdatesEnabled = false` + `kUpdatesBuildFlag = false` ⇒ `updatesActive=false`،
-`Freeze guard` يعمل، ولا Release جديد ولا أصول مرفوعة.
-**اسم الـ workflow:** `Build Azkari v1.1.0+2 APK`.
+**Manifest:** `AD_ID` غير موجود في الـ APK المدمج، `usesCleartextTraffic=false`،
+وفحصا البناء ناجحان. **التحديثات:** `updatesActive=false`، `Freeze guard` يعمل،
+ولا Release ولا أصول مرفوعة. **اسم الـ workflow:** `Build Azkari v1.1.0+2 APK`.
 
 ---
 
 ## 5) التوقيع — ما قيس فعليًا فقط
 
 ```
-apksigner verify --print-certs app-release.apk
 certificate SHA-256: 6656d6533ffc1fa5343cc223c7d8f30b402d9cae80dc76df7f21fcaffead7d3d
 ```
 
-**لا توجد مقارنة مع شهادة `1.0.0+1`**، ولم أستنتج التوافق:
-
-* تنزيل أصول الـ Release من الجلسة محجوب (`release-assets.githubusercontent.com`).
-* من داخل CI: التوكن للقراءة فقط و`/releases` أعاد `[]` (المسودة غير مرئية) ⇒
-  `release not found` ولم يجد `apksigner` ملفًا ليفحصه.
-
-لديك للتحقق (بدون حذف التطبيق أو بياناته):
+**لا مقارنة مع شهادة `1.0.0+1`** ولم يُستنتج التوافق: أصول الـ Release غير قابلة للتنزيل
+من الجلسة، ومن CI التوكن للقراءة فقط (`/releases` → `[]`). للتحقق عندك:
 
 ```bash
-apksigner verify --print-certs /path/to/azkari-1.0.0.apk     # بصمة القديم
-apksigner verify --print-certs Azkari-1.1.0+2.apk            # بصمة الجديد
-adb install -r Azkari-1.1.0+2.apk                            # تحديث مكاني
+apksigner verify --print-certs azkari-1.0.0.apk
+apksigner verify --print-certs Azkari-1.1.0+2.apk
+adb install -r Azkari-1.1.0+2.apk     # تحديث مكاني، بلا حذف
 ```
-
-إن تطابقت البصمتان فالتحديث آمن؛ وإن اختلفت سيرفض أندرويد التثبيت بنفسه — أبلغني حينها.
 
 ---
 
-## 6) الـ APK الداخلي (الحجم الحقيقي بعد الفك)
+## 6) مسار اختبار Kotlin في CI
+
+`.github/workflows/build_apk.yml` → خطوة `Run native widget logic tests (Kotlin/JVM)`:
+
+```bash
+cd android && ./gradlew -p ../tool/kotlin_tests test --no-daemon
+python3 tool/android_test_stats.py tool/kotlin_tests/build/test-results/test
+```
+
+تُطبع النتيجة أيضًا كتعليق قابل للقراءة على التشغيل
+(`native unit tests: 11 run, 0 failed, 0 skipped`). سبب اختيار مشروع مستقل: مصدر
+اختبارات وحدة AGP 9 (built-in Kotlin) لم يستطع رؤية `src/test/kotlin` في هذا المشروع
+المولَّد، والمشروع المستقل يترجم نفس الملف المشحون بلا أي محاكاة.
+
+---
+
+## 7) الـ APK الداخلي
 
 | البند | القيمة |
 | --- | --- |
-| Build run | https://github.com/ahmfalcon00868-maker/azkari-app/actions/runs/46069887827 |
-| Code checks | https://github.com/ahmfalcon00868-maker/azkari-app/actions/runs/46069887969 |
-| الأرتيفاكت | `Azkari-1.1.0-2-sha256-007d127b…-cert-6656d653…-tests-74-apk-bytes-64752379` |
-| كوميت البناء | `00558b6` |
-| **حجم الـ APK الحقيقي** | **64,752,379 بايت (61.75 م.ب)** |
-| حجم ملف ZIP المحمّل | 32,279,914 بايت (لا يُستخدم كمقياس للـ APK) |
-| **SHA-256 للـ APK** | `007d127b12da6c1506edd0a12e2c963e77369d39f4923e87fffefa0ffad666ce` |
+| Build run | https://github.com/ahmfalcon00868-maker/azkari-app/actions/runs/46083848726 |
+| Code checks | https://github.com/ahmfalcon00868-maker/azkari-app/actions/runs/46083849021 |
+| كوميت البناء | `d6483e3` |
+| الأرتيفاكت | `Azkari-1.1.0-2-sha256-f321e06c…-cert-6656d653…-tests-79-apk-bytes-64768763` |
+| **حجم الـ APK الحقيقي** | **64,768,763 بايت (61.76 م.ب)** |
+| حجم ملف ZIP المحمّل | ~32.3 م.ب (ليس مقياسًا للـ APK) |
+| **SHA-256 للـ APK** | `f321e06c9810bb13a8063eda570564f9761f14eec3f274d1c1f14178123b537d` |
 | SHA-256 للشهادة | `6656d6533ffc1fa5343cc223c7d8f30b402d9cae80dc76df7f21fcaffead7d3d` |
 | الإصدار | `1.1.0+2` (versionCode 2) |
-| الاختبارات | 74/74 |
-
-> حجم الـ APK صار جزءًا من اسم الأرتيفاكت (`apk-bytes-…`) حتى يكون قابلًا للتأكيد دون تنزيل.
-
-التحميل: Actions → التشغيل أعلاه → Artifacts → الأرتيفاكت أعلاه.
+| الاختبارات | 79 Dart + 11 Kotlin |
 
 ---
 
-## 7) ما لم يكتمل (بصراحة)
+## 8) ما لم يكتمل
 
-1. **حماية `main` غير مفعّلة** — صلاحية الـ API مرفوضة (403). السكربت والمستند جاهزان
-   ومقيّدان بفحوص موجودة فعلًا؛ التنفيذ يحتاج جلسة مالك.
-2. **مقارنة شهادة 1.0.0** — غير ممكنة آليًا من هذه البيئة (الأسباب في القسم 5). لم أفترض
-   التوافق ولم أطلب حذف أي بيانات.
+1. **حماية `main` غير مفعّلة** (403 من الـ API) — السكربت والخطوات جاهزان.
+2. **مقارنة شهادة 1.0.0** غير ممكنة آليًا من هذه البيئة، ولم أفترض التوافق.
 3. **179 ملاحظة info** — إهمالات إصدار Flutter، تحتاج قرار ترقية مستقل.
 
 ---
 
-## 8) الملفات المتغيرة في هذه الجولة
+## 9) الملفات المتغيرة في هذه الجولة
 
-`android_custom/.../WidgetPrefs.kt` · `android_custom/.../TasbihWidgetProvider.kt` ·
-`lib/services/widget_sync_logic.dart` · `lib/services/widget_service.dart` · `lib/main.dart` ·
-`lib/services/sun_times.dart` · `tool/setup_main_protection.sh` · `docs/main_protection.md` ·
-`.github/workflows/build_apk.yml` · `.github/workflows/ci_checks.yml` ·
-`test/tasbih_widget_sync_test.dart` · `test/sun_day_of_year_test.dart` · `test/scheduling_test.dart` ·
-`docs/wave2_report.md`
+`android_custom/app/src/main/kotlin/com/flc/azkari/TasbihPressLog.kt` (جديد) ·
+`android_custom/app/src/main/kotlin/com/flc/azkari/WidgetPrefs.kt` ·
+`android_custom/app/src/main/kotlin/com/flc/azkari/TasbihWidgetProvider.kt` ·
+`android_custom/app/src/test/kotlin/com/flc/azkari/TasbihPressLogTest.kt` (جديد) ·
+`tool/kotlin_tests/{settings,build}.gradle.kts` (جديد) · `tool/android_test_stats.py` (جديد) ·
+`tool/gradle_failure_summary.py` (جديد) · `lib/main.dart` · `test/tasbih_widget_sync_test.dart` ·
+`.github/workflows/build_apk.yml` · `docs/wave2_report.md`
