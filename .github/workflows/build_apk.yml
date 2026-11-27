@@ -92,10 +92,19 @@ jobs:
           m = m.replace("<application", "<application\n        android:usesCleartextTraffic=\"false\"", 1)
           if "xmlns:tools" not in m:
               m = m.replace("<manifest ", "<manifest xmlns:tools=\"http://schemas.android.com/tools\" ", 1)
-          # لا يوجد أي تكامل إعلاني: نزيل صلاحية AD_ID التي تضيفها مكتبات طرف ثالث.
-          if "com.google.android.gms.permission.AD_ID" not in m:
-              adid = "\n    <uses-permission android:name=\"com.google.android.gms.permission.AD_ID\" tools:node=\"remove\"/>\n"
-              m = m.replace("<application", adid + "<application", 1)
+          # لا يوجد أي تكامل إعلاني في التطبيق: نزيل صلاحيات الهوية الإعلانية
+          # التي تفرضها مكتبات طرف ثالث (Facebook SDK/play-services-ads-identifier).
+          ad_perms = [
+              "com.google.android.gms.permission.AD_ID",
+              "android.permission.ACCESS_ADSERVICES_AD_ID",
+              "android.permission.ACCESS_ADSERVICES_ATTRIBUTION",
+              "android.permission.ACCESS_ADSERVICES_CUSTOM_AUDIENCE",
+              "android.permission.ACCESS_ADSERVICES_TOPICS",
+          ]
+          for perm in ad_perms:
+              if perm not in m:
+                  line = "\n    <uses-permission android:name=\"%s\" tools:node=\"remove\"/>" % perm
+                  m = m.replace("<application", line + "\n<application", 1)
           perms = "\n    <uses-permission android:name=\"android.permission.RECEIVE_BOOT_COMPLETED\"/>\n    <uses-permission android:name=\"android.permission.VIBRATE\"/>\n    <uses-permission android:name=\"android.permission.POST_NOTIFICATIONS\"/>\n    <uses-permission android:name=\"android.permission.SCHEDULE_EXACT_ALARM\"/>\n    <uses-permission android:name=\"android.permission.USE_EXACT_ALARM\"/>\n    <uses-permission android:name=\"android.permission.SYSTEM_ALERT_WINDOW\"/>\n    <uses-permission android:name=\"android.permission.WAKE_LOCK\"/>\n    <uses-permission android:name=\"android.permission.RECORD_AUDIO\"/>\n    <uses-permission android:name=\"android.permission.FOREGROUND_SERVICE\"/>\n    <uses-permission android:name=\"android.permission.FOREGROUND_SERVICE_MEDIA_PLAYBACK\"/>\n    <uses-permission android:name=\"android.permission.FOREGROUND_SERVICE_SPECIAL_USE\"/>\n    <uses-permission android:name=\"android.permission.REQUEST_INSTALL_PACKAGES\"/>\n"
           if "SYSTEM_ALERT_WINDOW" not in m:
               m = m.replace("<application", perms + "<application", 1)
@@ -241,8 +250,9 @@ jobs:
           "$AAPT" dump xmltree --file AndroidManifest.xml "$APK" > manifest.txt
           echo "--- permissions ---"; cat perms.txt
           fail=0
-          if grep -qi 'AD_ID' perms.txt; then
-            echo "::error::AD_ID permission is shipped in the APK"
+          if grep -Eq "uses-permission: name='(com\\.google\\.android\\.gms\\.permission\\.AD_ID|android\\.permission\\.ACCESS_ADSERVICES_[A-Z_]+)'" perms.txt; then
+            echo "::error::advertising-ID permissions are shipped in the APK"
+            grep -E "AD_ID|ACCESS_ADSERVICES" perms.txt
             fail=1
           fi
           if grep -qi 'usesCleartextTraffic' manifest.txt; then
@@ -287,6 +297,22 @@ jobs:
           } > /tmp/d.txt
           head -c 55000 /tmp/d.txt > /tmp/d2.txt
           gh issue create --repo "$GITHUB_REPOSITORY" --title "temp-verify-diagnostics" --body-file /tmp/d2.txt || true
+
+      - name: TEMP diagnostics — advertising permission provenance
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          cd android
+          {
+            echo "==== dependencyInsight: play-services-ads-identifier ===="
+            ./gradlew -q :app:dependencyInsight --dependency play-services-ads-identifier --configuration releaseRuntimeClasspath 2>&1 | head -60
+            echo "==== dependencyInsight: installreferrer ===="
+            ./gradlew -q :app:dependencyInsight --dependency installreferrer --configuration releaseRuntimeClasspath 2>&1 | head -40
+            echo "==== facebook deps ===="
+            ./gradlew -q :app:dependencies --configuration releaseRuntimeClasspath 2>&1 | grep -i -E "facebook|ads-identifier|installreferrer|appset" | head -40
+          } > /tmp/prov.txt
+          head -c 55000 /tmp/prov.txt > /tmp/prov2.txt
+          gh issue create --repo "$GITHUB_REPOSITORY" --title "temp-adid-provenance" --body-file /tmp/prov2.txt || true
 
       - name: Verify signature & compute checksums
         id: apk
