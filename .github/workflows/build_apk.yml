@@ -88,6 +88,8 @@ jobs:
           # كل الاتصالات في التطبيق HTTPS (تم التحقق: لا يوجد أي http:// في lib أو assets)
           # لذلك نزيل أي سماح عام بـ HTTP بدل تفعيله.
           m = re.sub(r"\s*android:usesCleartextTraffic=\"[^\"]*\"", "", m)
+          # نُثبّت المنع صراحةً في تطبيقنا: مكتبات قد تُعلن السماح فترثه النسخة النهائية.
+          m = m.replace("<application", "<application\n        android:usesCleartextTraffic=\"false\"", 1)
           if "xmlns:tools" not in m:
               m = m.replace("<manifest ", "<manifest xmlns:tools=\"http://schemas.android.com/tools\" ", 1)
           # لا يوجد أي تكامل إعلاني: نزيل صلاحية AD_ID التي تضيفها مكتبات طرف ثالث.
@@ -220,19 +222,26 @@ jobs:
 
       - name: Verify shipped manifest (no cleartext HTTP, no AD_ID)
         run: |
-          set -euo pipefail
+          set -uo pipefail
           MAPS=$(grep -rl 'com.flc.azkari' --include=AndroidManifest.xml build/app/intermediates 2>/dev/null || true)
-          echo "manifests inspected:"; echo "$MAPS"
-          test -n "$MAPS"
-          if grep -l 'usesCleartextTraffic="true"' $MAPS 2>/dev/null | grep -q .; then
-            echo "::error::cleartext HTTP is still allowed in the shipped manifest"
-            exit 1
+          echo "manifests inspected: $MAPS"
+          test -n "$MAPS" || { echo "::error::no merged manifest found"; exit 1; }
+          fail=0
+          while IFS= read -r hit; do
+            [ -z "$hit" ] && continue
+            echo "::error::cleartext HTTP allowed: $hit"
+            fail=1
+          done <<< "$(grep -n 'usesCleartextTraffic="true"' $MAPS 2>/dev/null || true)"
+          while IFS= read -r hit; do
+            [ -z "$hit" ] && continue
+            echo "::error::AD_ID present: $hit"
+            fail=1
+          done <<< "$(grep -n 'com.google.android.gms.permission.AD_ID' $MAPS 2>/dev/null || true)"
+          if ! grep -q 'com.flc.azkari.TasbihWidgetProvider' $MAPS; then
+            echo "::error::widget providers missing from the shipped manifest"
+            fail=1
           fi
-          if grep -l 'com.google.android.gms.permission.AD_ID' $MAPS 2>/dev/null | grep -q .; then
-            echo "::error::AD_ID permission is still present in the shipped manifest"
-            exit 1
-          fi
-          grep -q 'com.flc.azkari.TasbihWidgetProvider' $MAPS
+          if [ "$fail" -ne 0 ]; then exit 1; fi
           echo "manifest hardened ✔"
 
       - name: Verify signature & compute checksums
