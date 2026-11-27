@@ -224,7 +224,14 @@ jobs:
         run: |
           set -uo pipefail
           exec > >(tee verify.log) 2>&1
-          APK=build/app/outputs/flutter-apk/app-release.apk
+          APK=$(find build -name "app-release.apk" -type f 2>/dev/null | head -n 1)
+          if [ -z "$APK" ]; then
+            echo "::error::APK not found after build"
+            find build -name "*.apk" -type f 2>/dev/null | head -20
+            exit 1
+          fi
+          echo "APK: $APK"
+          echo "APK_PATH=$APK" >> "$GITHUB_ENV"
           SDK_DIR="${ANDROID_HOME:-${ANDROID_SDK_ROOT:-/usr/local/lib/android/sdk}}"
           AAPT=$(ls -1 "$SDK_DIR"/build-tools/*/aapt2 2>/dev/null | sort -V | tail -n 1)
           echo "using: $AAPT"
@@ -269,6 +276,8 @@ jobs:
             which aapt2 aapt apkanalyzer 2>/dev/null || true
             echo "==== perms.txt ===="
             head -40 perms.txt 2>/dev/null || echo "(missing)"
+            echo "==== apk files ===="
+            find build -name "*.apk" -type f 2>/dev/null | head -20 || echo "(none)"
           } > /tmp/d.txt
           head -c 55000 /tmp/d.txt > /tmp/d2.txt
           gh issue create --repo "$GITHUB_REPOSITORY" --title "temp-verify-diagnostics" --body-file /tmp/d2.txt || true
@@ -277,7 +286,8 @@ jobs:
         id: apk
         run: |
           set -euo pipefail
-          APK=build/app/outputs/flutter-apk/app-release.apk
+          APK="${APK_PATH:-build/app/outputs/flutter-apk/app-release.apk}"
+          test -f "$APK" || { echo "::error::APK missing at $APK"; exit 1; }
           SHA=$(sha256sum "$APK" | awk '{print $1}')
           SDK_DIR="${ANDROID_HOME:-${ANDROID_SDK_ROOT:-/usr/local/lib/android/sdk}}"
           APKSIGNER=$(ls -1 "$SDK_DIR"/build-tools/*/apksigner 2>/dev/null | sort -V | tail -n 1)
