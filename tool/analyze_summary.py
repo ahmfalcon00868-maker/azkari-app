@@ -35,6 +35,10 @@ def summarize(path: str) -> dict[str, int]:
     if errors:
         with open("analyze_errors.txt", "w", encoding="utf-8") as out:
             out.write("\n".join(errors))
+    with open("analyze_counts.txt", "w", encoding="utf-8") as out:
+        out.write(
+            f"errors={counts['error']}-warnings={counts['warning']}-infos={counts['info']}"
+        )
     return counts
 
 
