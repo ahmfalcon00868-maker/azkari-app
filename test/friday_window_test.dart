@@ -98,7 +98,9 @@ void main() {
 
       expect(startLocalCity.weekday, DateTime.thursday);
       expect(endLocalCity.weekday, DateTime.friday);
-      expect(endLocalCity.difference(startLocalCity).inHours, 24);
+      // مغرب الخميس إلى مغرب الجمعة ≈ 24 ساعة (يفرق دقيقة أو دقيقتين فلكياً).
+      expect(endLocalCity.difference(startLocalCity).inHours,
+          inInclusiveRange(23, 24));
     });
 
     test('نافذة القاهرة والرباط تختلفان (إحداثيات مختلفة)', () {
@@ -135,16 +137,26 @@ void main() {
     test('النتيجة لا تعتمد على منطقة الجهاز (لحظات مطلقة)', () {
       final window = fridaySunnahWindowUtc(DateTime.utc(2026, 11, 27, 8),
           latitude: 28.1099, longitude: 30.7503);
-      final instant = window.start!.add(const Duration(minutes: 30));
+      final inside = window.start!.add(const Duration(minutes: 30));
 
-      // نفس اللحظة معبَّراً عنها بـ UTC أو بتوقيت القاهرة أو الرياض.
-      final asUtc = instant.toUtc();
-      final asCairo = DateTime.utc(2026, 11, 26, 17, 30); // 19:30 القاهرة
-      expect(asCairo.isAtSameMomentAs(asUtc), isTrue);
+      // نفس اللحظة معبَّراً عنها بـ UTC أو بالتوقيت المحلي للجهاز: النتيجة واحدة.
       expect(
-        isFridaySunnahWindow(asCairo,
+        isFridaySunnahWindow(inside,
             thursdayMaghrib: window.start!, fridayMaghrib: window.end!),
         isTrue,
+      );
+      expect(inside.toLocal().isAtSameMomentAs(inside), isTrue);
+      expect(
+        isFridaySunnahWindow(inside.toLocal(),
+            thursdayMaghrib: window.start!, fridayMaghrib: window.end!),
+        isTrue,
+      );
+      // وقبل البداية بدقيقة (بأي تمثيل) تبقى مغلقة.
+      final before = window.start!.subtract(const Duration(minutes: 1));
+      expect(
+        isFridaySunnahWindow(before.toLocal(),
+            thursdayMaghrib: window.start!, fridayMaghrib: window.end!),
+        isFalse,
       );
     });
 

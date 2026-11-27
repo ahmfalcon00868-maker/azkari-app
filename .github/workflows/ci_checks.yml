@@ -46,4 +46,22 @@ jobs:
           fi
 
       - name: Run tests
-        run: flutter test --reporter expanded
+        id: tests
+        run: |
+          set -uo pipefail
+          flutter test --reporter json > test_report.json 2>&1 || true
+          python3 tool/test_stats.py test_report.json
+
+      - name: TEMP diagnostics — failing tests
+        if: failure()
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          {
+            echo "== failures =="
+            cat test_failures.txt 2>/dev/null | head -40
+            echo "== tail of report =="
+            tail -c 20000 test_report.json 2>/dev/null | tr ',' '\n' | grep -E '"message"|"error"|"stackTrace"' | head -40
+          } > /tmp/f.txt
+          head -c 55000 /tmp/f.txt > /tmp/f2.txt
+          gh issue create --repo "$GITHUB_REPOSITORY" --title "temp-test-failures" --body-file /tmp/f2.txt || true

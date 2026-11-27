@@ -16,6 +16,8 @@ import sys
 def collect(path: str) -> dict[str, int]:
     passed = 0
     failed = 0
+    failures: list[str] = []
+    names: dict[int, str] = {}
     with open(path, encoding="utf-8") as fh:
         for line in fh:
             line = line.strip()
@@ -25,12 +27,22 @@ def collect(path: str) -> dict[str, int]:
                 event = json.loads(line)
             except Exception:
                 continue
+            if event.get("type") == "testStart":
+                test = event.get("test") or {}
+                if test.get("id") is not None:
+                    names[int(test["id"])] = str(test.get("name", ""))
+                continue
             if event.get("type") != "testDone" or event.get("hidden"):
                 continue
             if event.get("result") == "success":
                 passed += 1
             else:
                 failed += 1
+                failures.append(str(event.get("testID")))
+                failures[-1] = names.get(int(event.get("testID", -1)), failures[-1]) + "  => " + str(event.get("result"))
+    if failures:
+        with open("test_failures.txt", "w", encoding="utf-8") as out:
+            out.write("\n".join(failures))
     return {"count": passed + failed, "passed": passed, "failed": failed}
 
 
