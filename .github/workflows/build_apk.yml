@@ -179,7 +179,9 @@ jobs:
               tail -c 20000 android/app/build/test-results/testDebugUnitTest/*.xml 2>/dev/null
             } > /tmp/g.txt
             head -c 55000 /tmp/g.txt > /tmp/g2.txt
-            GH_TOKEN=${{ secrets.GITHUB_TOKEN }} gh issue create --repo "$GITHUB_REPOSITORY" --title temp-android-test-failure --body-file /tmp/g2.txt || true
+            REASON=$(grep -m1 -A4 "What went wrong" /tmp/gradle.log 2>/dev/null | tr '\n' ' ')
+            echo "::error::Android unit tests failed: ${REASON:0:700}"
+            GH_TOKEN=${{ secrets.GITHUB_TOKEN }} gh issue create --repo "$GITHUB_REPOSITORY" --title temp-android-test-failure --body-file /tmp/g2.txt 2>&1 | head -5 || true
           fi
           exit "${status:-1}"
 
