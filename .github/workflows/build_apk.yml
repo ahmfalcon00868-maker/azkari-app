@@ -154,7 +154,9 @@ jobs:
           gradle_file=""
           if [ -f "$kts" ]; then
             gradle_file="$kts"
-            grep -q 'junit:junit' "$kts" || printf '\ndependencies {\n    testImplementation("junit:junit:4.13.2")\n}\n' >> "$kts"
+            if ! grep -q 'junit:junit' "$kts"; then
+              printf '\nandroid {\n    sourceSets.getByName("test").java.srcDirs("src/test/java", "src/test/kotlin")\n}\n\ndependencies {\n    testImplementation("junit:junit:4.13.2")\n}\n' >> "$kts"
+            fi
           elif [ -f "$grv" ]; then
             gradle_file="$grv"
             grep -q 'junit:junit' "$grv" || printf '\ndependencies {\n    testImplementation "junit:junit:4.13.2"\n}\n' >> "$grv"
@@ -178,9 +180,9 @@ jobs:
               tail -c 20000 android/app/build/test-results/testDebugUnitTest/*.xml 2>/dev/null
             } > /tmp/g.txt
             head -c 55000 /tmp/g.txt > /tmp/g2.txt
-            REASON=$(grep -m1 -A4 "What went wrong" /tmp/gradle.log 2>/dev/null | tr '\n' ' ')
-            [ -z "$REASON" ] && REASON=$(grep -m3 -E "^e: |FAILED" /tmp/gradle.log 2>/dev/null | tr '\n' ' ')
-            echo "::error::Android unit tests failed (gradle=$status stats=$stats): ${REASON:0:700}"
+            python3 tool/gradle_failure_summary.py /tmp/gradle.log || true
+            ls -R android/app/build/test-results 2>/dev/null | head -20 || true
+            grep -cE "testDebugUnitTest" /tmp/gradle.log 2>/dev/null || true
             GH_TOKEN=${{ secrets.GITHUB_TOKEN }} gh issue create --repo "$GITHUB_REPOSITORY" --title temp-android-test-failure --body-file /tmp/g2.txt 2>&1 | head -5 || true
             exit 1
           fi
