@@ -8,7 +8,6 @@ on:
 # صلاحية قراءة فقط: هذا المسار لا يستطيع نشر Release أو تعديل الإصدارات إطلاقاً.
 permissions:
   contents: read
-  issues: write
 
 jobs:
   build-android-apk:
@@ -160,9 +159,7 @@ jobs:
           if [ "$status" -ne 0 ] || [ "$stats" -ne 0 ]; then
             { echo "== tail =="; tail -c 25000 /tmp/kotlin-tests.log; } > /tmp/k.txt
             sed -i 's/::/-/g' /tmp/k.txt
-            head -c 55000 /tmp/k.txt > /tmp/k2.txt
-            echo "::error::kotlin tests: $(grep -m2 -E '^e: |FAILED|What went wrong' /tmp/k.txt | tr '\n' ' ' | cut -c1-600)"
-            GH_TOKEN=${{ secrets.GITHUB_TOKEN }} gh issue create --repo "$GITHUB_REPOSITORY" --title temp-kotlin-tests --body-file /tmp/k2.txt 2>&1 | head -3 || true
+            echo "::error::native widget logic tests: $(grep -m2 -E '^e: |FAILED|What went wrong' /tmp/k.txt | tr '\n' ' ' | cut -c1-600)"
             exit 1
           fi
 

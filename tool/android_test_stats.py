@@ -28,7 +28,9 @@ def main(argv: list[str]) -> int:
         failures += int(root.get("failures", 0) or 0) + int(root.get("errors", 0) or 0)
         skipped += int(root.get("skipped", 0) or 0)
 
-    print(f"android unit tests: {total} run, {failures} failed, {skipped} skipped")
+    summary = f"native unit tests: {total} run, {failures} failed, {skipped} skipped"
+    print(summary)
+    print(f"::notice::{summary}")
     if total == 0:
         print("::error:: لم تُشغَّل أي اختبارات Kotlin (مجلد فارغ)")
         return 1
