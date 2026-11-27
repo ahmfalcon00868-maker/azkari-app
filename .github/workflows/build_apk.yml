@@ -167,6 +167,11 @@ jobs:
           set +e
           ( cd android && ./gradlew :app:testDebugUnitTest --no-daemon --console=plain 2>&1 | tee /tmp/gradle.log )
           status=$?
+          LOGB=$(wc -c < /tmp/gradle.log 2>/dev/null || echo -1)
+          RESD=$(ls -d android/app/build/test-results/* 2>/dev/null | head -3 | tr '\n' ',')
+          TAILL=$(tail -c 400 /tmp/gradle.log 2>/dev/null | tr '\n' '|' | tr -d ':' | tail -c 380)
+          echo "::error::diag gradle=$status logbytes=$LOGB results=$RESD"
+          echo "::error::diag tail=$TAILL"
           cp /tmp/gradle.original "$gradle_file"   # نُعيد minSdk 23 قبل بناء الـ APK
           python3 tool/android_test_stats.py android/app/build/test-results/testDebugUnitTest
           stats=$?
