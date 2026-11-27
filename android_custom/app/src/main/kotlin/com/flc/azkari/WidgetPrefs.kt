@@ -2,7 +2,6 @@ package com.flc.azkari
 
 import android.content.Context
 import android.content.SharedPreferences
-import org.json.JSONObject
 
 /** وصول موحّد لبيانات الويدجت التي يكتبها home_widget. */
 object WidgetPrefs {
@@ -52,90 +51,37 @@ object WidgetPrefs {
         of(context).edit().putString(key, value).apply()
     }
 
-    /**
-     * يزيد «مراجعة» الويدجت: التطبيق يقارنها بآخر مراجعة رآها ليتبنّى ما فعله
-     * المستخدم من الويدجت (ذكر جديد / عدّاد) بدل الكتابة فوقه.
-     */
-    fun bumpRevision(context: Context): Int {
-        val next = (readRevision(context) + 1)
-        writeString(context, KEY_REVISION, next.toString())
-        return next
-    }
+    const val KEY_REVISION = TasbihKeys.REVISION
 
-    fun readRevision(context: Context): Int {
-        val raw = readString(context, KEY_REVISION, "0").trim()
-        return raw.toLongOrNull()?.toInt() ?: 0
-    }
-
-    const val KEY_REVISION = "widget_revision"
-
-    // ---------------------------------------------------------------------
-    // سجل الضغطات لكل ذكر (المصدر الموثوق لضغطات الودجت).
-    //
-    // السبب: عدّاد الويدجت المعروض يُصفَّر عند تبديل الذكر، فلو اعتمد التطبيق
-    // على العدّاد وحده لضاعت ضغطات الأذكار السابقة عند التبديل (A → B → A).
-    // لذلك يحتفظ الجانب الأصلي بمجموع الضغطات مدى الحياة **لكل ذكر**، والتطبيق
-    // يحفظ «علامة مائية» (ما استهلكه فعلاً) ويستهلك الفرق فقط.
-    //
-    // الخصائص: المجاميع لا تتناقص أبداً، والقراءة لا تستهلكها (الاستهلاك عند
-    // التطبيق)، ولذلك إغلاق التطبيق أو تكرار المزامنة لا يفقد ولا يضاعف شيئاً.
-    // ---------------------------------------------------------------------
-    const val KEY_TOTALS = "widget_totals"
-    const val KEY_TOTALS_SCHEMA = "widget_totals_schema"
+    fun readRevision(context: Context): Int =
+        readInt(context, KEY_REVISION, 0)
 
     /**
-     * الذكر الذي بُذر رصيده من العدّاد المعروض لحظة الترقية.
+     * تنفيذ [WidgetStateStore] فوق SharedPreferences بمعاملة واحدة (`commit`).
      *
-     * التطبيق يستخدمه ليبدأ علامته المائية من عدّاده المحفوظ لهذا الذكر فقط
-     * (لأن الرصيد المزروع يمثّل ضغطات سابقة استوعبها التطبيق أصلاً)، بينما تبدأ
-     * بقية الأذكار من صفر لأن ضغطاتها جديدة بالكامل.
+     * `commit()` متزامن عن قصد: نضمن أن ما كتبناه (الضغطة + المراجعة + السجل +
+     * التهيئة) صار على القرص قبل عرض الويدجت وقبل أن يقرأه التطبيق.
      */
-    const val KEY_TOTALS_SEED_ZIKR = "widget_totals_seed_zikr"
-    const val TOTALS_SCHEMA_V1 = "1"
+    fun stateStore(context: Context): WidgetStateStore = object : WidgetStateStore {
+        override fun getString(key: String, fallback: String): String =
+            readString(context, key, fallback)
 
-    fun readTotals(context: Context): MutableMap<String, Int> {
-        val out = linkedMapOf<String, Int>()
-        val raw = readString(context, KEY_TOTALS, "")
-        if (raw.isBlank()) return out
-        try {
-            val obj = JSONObject(raw)
-            for (key in obj.keys()) out[key] = obj.optInt(key, 0)
-        } catch (_: Exception) {
-            // بيانات تالفة: نبدأ من سجل فارغ بدل إسقاط العملية.
+        override fun getInt(key: String, fallback: Int): Int =
+            readInt(context, key, fallback)
+
+        override fun apply(writes: Map<String, Any>) {
+            val editor = of(context).edit()
+            writes.forEach { (key, value) ->
+                when (value) {
+                    is Int -> editor.putInt(key, value)
+                    is Boolean -> editor.putBoolean(key, value)
+                    else -> editor.putString(key, value.toString())
+                }
+            }
+            editor.commit()
         }
-        return out
     }
 
-    fun writeTotals(context: Context, totals: Map<String, Int>) {
-        val obj = JSONObject()
-        totals.forEach { (key, value) -> obj.put(key, value) }
-        writeString(context, KEY_TOTALS, obj.toString())
-    }
-
-    /**
-     * تهيئة السجل مرة واحدة عند الترقية من إصدار قديم: نعتبر العدّاد المعروض
-     * للذكر الحالي رصيداً سابقاً (الخط الأساس) حتى لا يُضاف مرتين.
-     */
-    fun ensureTotalsSchema(context: Context) {
-        if (readString(context, KEY_TOTALS_SCHEMA, "") == TOTALS_SCHEMA_V1) return
-        val totals = readTotals(context)
-        val current = readString(context, "widget_zikr", "").trim()
-        val display = readInt(context, "widget_count", 0)
-        if (current.isNotEmpty() && display > 0 && !totals.containsKey(current)) {
-            totals[current] = display
-            writeString(context, KEY_TOTALS_SEED_ZIKR, current)
-        }
-        writeTotals(context, totals)
-        writeString(context, KEY_TOTALS_SCHEMA, TOTALS_SCHEMA_V1)
-    }
-
-    /** يسجّل ضغطة واحدة على الذكر المعطى (داخل سجل الضغطات الدائم). */
-    fun recordPress(context: Context, zikr: String) {
-        ensureTotalsSchema(context)
-        val phrase = zikr.trim()
-        if (phrase.isEmpty()) return
-        val totals = readTotals(context)
-        totals[phrase] = (totals[phrase] ?: 0) + 1
-        writeTotals(context, totals)
-    }
+    /** سجل الضغطات الذرّي (المصدر الوحيد لتعديل عدّاد الويدجت). */
+    fun pressLog(context: Context): TasbihPressLog = TasbihPressLog(stateStore(context))
 }

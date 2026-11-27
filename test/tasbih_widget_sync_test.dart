@@ -1,6 +1,23 @@
+import 'dart:convert';
+
 import 'package:flutter_test/flutter_test.dart';
 
 import 'package:azkari/services/widget_sync_logic.dart';
+
+/// انقطاع محاكى (إغلاق التطبيق في منتصف العملية).
+class _Crash implements Exception {
+  @override
+  String toString() => 'simulated crash';
+}
+
+/// «قرص» يحاكي `widget_sync_state` في SharedPreferences.
+///
+/// الكتابة فيه ذرّية: إمّا القيمة القديمة أو الجديدة بالكامل — وهذا ما نتحقق
+/// منه: لا يمكن أن تُحفظ المراجعة دون العدّادات أو العكس.
+class _Disk {
+  String? blob;
+  int legacySeenRevision = 0;
+}
 
 const String kA = 'سبحان الله';
 const String kB = 'أستغفر الله';
@@ -66,8 +83,11 @@ class _App {
     required this.lifetime,
     required Map<String, int> storedCounts,
     Map<String, int>? watermarks,
+    _Disk? disk,
+    this.seenRevision = 0,
   })  : counts = Map<String, int>.from(storedCounts),
-        seen = Map<String, int>.from(watermarks ?? const <String, int>{}) {
+        seen = Map<String, int>.from(watermarks ?? const <String, int>{}),
+        disk = disk ?? _Disk() {
     counts[zikr] = count;
   }
 
@@ -76,13 +96,66 @@ class _App {
   int lifetime;
   Map<String, int> counts;
   Map<String, int> seen;
+  final _Disk disk;
 
-  int seenRevision = 0;
+  /// المراجعة المستهلكة (تُحفظ داخل الحالة الذرّية مثل التطبيق تمامًا).
+  int seenRevision;
   int lastPushedCount = 0;
   String lastPushedZikr = '';
 
+  /// إعادة تشغيل التطبيق من الحالة المحفوظة (المصدر الأساسي: المفتاح الذرّي).
+  factory _App.restore(_Disk disk, {String? fallbackZikr}) {
+    final raw = disk.blob;
+    if (raw == null || raw.isEmpty) {
+      return _App(
+        zikr: fallbackZikr ?? '',
+        count: 0,
+        lifetime: 0,
+        storedCounts: const {},
+        disk: disk,
+        seenRevision: disk.legacySeenRevision,
+      );
+    }
+    final decoded = jsonDecode(raw) as Map<String, dynamic>;
+    final counts = <String, int>{
+      for (final e in (decoded['counts'] as Map).entries)
+        e.key.toString(): (e.value as num).toInt(),
+    };
+    final seen = <String, int>{
+      for (final e in (decoded['seen'] as Map).entries)
+        e.key.toString(): (e.value as num).toInt(),
+    };
+    final phrase = (decoded['zikr'] as String?) ?? fallbackZikr ?? '';
+    return _App(
+      zikr: phrase,
+      count: counts[phrase] ?? 0,
+      lifetime: (decoded['lifetime'] as num?)?.toInt() ?? 0,
+      storedCounts: counts,
+      watermarks: seen,
+      disk: disk,
+      seenRevision: (decoded['revision'] as num?)?.toInt() ??
+          disk.legacySeenRevision,
+    );
+  }
+
+  /// كتابة ذرّية واحدة تشمل المراجعة (كما في `persistWidgetSyncState`).
+  void persist() {
+    counts[zikr] = count;
+    disk.blob = jsonEncode(<String, dynamic>{
+      'v': 2,
+      'counts': counts,
+      'seen': seen,
+      'lifetime': lifetime,
+      'zikr': zikr,
+      'revision': seenRevision,
+    });
+  }
+
   /// مزامنة واحدة: سحب من الويدجت ثم دفع حالة التطبيق إليه.
-  TasbihSyncPlan sync(_Widget widget) {
+  ///
+  /// [crashAfterRead] يحاكي إغلاق التطبيق بعد قراءة سجل الويدجت وقبل حفظ أي
+  /// شيء: يجب أن يبقى القرص على حالته القديمة تمامًا.
+  TasbihSyncPlan sync(_Widget widget, {bool crashAfterRead = false}) {
     final plan = planTasbihSync(
       widget: widget.snapshot(),
       appZikr: zikr,
@@ -95,6 +168,11 @@ class _App {
       lastPushedZikr: lastPushedZikr,
     );
 
+    if (crashAfterRead) {
+      // لم نكتب شيئًا بعد: لا عدّادات ولا مراجعة ولا علامات مائية.
+      throw _Crash();
+    }
+
     seenRevision = plan.seenRevision;
     zikr = plan.zikr;
     count = plan.count;
@@ -102,6 +180,8 @@ class _App {
     counts = Map<String, int>.from(plan.countsByPhrase);
     seen = Map<String, int>.from(plan.watermarks);
 
+    // نقلة واحدة: العدّادات + العلامات + الإجمالي + المراجعة + الذكر.
+    persist();
     push(widget);
     return plan;
   }
@@ -342,6 +422,155 @@ void main() {
 
       expect(app.count, 5);
       expect(app.lifetime, 15, reason: '12 + 3 ضغطات من الويدجت');
+    });
+  });
+
+  group('الانقطاع وإعادة التشغيل (ذرّية الحالة)', () {
+    test('انقطاع بعد قراءة السجل وقبل الحفظ ⇒ لا ضياع ولا مضاعفة', () {
+      final app = _App(
+        zikr: kA,
+        count: 5,
+        lifetime: 5,
+        storedCounts: {kA: 5},
+      );
+      final widget = _Widget(
+        zikr: kA,
+        count: 5,
+        lifetime: 5,
+        totals: {kA: 5},
+        revision: 1,
+        seededZikr: kA,
+      );
+      app.sync(widget);
+      expect(app.count, 5);
+
+      widget.tap(3); // ضغطات بعد آخر مزامنة ناجحة
+
+      expect(
+        () => app.sync(widget, crashAfterRead: true),
+        throwsA(isA<_Crash>()),
+      );
+
+      // القرص لم يتغيّر: المراجعة لم تُستهلك والضغطات ما زالت في السجل الأصلي.
+      final reopened = _App.restore(app.disk);
+      final plan = reopened.sync(widget);
+      expect(plan.addedFromWidget, 3);
+      expect(reopened.count, 8);
+      expect(reopened.lifetime, 8);
+    });
+
+    test('انقطاع بعد الحفظ ⇒ إعادة التشغيل لا تعيد استهلاك الضغطات', () {
+      final app = _App(
+        zikr: kA,
+        count: 0,
+        lifetime: 0,
+        storedCounts: {},
+      );
+      final widget = _Widget(zikr: kA, count: 0, lifetime: 0, totals: {});
+      app.sync(widget);
+
+      widget.tap(4);
+      expect(app.sync(widget).addedFromWidget, 4);
+      expect(app.count, 4);
+
+      // التطبيق «مات» بعد الكتابة مباشرة: يُستعاد من الحالة الذرّية.
+      final reopened = _App.restore(app.disk);
+      expect(reopened.seenRevision, app.seenRevision);
+      expect(reopened.sync(widget).addedFromWidget, 0);
+      expect(reopened.count, 4);
+      expect(reopened.lifetime, 4);
+    });
+
+    test('المراجعة تُستعاد من الحالة الذرّية لا من المفتاح القديم', () {
+      final app = _App(
+        zikr: kA,
+        count: 2,
+        lifetime: 2,
+        storedCounts: {kA: 2},
+      );
+      final widget = _Widget(
+        zikr: kA,
+        count: 2,
+        lifetime: 2,
+        totals: {kA: 2},
+        revision: 7,
+        seededZikr: kA,
+      );
+      app.sync(widget);
+      expect(app.seenRevision, 7);
+
+      // مفتاح قديم متأخر (5) يجب ألا يطغى على المراجعة الذرّية (7).
+      app.disk.legacySeenRevision = 5;
+      final reopened = _App.restore(app.disk);
+      expect(reopened.seenRevision, 7);
+      expect(reopened.sync(widget).addedFromWidget, 0);
+    });
+
+    test('إعادة التشغيل مرتين مع ضغطات بينهما لا تفقد ولا تضاعف', () {
+      final disk = _Disk();
+      var app = _App(
+        zikr: kA,
+        count: 0,
+        lifetime: 0,
+        storedCounts: {},
+        disk: disk,
+      );
+      final widget = _Widget(zikr: kA, count: 0, lifetime: 0, totals: {});
+      app.sync(widget);
+
+      widget.tap(2);
+      app.sync(widget);
+      expect(app.count, 2);
+
+      // إعادة تشغيل أولى + ضغطتان
+      app = _App.restore(disk);
+      widget.tap(2);
+      expect(app.sync(widget).addedFromWidget, 2);
+      expect(app.count, 4);
+
+      // إعادة تشغيل ثانية بدون ضغطات
+      app = _App.restore(disk);
+      expect(app.sync(widget).addedFromWidget, 0);
+      expect(app.count, 4);
+
+      // إعادة تشغيل ثالثة + ضغطتان على ذكر آخر بعد التبديل
+      app = _App.restore(disk);
+      widget.nextZikr(kB);
+      widget.tap(2);
+      final plan = app.sync(widget);
+      expect(plan.addedFromWidget, 2);
+      expect(app.zikr, kB);
+      expect(app.counts[kA], 4);
+      expect(app.counts[kB], 2);
+      expect(app.lifetime, 6);
+    });
+
+    test('حالة محفوظة من إصدار أقدم (بلا revision داخل الحالة) تُرقّى بأمان', () {
+      final disk = _Disk()
+        ..blob = jsonEncode(<String, dynamic>{
+          'counts': {kA: 9},
+          'seen': {kA: 9},
+          'lifetime': 9,
+          'zikr': kA,
+        })
+        ..legacySeenRevision = 3;
+
+      final widget = _Widget(
+        zikr: kA,
+        count: 9,
+        lifetime: 9,
+        totals: {kA: 9},
+        revision: 3,
+        seededZikr: kA,
+      );
+      final app = _App.restore(disk);
+      expect(app.seenRevision, 3, reason: 'يرجع للمفتاح القديم عند غيابه');
+      expect(app.sync(widget).addedFromWidget, 0);
+      expect(app.count, 9);
+
+      widget.tap(1);
+      expect(app.sync(widget).addedFromWidget, 1);
+      expect(app.count, 10);
     });
   });
 

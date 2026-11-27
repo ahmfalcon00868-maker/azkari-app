@@ -619,8 +619,13 @@ class _AzkariAppState extends State<AzkariApp> with WidgetsBindingObserver {
   /// الأصلي (`widget_totals`). تُحفظ مع العدّادات في كتابة واحدة.
   Map<String, int> widgetTotalsSeen = <String, int>{};
 
-  /// مفتاح الحالة الذرّية لمزامنة الويدجت (عدّادات + علامات مائية + إجمالي).
+  /// مفتاح الحالة الذرّية لمزامنة الويدجت:
+  /// العدّادات + العلامات المائية + الإجمالي + الذكر + **المراجعة المستهلكة**.
   static const String kWidgetSyncStateKey = 'widget_sync_state';
+
+  /// آخر مراجعة ويدجت استوعبها التطبيق. تُحفظ **داخل** [kWidgetSyncStateKey]
+  /// ليكون استهلاك الضغطات والمراجعة عملية واحدة غير قابلة للانقسام.
+  int widgetRevisionSeen = 0;
   late int currentStreak;
   late int bestStreak;
   late int totalAzkarCompleted;
@@ -896,8 +901,20 @@ class _AzkariAppState extends State<AzkariApp> with WidgetsBindingObserver {
           if (totalLifetime is num && totalLifetime.toInt() > tasbihLifetime) {
             tasbihLifetime = totalLifetime.toInt();
           }
+          final stateRevision = decoded['revision'];
+          if (stateRevision is num) {
+            widgetRevisionSeen = stateRevision.toInt();
+          }
+          final stateZikr = decoded['zikr'];
+          if (stateZikr is String && stateZikr.trim().isNotEmpty) {
+            tasbihPhrase = stateZikr;
+          }
         }
       } catch (_) {}
+    }
+    // ترقية: الإصدارات السابقة كانت تحفظ المراجعة في مفتاح منفصل.
+    if (widgetRevisionSeen == 0) {
+      widgetRevisionSeen = p.getInt('widget_revision_seen') ?? 0;
     }
     tasbihCount =
         tasbihCountsByPhrase[tasbihPhrase] ?? (p.getInt('tasbihCount') ?? 0);
@@ -1193,9 +1210,12 @@ class _AzkariAppState extends State<AzkariApp> with WidgetsBindingObserver {
   Future<void> persistWidgetSyncState() async {
     tasbihCountsByPhrase[tasbihPhrase] = tasbihCount;
     final payload = jsonEncode(<String, dynamic>{
+      'v': 2,
       'counts': tasbihCountsByPhrase,
       'seen': widgetTotalsSeen,
       'lifetime': tasbihLifetime,
+      'zikr': tasbihPhrase,
+      'revision': widgetRevisionSeen,
     });
     try {
       await widget.prefs.setString(kWidgetSyncStateKey, payload);
@@ -1252,7 +1272,7 @@ class _AzkariAppState extends State<AzkariApp> with WidgetsBindingObserver {
   /// — فلا تضيع ضغطة ولا تُضاعف عند تكرار المزامنة.
   Future<void> _pullTasbihFromWidget({bool pushBack = true}) async {
     final snapshot = await WidgetService.instance.readTasbihState();
-    final seenRevision = widget.prefs.getInt('widget_revision_seen') ?? 0;
+    final seenRevision = widgetRevisionSeen;
     final plan = planTasbihSync(
       widget: snapshot,
       appZikr: tasbihPhrase,
@@ -1275,9 +1295,10 @@ class _AzkariAppState extends State<AzkariApp> with WidgetsBindingObserver {
     tasbihCountsByPhrase = Map<String, int>.from(plan.countsByPhrase);
     widgetTotalsSeen = Map<String, int>.from(plan.watermarks);
 
-    // ترتيب الحفظ: العلامات المائية تُثبَّت مع العدّادات في نفس المفتاح.
-    await widget.prefs.setInt('widget_revision_seen', plan.seenRevision);
-    await widget.prefs.setString('tasbihPhrase', tasbihPhrase);
+    // المراجعة المستهلكة تُحفظ **مع** العدّادات والعلامات المائية في نفس القيمة:
+    // لا يمكن أن تُستهلك المراجعة قبل تثبيت الضغطات، ولا العكس. ولو انقطعت
+    // العملية قبل الكتابة فكل شيء يبقى كما كان ⇒ إعادة المحاولة آمنة تمامًا.
+    widgetRevisionSeen = plan.seenRevision;
     await persistWidgetSyncState();
 
     if (changed || plan.addedFromWidget > 0) {

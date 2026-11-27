@@ -38,7 +38,7 @@ class TasbihWidgetProvider : AppWidgetProvider() {
         appWidgetManager: AppWidgetManager,
         appWidgetIds: IntArray
     ) {
-        WidgetPrefs.ensureTotalsSchema(context)
+        WidgetPrefs.pressLog(context).ensureSchema()
         appWidgetIds.forEach { id -> render(context, appWidgetManager, id) }
     }
 
@@ -46,25 +46,19 @@ class TasbihWidgetProvider : AppWidgetProvider() {
         super.onReceive(context, intent)
         when (intent.action) {
             ACTION_INC -> {
+                // التهيئة + الضغطة + العداد + الإجمالي + السجل + المراجعة في
+                // معاملة واحدة داخل TasbihPressLog (لا تُحسب ضغطة مرتين ولا
+                // يمكن أن يُحفظ السجل دون مراجعة).
                 val zikr = WidgetPrefs.readString(context, KEY_ZIKR, ZIKR_POOL[0])
-                val count = WidgetPrefs.readInt(context, KEY_COUNT, 0) + 1
-                val lifetime = WidgetPrefs.readInt(context, KEY_LIFETIME, 0) + 1
-                WidgetPrefs.writeInt(context, KEY_COUNT, count)
-                WidgetPrefs.writeInt(context, KEY_LIFETIME, lifetime)
-                // الضغطة تُسجَّل في سجل الذكر نفسه، فلا تضيع عند تبديل الذكر.
-                WidgetPrefs.recordPress(context, zikr)
-                WidgetPrefs.bumpRevision(context)
+                WidgetPrefs.pressLog(context).press(zikr)
                 refreshAll(context)
             }
             ACTION_NEXT -> {
-                WidgetPrefs.ensureTotalsSchema(context)
                 val current = WidgetPrefs.readString(context, KEY_ZIKR, "")
                 val idx = ZIKR_POOL.indexOf(current)
                 val next = ZIKR_POOL[(idx + 1) % ZIKR_POOL.size]
-                WidgetPrefs.writeString(context, KEY_ZIKR, next)
-                // ذكر جديد => عدّاد جديد (التطبيق سيضيف رصيده المحفوظ لهذا الذكر)
-                WidgetPrefs.writeInt(context, KEY_COUNT, 0)
-                WidgetPrefs.bumpRevision(context)
+                // تبديل الذكر + تصفير العرض + مراجعة + تهيئة السجل: معاملة واحدة.
+                WidgetPrefs.pressLog(context).switchZikr(next)
                 refreshAll(context)
             }
             else -> refreshAll(context)
