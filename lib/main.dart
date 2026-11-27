@@ -29,8 +29,12 @@ import 'services/update_service.dart';
 import 'screens/sha7nawy_payment_screen.dart';
 import 'widgets/google_play_icon.dart';
 
-const String kAppDownloadLink =
-    'https://github.com/ahmfalcon00868-maker/azkari-app/releases/latest';
+/// صفحة التطبيق الرسمية للتحميل والمشاركة (متجر APKPure).
+///
+/// تُستخدم في: مشاركة التطبيق مع الأصدقاء، تقييم التطبيق، مشاركة الأذكار
+/// كبطاقة/نص، ورسائل النشر. لا تُستخدم في التحديث الذاتي (انظر
+/// `UpdateService`) الذي يحتاج رابط ملف APK مباشر.
+const String kAppDownloadLink = 'https://apkpure.com/p/com.flc.azkari';
 
 const List<String> kSplashVerses = [
   '﴿وَاذْكُرْ رَبَّكَ إِذَا نَسِيتَ﴾',

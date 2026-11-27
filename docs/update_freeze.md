@@ -31,7 +31,10 @@
    ```json
    { "version": "1.2.0", "build_number": 3, "apk_url": "…/releases/latest/download/app-release.apk", "notes": "…" }
    ```
-4. **انشر الـ Release** بالـ APK الجديد، مثلًا:
+4. **انشر الـ Release** بالـ APK الجديد. مهم: `apk_url` في `version.json` يجب أن
+   يكون **رابط ملف APK مباشر** (التطبيق ينزّل البايتات ويثبّتها عبر `open_filex`)،
+   ولا يصلح أن يكون صفحة متجر مثل `https://apkpure.com/p/com.flc.azkari`؛ رابط
+   المتجر مخصّص للمشاركة فقط (`kAppDownloadLink` في `lib/main.dart`). مثلًا:
    ```bash
    # الإصدار القديم ما زال draft باسم مؤقت untagged-…؛ أعِد تسميته ونشره
    gh release edit '<untagged-tag>' --tag v1.0.0 --draft=false
