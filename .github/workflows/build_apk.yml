@@ -146,46 +146,23 @@ jobs:
       # اختبارات وحدة Kotlin للمنطق الأصلي لسجل الضغطات (JVM، بلا جهاز).
       # ملاحظة: نرفع minSdk مؤقتاً إلى 24 لبناء نسخة debug (بعض المكتبات تطلب
       # ذلك) ثم نعيده إلى 23 فوراً حتى يبقى الـ APK المُسلَّم بلا أي تغيير.
-      - name: Run Android unit tests (widget press log)
+      # اختبارات منطق الويدجت الأصلي: مشروع Gradle/JVM مستقل يترجم نفس ملف
+      # Kotlin المشحون في الـ APK (لا يحتاج Android SDK ولا يحاكي المنطق).
+      - name: Run native widget logic tests (Kotlin/JVM)
         run: |
           set -uo pipefail
-          kts="android/app/build.gradle.kts"
-          grv="android/app/build.gradle"
-          gradle_file=""
-          if [ -f "$kts" ]; then
-            gradle_file="$kts"
-            if ! grep -q 'junit:junit' "$kts"; then
-              printf '\nandroid {\n    sourceSets.getByName("test").java.srcDirs("src/test/java", "src/test/kotlin")\n}\n\ndependencies {\n    testImplementation("junit:junit:4.13.2")\n}\n' >> "$kts"
-            fi
-          elif [ -f "$grv" ]; then
-            gradle_file="$grv"
-            grep -q 'junit:junit' "$grv" || printf '\ndependencies {\n    testImplementation "junit:junit:4.13.2"\n}\n' >> "$grv"
-          fi
-          cp "$gradle_file" /tmp/gradle.original
-          sed -i 's/minSdk = 23/minSdk = 24/; s/minSdkVersion 23/minSdkVersion 24/' "$gradle_file"
-
           set +e
-          ( cd android && ./gradlew :app:testDebugUnitTest --no-daemon --console=plain 2>&1 | tee /tmp/gradle.log )
+          ( cd android && ./gradlew -p ../tool/kotlin_tests test --no-daemon --console=plain 2>&1 | tee /tmp/kotlin-tests.log )
           status=$?
-          CF=$(find android/app/build -name 'TasbihPressLogTest*.class' 2>/dev/null | wc -l)
-          E1=$(grep -m1 -E "^e: " /tmp/gradle.log 2>/dev/null | sed 's|file:///[^ ]*/||; s/::/-/g' | cut -c1-300)
-          W=$(grep -m1 -A2 "What went wrong" /tmp/gradle.log 2>/dev/null | tr '\n' ' ' | sed 's/::/-/g' | cut -c1-220)
-          echo "::error::step gradle=$status classes=$CF err=${E1:-none} why=${W:-none}"
-          cp /tmp/gradle.original "$gradle_file"   # نُعيد minSdk 23 قبل بناء الـ APK
-          python3 tool/android_test_stats.py android/app/build/test-results/testDebugUnitTest
+          python3 tool/android_test_stats.py tool/kotlin_tests/build/test-results/test
           stats=$?
           set -e
-
           if [ "$status" -ne 0 ] || [ "$stats" -ne 0 ]; then
-            {
-              echo "== gradle tail =="
-              tail -c 30000 /tmp/gradle.log
-              echo "== results =="
-              tail -c 20000 android/app/build/test-results/testDebugUnitTest/*.xml 2>/dev/null
-            } > /tmp/g.txt
-            head -c 55000 /tmp/g.txt > /tmp/g2.txt
-            true
-            GH_TOKEN=${{ secrets.GITHUB_TOKEN }} gh issue create --repo "$GITHUB_REPOSITORY" --title temp-android-test-failure --body-file /tmp/g2.txt 2>&1 | head -5 || true
+            { echo "== tail =="; tail -c 25000 /tmp/kotlin-tests.log; } > /tmp/k.txt
+            sed -i 's/::/-/g' /tmp/k.txt
+            head -c 55000 /tmp/k.txt > /tmp/k2.txt
+            echo "::error::kotlin tests: $(grep -m2 -E '^e: |FAILED|What went wrong' /tmp/k.txt | tr '\n' ' ' | cut -c1-600)"
+            GH_TOKEN=${{ secrets.GITHUB_TOKEN }} gh issue create --repo "$GITHUB_REPOSITORY" --title temp-kotlin-tests --body-file /tmp/k2.txt 2>&1 | head -3 || true
             exit 1
           fi
 
