@@ -68,4 +68,3 @@ object WidgetPrefs {
 
     const val KEY_REVISION = "widget_revision"
 }
-}
