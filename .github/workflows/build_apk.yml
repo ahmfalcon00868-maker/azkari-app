@@ -204,7 +204,9 @@ jobs:
           fi
 
       - name: Build Release APK
-        run: flutter build apk --release --obfuscate --split-debug-info=build/debug-info 2>&1 | tee build.log
+        run: |
+          set -euo pipefail
+          flutter build apk --release --obfuscate --split-debug-info=build/debug-info 2>&1 | tee build.log
 
       - name: TEMP diagnostics — build failure
         if: failure()
@@ -276,8 +278,12 @@ jobs:
             which aapt2 aapt apkanalyzer 2>/dev/null || true
             echo "==== perms.txt ===="
             head -40 perms.txt 2>/dev/null || echo "(missing)"
+            echo "==== build.log tail ===="
+            tail -60 build.log 2>/dev/null || echo "(no build.log)"
             echo "==== apk files ===="
             find build -name "*.apk" -type f 2>/dev/null | head -20 || echo "(none)"
+            echo "==== build dir ===="
+            ls build 2>/dev/null | head -20 || echo "(no build dir)"
           } > /tmp/d.txt
           head -c 55000 /tmp/d.txt > /tmp/d2.txt
           gh issue create --repo "$GITHUB_REPOSITORY" --title "temp-verify-diagnostics" --body-file /tmp/d2.txt || true
