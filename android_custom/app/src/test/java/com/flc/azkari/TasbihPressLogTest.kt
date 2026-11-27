@@ -196,7 +196,7 @@ class TasbihPressLogTest {
 
         assertEquals(B, store.getString(TasbihKeys.ZIKR))
         assertEquals(0, store.getInt(TasbihKeys.COUNT))
-        assertEquals(3, log.readTotals()[A], "سجل الذكر السابق يبقى")
+        assertEquals(3L, (log.readTotals()[A] ?: 0).toLong(), "سجل الذكر السابق يبقى")
         assertEquals(4, store.getInt(TasbihKeys.REVISION))
 
         // ضغطتان على B ثم العودة إلى A: كل سجل مستقل.
@@ -244,7 +244,7 @@ class TasbihPressLogTest {
         assertEquals(appliesAfterFirst, store.applies)
         assertEquals(totalsAfterFirst, log.readTotals())
         assertEquals(4, log.readTotals()[A])
-        assertEquals(0, store.getInt(TasbihKeys.REVISION), "التهيئة لا تزيد المراجعة")
+        assertEquals(0L, store.getInt(TasbihKeys.REVISION).toLong(), "التهيئة لا تزيد المراجعة")
     }
 
     @Test
