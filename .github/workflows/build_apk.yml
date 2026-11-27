@@ -12,7 +12,6 @@ permissions:
 jobs:
   build-android-apk:
     name: Build Azkari v1.1.0+2 APK
-    if: false
     runs-on: ubuntu-latest
     steps:
       - name: Checkout code
@@ -293,46 +292,3 @@ jobs:
           name: Azkari-1.1.0-2-sha256-${{ steps.apk.outputs.sha }}-cert-${{ steps.apk.outputs.cert }}-tests-${{ steps.tests.outputs.count }}
           path: Azkari-1.1.0+2.apk
           if-no-files-found: error
-
-  old_cert_probe:
-    name: TEMP probe 1.0.0 signer certificate
-    runs-on: ubuntu-latest
-    permissions:
-      contents: read
-      issues: write
-    steps:
-      - name: Download old draft-release APK
-        env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: |
-          set -uo pipefail
-          { echo "== gh release download v1.0.0 =="
-            gh release download v1.0.0 --repo "$GITHUB_REPOSITORY" --pattern 'app-release.apk' --output old.apk 2>&1 || echo "download failed"
-            ls -l old.apk 2>/dev/null || echo "no file"
-            echo "== releases =="; gh release list --repo "$GITHUB_REPOSITORY" 2>&1
-            echo "== raw release api =="; gh api "repos/$GITHUB_REPOSITORY/releases" 2>&1 | head -c 500
-          } > out.txt
-      - name: Extract signer certificate
-        run: |
-          set -uo pipefail
-          {
-            echo "== openssl =="
-            mkdir -p m && unzip -o old.apk 'META-INF/*' -d m >/dev/null 2>&1 || echo "unzip failed"
-            for f in m/META-INF/*.RSA m/META-INF/*.DSA m/META-INF/*.EC; do
-              [ -f "$f" ] || continue
-              openssl pkcs7 -inform DER -in "$f" -print_certs -out c.pem 2>/dev/null && \
-                openssl x509 -in c.pem -noout -subject -fingerprint -sha256 2>/dev/null
-            done
-            echo "== apksigner =="
-            SDK="${ANDROID_SDK_ROOT:-$ANDROID_HOME}"
-            A=$(ls -d "$SDK"/build-tools/*/apksigner 2>/dev/null | tail -1)
-            echo "using: ${A:-none}"
-            if [ -n "$A" ]; then "$A" verify --print-certs old.apk 2>&1 | head -20 || true; fi
-          } >> out.txt
-      - name: Publish result as issue
-        if: always()
-        env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: |
-          head -c 55000 out.txt > out2.txt
-          gh issue create --repo "$GITHUB_REPOSITORY" --title "temp-cert-result" --body-file out2.txt || true
