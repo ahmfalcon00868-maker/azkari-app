@@ -1,9 +1,11 @@
+import 'dart:async';
 import 'dart:convert';
 
 import 'package:flutter/material.dart';
 import 'package:share_plus/share_plus.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
+import '../services/city_clock.dart';
 import '../services/khushu_service.dart';
 import '../services/sun_times.dart';
 import '../services/sunna_reminders.dart';
@@ -118,10 +120,23 @@ class _MoreHubScreenState extends State<MoreHubScreen> {
   String get lang => widget.appLang;
   bool get dark => widget.isDarkMode;
 
+  Timer? _fridayBoundaryTimer;
+  Timer? _fridayWatchTimer;
+  bool? _lastShowSunnah;
+
   @override
   void initState() {
     super.initState();
     _syncFridayDefaults();
+    _lastShowSunnah = _isSunnahWindowOpen();
+    _scheduleFridayWatch();
+  }
+
+  @override
+  void dispose() {
+    _fridayBoundaryTimer?.cancel();
+    _fridayWatchTimer?.cancel();
+    super.dispose();
   }
 
   Future<void> _pickCity() async {
@@ -167,7 +182,8 @@ class _MoreHubScreenState extends State<MoreHubScreen> {
   }
 
   void _syncFridayDefaults() {
-    final key = fridayWeekKey(DateTime.now());
+    final cityDate = _cityToday;
+    final key = fridayWeekKey(DateTime(cityDate.year, cityDate.month, cityDate.day));
     if (widget.prefs.getString('friday_checklist_week') != key) {
       widget.prefs.setString('friday_checklist_week', key);
       widget.prefs.setBool('friday_kahf', false);
@@ -184,28 +200,69 @@ class _MoreHubScreenState extends State<MoreHubScreen> {
     return kQiblaCities[idx];
   }
 
-  /// مغرب الخميس والجمعة لهذا الأسبوع بحسب موقع المدينة المختارة.
+  /// تاريخ اليوم في **توقيت المدينة** (لا توقيت الجهاز).
+  ({int weekday, int day, int month, int year}) get _cityToday =>
+      CityClock.dateIn(DateTime.now().toUtc(), _city.timeZone);
+
+  /// مغرب الخميس ومغرب الجمعة لهذا الأسبوع كـ**لحظات UTC** لموقع المدينة.
   ({DateTime? start, DateTime? end}) get _fridayWindow {
     final c = _city;
-    return fridaySunnahWindow(
-      DateTime.now(),
+    final today = _cityToday;
+    return fridaySunnahWindowUtc(
+      DateTime.utc(today.year, today.month, today.day),
       latitude: c.lat,
       longitude: c.lng,
     );
   }
 
+  bool _isSunnahWindowOpen() {
+    final w = _fridayWindow;
+    if (w.start == null || w.end == null) return false;
+    return isFridaySunnahWindow(
+      DateTime.now().toUtc(),
+      thursdayMaghrib: w.start!,
+      fridayMaghrib: w.end!,
+    );
+  }
+
+  /// إعادة بناء تلقائية عند بداية النافذة ونهايتها، مع فحص كل دقيقة حتى لو
+  /// بقيت الشاشة مفتوحة دون تفاعل (أو تغيّرت ساعة الجهاز).
+  void _scheduleFridayWatch() {
+    _fridayBoundaryTimer?.cancel();
+    final w = _fridayWindow;
+    final nowUtc = DateTime.now().toUtc();
+    DateTime? target;
+    if (w.start != null && nowUtc.isBefore(w.start!)) {
+      target = w.start;
+    } else if (w.end != null && nowUtc.isBefore(w.end!)) {
+      target = w.end;
+    }
+    if (target != null) {
+      final delay = target.difference(nowUtc) + const Duration(seconds: 1);
+      _fridayBoundaryTimer = Timer(delay, () {
+        if (!mounted) return;
+        setState(() {});
+        _scheduleFridayWatch();
+      });
+    }
+    _fridayWatchTimer ??= Timer.periodic(const Duration(minutes: 1), (_) {
+      if (!mounted) return;
+      final isOpen = _isSunnahWindowOpen();
+      if (_lastShowSunnah != isOpen) {
+        _lastShowSunnah = isOpen;
+        setState(() {});
+        _scheduleFridayWatch();
+      }
+    });
+  }
+
   @override
   Widget build(BuildContext context) {
-    final now = DateTime.now();
+    final city = _city;
+    final now = CityClock.at(DateTime.now().toUtc(), city.timeZone);
     final showFriday = now.weekday == DateTime.friday;
     final window = _fridayWindow;
-    final showSunnah = window.start != null &&
-        window.end != null &&
-        isFridaySunnahWindow(
-          now,
-          thursdayMaghrib: window.start!,
-          fridayMaghrib: window.end!,
-        );
+    final showSunnah = _isSunnahWindowOpen();
 
     return ListView(
       padding: const EdgeInsets.fromLTRB(16, 12, 16, 110),
@@ -226,10 +283,11 @@ class _MoreHubScreenState extends State<MoreHubScreen> {
             prefs: widget.prefs,
             lang: lang,
             isDarkMode: dark,
-            thursdayMaghrib: window.start!,
-            fridayMaghrib: window.end!,
-            cityAr: _city.nameAr,
-            cityEn: _city.nameEn,
+            thursdayMaghribLabel: CityClock.format(window.start!, city.timeZone),
+            fridayMaghribLabel: CityClock.format(window.end!, city.timeZone),
+            cityAr: city.nameAr,
+            cityEn: city.nameEn,
+            timeZone: city.timeZone,
             onChangeCity: _pickCity,
             onChanged: () => setState(() {}),
           ),
@@ -666,10 +724,11 @@ class FridaySunnahCard extends StatelessWidget {
     required this.prefs,
     required this.lang,
     required this.isDarkMode,
-    required this.thursdayMaghrib,
-    required this.fridayMaghrib,
+    required this.thursdayMaghribLabel,
+    required this.fridayMaghribLabel,
     required this.cityAr,
     required this.cityEn,
+    required this.timeZone,
     required this.onChanged,
     this.onChangeCity,
   });
@@ -678,11 +737,14 @@ class FridaySunnahCard extends StatelessWidget {
   final String lang;
   final bool isDarkMode;
 
-  /// مغرب الخميس (بداية النافذة) ومغرب الجمعة (نهايتها) بالتوقيت المحلي.
-  final DateTime thursdayMaghrib;
-  final DateTime fridayMaghrib;
+  /// مغرب الخميس (بداية النافذة) ومغرب الجمعة (نهايتها) بتوقيت **المدينة**.
+  final String thursdayMaghribLabel;
+  final String fridayMaghribLabel;
   final String cityAr;
   final String cityEn;
+
+  /// المنطقة الزمنية للمدينة (تُعرض للتوضيح: الوقت ليس بتوقيت الجهاز).
+  final String timeZone;
   final VoidCallback onChanged;
   final VoidCallback? onChangeCity;
 
@@ -695,8 +757,8 @@ class FridaySunnahCard extends StatelessWidget {
 
   /// نص يوضح النافذة الفعلية (مغرب الخميس ← مغرب الجمعة) والمدينة المستخدمة.
   String _windowLabel() {
-    final start = _clock(thursdayMaghrib);
-    final end = _clock(fridayMaghrib);
+    final start = thursdayMaghribLabel;
+    final end = fridayMaghribLabel;
     final city = lang == 'en' ? cityEn : cityAr;
     if (lang == 'en') {
       return 'From Thursday maghrib $start to Friday maghrib $end — $city';
@@ -1098,21 +1160,8 @@ class _QadaTrackerScreenState extends State<QadaTrackerScreen> {
   String get lang => widget.lang;
   final SunnaReminders _reminders = SunnaReminders();
 
-  @override
-  void initState() {
-    super.initState();
-    // إعادة تثبيت التذكيرات الأسبوعية إن كانت مفعّلة (تستبدل أي جدولة يومية قديمة).
-    if (widget.prefs.getBool('sunna_fast_reminder') ?? false) {
-      _reminders.apply(
-        enabled: true,
-        mondayTitle: _t(lang, 'صيام الإثنين', 'Monday fasting', 'Pazartesi orucu'),
-        thursdayTitle:
-            _t(lang, 'صيام الخميس', 'Thursday fasting', 'Perşembe orucu'),
-        body: _t(lang, 'لا تنس صيام اليوم إن شاء الله.',
-            'Do not forget today\u2019s fast.', 'Bugünkü orucu unutmayın.'),
-      );
-    }
-  }
+  /// ملاحظة: ترحيل/إعادة جدولة تذكيرات السنن صارت عند بدء التطبيق
+  /// (انظر `ReminderBootstrap`)، وليس عند فتح هذه الشاشة.
 
   int get _owed => widget.prefs.getInt('qada_days_total') ?? 0;
   int get _done => widget.prefs.getInt('qada_days_done') ?? 0;
@@ -1288,9 +1337,9 @@ class _QadaTrackerScreenState extends State<QadaTrackerScreen> {
                 ),
                 Text(
                   _t(lang,
-                      'ملاحظة: التذكيرات اليومية لإشعار عام؛ راجع وقت الإمساك في مدينتك.',
-                      'Note: reminders are general; confirm your local fasting time.',
-                      'Not: hatırlatmalar geneldir; yerel imsak vaktinizi kontrol edin.'),
+                      'ملاحظة: التذكيرات أسبوعية (الإثنين والخميس) في موعد الإمساك التقريبي؛ راجع وقت الإمساك في مدينتك.',
+                      'Note: reminders are weekly (Monday & Thursday) at an approximate pre-dawn time; confirm your local fasting time.',
+                      'Not: hatırlatmalar haftalıktır (Pazartesi ve Perşembe) yaklaşık imsak vaktinde; yerel imsak vaktinizi kontrol edin.'),
                   style: TextStyle(
                       fontSize: 10.5,
                       color: MoreColors.textSoft(widget.isDarkMode)),
@@ -1306,8 +1355,3 @@ class _QadaTrackerScreenState extends State<QadaTrackerScreen> {
 
 /// أداة مساعدة للاختبارات: تحويل قائمة إلى JSON آمن.
 String encodeChecklist(Map<String, bool> map) => jsonEncode(map);
-
-
-/// توقيت محلي بصيغة 24 ساعة (مثلاً 17:23).
-String _clock(DateTime d) =>
-    '${d.hour.toString().padLeft(2, '0')}:${d.minute.toString().padLeft(2, '0')}';

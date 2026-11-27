@@ -1,4 +1,4 @@
-name: Build Azkari v1.0.0 Android APK
+name: Build Azkari v1.1.0+2 APK
 
 on:
   push:
@@ -11,7 +11,7 @@ permissions:
 
 jobs:
   build-android-apk:
-    name: Build Azkari v1.0.0 APK
+    name: Build Azkari v1.1.0+2 APK
     runs-on: ubuntu-latest
     steps:
       - name: Checkout code

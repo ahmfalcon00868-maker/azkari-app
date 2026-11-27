@@ -11,22 +11,31 @@ class QiblaCity {
   final String nameEn;
   final double lat;
   final double lng;
-  const QiblaCity(this.nameAr, this.nameEn, this.lat, this.lng);
+
+  /// منطقة المدينة الزمنية (IANA) — تُستخدم لعرض مواقيت الشروق/المغرب
+  /// بتوقيت المدينة نفسها لا بتوقيت الجهاز.
+  final String timeZone;
+
+  const QiblaCity(this.nameAr, this.nameEn, this.lat, this.lng,
+      [this.timeZone = 'Africa/Cairo']);
 }
 
 const List<QiblaCity> kQiblaCities = [
-  QiblaCity('القاهرة، مصر', 'Cairo, Egypt', 30.0444, 31.2357),
-  QiblaCity('بني سويف، مصر', 'Beni Suef, Egypt', 29.0661, 31.0994),
-  QiblaCity('الإسكندرية، مصر', 'Alexandria, Egypt', 31.2001, 29.9187),
-  QiblaCity('المنصورة، مصر', 'Mansoura, Egypt', 31.0409, 31.3785),
-  QiblaCity('أسيوط، مصر', 'Asyut, Egypt', 27.1809, 31.1837),
-  QiblaCity('الرياض، السعودية', 'Riyadh, KSA', 24.7136, 46.6753),
-  QiblaCity('جدة، السعودية', 'Jeddah, KSA', 21.4858, 39.1925),
-  QiblaCity('دبي، الإمارات', 'Dubai, UAE', 25.2048, 55.2708),
-  QiblaCity('عمّان، الأردن', 'Amman, Jordan', 31.9454, 35.9284),
-  QiblaCity('الكويت', 'Kuwait City', 29.3759, 47.9774),
-  QiblaCity('الدوحة، قطر', 'Doha, Qatar', 25.2854, 51.5310),
-  QiblaCity('الرباط، المغرب', 'Rabat, Morocco', 34.0209, -6.8416),
+  QiblaCity('القاهرة، مصر', 'Cairo, Egypt', 30.0444, 31.2357, 'Africa/Cairo'),
+  QiblaCity('المنيا، مصر', 'Minya, Egypt', 28.1099, 30.7503, 'Africa/Cairo'),
+  QiblaCity('بني سويف، مصر', 'Beni Suef, Egypt', 29.0661, 31.0994, 'Africa/Cairo'),
+  QiblaCity('الإسكندرية، مصر', 'Alexandria, Egypt', 31.2001, 29.9187, 'Africa/Cairo'),
+  QiblaCity('المنصورة، مصر', 'Mansoura, Egypt', 31.0409, 31.3785, 'Africa/Cairo'),
+  QiblaCity('أسيوط، مصر', 'Asyut, Egypt', 27.1809, 31.1837, 'Africa/Cairo'),
+  QiblaCity('الرياض، السعودية', 'Riyadh, KSA', 24.7136, 46.6753, 'Asia/Riyadh'),
+  QiblaCity('جدة، السعودية', 'Jeddah, KSA', 21.4858, 39.1925, 'Asia/Riyadh'),
+  QiblaCity('دبي، الإمارات', 'Dubai, UAE', 25.2048, 55.2708, 'Asia/Dubai'),
+  QiblaCity('عمّان، الأردن', 'Amman, Jordan', 31.9454, 35.9284, 'Asia/Amman'),
+  QiblaCity('الكويت', 'Kuwait City', 29.3759, 47.9774, 'Asia/Kuwait'),
+  QiblaCity('الدوحة، قطر', 'Doha, Qatar', 25.2854, 51.5310, 'Asia/Qatar'),
+  QiblaCity('الرباط، المغرب', 'Rabat, Morocco', 34.0209, -6.8416, 'Africa/Casablanca'),
+  QiblaCity('إستانبول، تركيا', 'Istanbul, Türkiye', 41.0082, 28.9784, 'Europe/Istanbul'),
+  QiblaCity('لندن، بريطانيا', 'London, UK', 51.5072, -0.1276, 'Europe/London'),
 ];
 
 class ToolsHubScreen extends StatefulWidget {

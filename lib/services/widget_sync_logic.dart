@@ -27,6 +27,9 @@ class TasbihSyncPlan {
     required this.lifetime,
     required this.seenRevision,
     required this.adoptedZikr,
+    required this.pushedZikr,
+    required this.pushedCount,
+    this.addedFromWidget = 0,
   });
 
   final String zikr;
@@ -36,14 +39,31 @@ class TasbihSyncPlan {
 
   /// هل تبنّى التطبيق ذكراً جديداً جاء من الويدجت؟
   final bool adoptedZikr;
+
+  /// الذكر/العدّاد الذي صار الويدجت يعرضه بعد أن يدفع التطبيق حالته.
+  ///
+  /// يُحفظ في التفضيلات، ويُستخدم في المزامنة التالية كخط أساس لحساب عدد
+  /// الضغطات الجديدة فقط (حتى لا تُحسب الضغطات مرتين).
+  final String pushedZikr;
+  final int pushedCount;
+
+  /// عدد الضغطات التي أُضيفت من الويدجت في هذه المزامنة.
+  final int addedFromWidget;
 }
 
-/// يدمج ما فعله المستخدم في الويدجت مع ذاكرة التطبيق دون إرجاع ذكر قديم.
+/// يدمج ما فعله المستخدم في الويدجت مع ذاكرة التطبيق دون إرجاع ذكر قديم
+/// ودون فقدان أي ضغطة.
 ///
-/// القواعد:
-/// * لا تغيير إذا لم تزد مراجعة الويدجت (`revision`) عن آخر مراجعة رآها التطبيق.
-/// * إذا تغيّر الذكر من الويدجت يتبنّاه التطبيق مع عدّاد ذلك الذكر المحفوظ.
-/// * إذا كان الذكر نفسه يُؤخذ الأكبر من العدّادين، والرصيد الإجمالي الأكبر.
+/// نموذج العدّ:
+/// * التطبيق يحتفظ بعدّاد لكل ذكر (`appCountForWidgetZikr` للذكر الذي يعرضه
+///   الويدجت الآن).
+/// * عند تغيير الذكر من الويدجت يُصفَّر عدّاد الويدجت، فكل ما فيه بعدها هو
+///   **ضغطات جديدة** تُضاف إلى عدّاد ذلك الذكر المحفوظ.
+/// * عند بقاء الذكر نفسه، تُحسب الضغطات الجديدة كفرق بين عدّاد الويدجت وما
+///   دفعه التطبيق آخر مرة ([lastPushedCount]) — لا `max` ولا جمع كامل.
+///
+/// بذلك: 12 تسبيحة محفوظة + تغيير الذكر من الويدجت + 3 ضغطات ⇒ 15،
+/// وإعادة المزامنة دون ضغطات جديدة ⇒ تبقى 15.
 TasbihSyncPlan planTasbihSync({
   required WidgetTasbihSnapshot widget,
   required String appZikr,
@@ -51,24 +71,48 @@ TasbihSyncPlan planTasbihSync({
   required int appLifetime,
   required int seenRevision,
   required int appCountForWidgetZikr,
+  int lastPushedCount = 0,
+  String lastPushedZikr = '',
 }) {
+  TasbihSyncPlan unchanged([int extra = 0]) => TasbihSyncPlan(
+        zikr: appZikr,
+        count: appCount,
+        lifetime: appLifetime,
+        seenRevision: seenRevision,
+        adoptedZikr: false,
+        pushedZikr: appZikr,
+        pushedCount: appCount,
+        addedFromWidget: extra,
+      );
+
+  // لا جديد من الويدجت: أي مراجعة صفرية أو لم تتقدّم عمّا رآه التطبيق.
   if (widget.revision <= 0 || widget.revision <= seenRevision) {
-    return TasbihSyncPlan(
-      zikr: appZikr,
-      count: appCount,
-      lifetime: appLifetime,
-      seenRevision: seenRevision,
-      adoptedZikr: false,
-    );
+    return unchanged();
   }
 
   final String widgetZikr = widget.zikr.trim();
   final String zikr = widgetZikr.isEmpty ? appZikr : widgetZikr;
   final bool samePhrase = zikr == appZikr;
-  final int count = samePhrase
-      ? math.max(appCount, widget.count)
-      : math.max(0, appCountForWidgetZikr);
-  final int lifetime = math.max(appLifetime, widget.lifetime);
+
+  // خط الأساس: ما كان الويدجت يعرضه قبل الضغطات الجديدة.
+  // - ذكر جديد: الويدجت صُفِّر عند التبديل ⇒ الأساس صفر.
+  // - نفس الذكر: الأساس هو آخر قيمة دفعها التطبيق لهذا الذكر.
+  final int baseline;
+  if (!samePhrase) {
+    baseline = 0;
+  } else if (lastPushedZikr == zikr) {
+    baseline = lastPushedCount;
+  } else {
+    // لم ندفع لهذا الذكر بعد (ترقية من إصدار أقدم): نعتبر عدّاد الويدجت
+    // انعكاساً لحالة التطبيق، فلا نضيف شيئاً من فرق سالب.
+    baseline = appCount;
+  }
+
+  final int newPresses = math.max(0, widget.count - baseline);
+  final int baseCount = samePhrase ? appCount : math.max(0, appCountForWidgetZikr);
+  final int count = baseCount + newPresses;
+  final int lifetime =
+      math.max(appLifetime, math.max(widget.lifetime, appLifetime + newPresses));
 
   return TasbihSyncPlan(
     zikr: zikr,
@@ -76,5 +120,8 @@ TasbihSyncPlan planTasbihSync({
     lifetime: lifetime,
     seenRevision: widget.revision,
     adoptedZikr: !samePhrase,
+    pushedZikr: zikr,
+    pushedCount: count,
+    addedFromWidget: newPresses,
   );
 }

@@ -27,6 +27,7 @@ import 'screens/tools_screen.dart';
 import 'screens/more_screen.dart';
 import 'widgets/tasbih_skins.dart';
 import 'services/volume_button_service.dart';
+import 'services/reminder_bootstrap.dart';
 import 'services/widget_sync_logic.dart';
 import 'services/widget_service.dart';
 import 'services/khushu_service.dart';
@@ -718,12 +719,17 @@ class _AzkariAppState extends State<AzkariApp> with WidgetsBindingObserver {
   int get sabhaSkinIndex => widget.prefs.getInt('sabhaSkin') ?? 0;
 
   /// يزامن ويدجت الشاشة الرئيسية بالعداد الحالي للسبحة.
+  ///
+  /// ويحفظ «خط الأساس» (الذكر + العدّاد) الذي صار الويدجت يعرضه، ليُحسب في
+  /// المزامنة التالية عدد الضغطات الجديدة فقط دون مضاعفة.
   void syncTasbihWidget() {
     WidgetService.instance.syncTasbih(
       zikr: tasbihPhrase,
       count: tasbihCount,
       lifetime: tasbihLifetime,
     );
+    widget.prefs.setString('widget_pushed_zikr', tasbihPhrase);
+    widget.prefs.setInt('widget_pushed_count', tasbihCount);
   }
 
   /// يزامن ويدجت «آية اليوم» مع حالة ورد الأذكار.
@@ -1068,6 +1074,18 @@ class _AzkariAppState extends State<AzkariApp> with WidgetsBindingObserver {
       } else {
         await NotificationService.instance.cancel(103);
       }
+      // ترحيل تذكيرات الإثنين/الخميس إلى الجدولة الأسبوعية — مرة واحدة،
+      // عند بدء التطبيق، مع احترام إعداد المستخدم.
+      await ReminderBootstrap(widget.prefs).run(
+        mondayTitle: tr('صيام الإثنين', 'Monday fasting', 'Pazartesi orucu'),
+        thursdayTitle:
+            tr('صيام الخميس', 'Thursday fasting', 'Perşembe orucu'),
+        body: tr(
+          'لا تنس صيام اليوم إن شاء الله.',
+          'Do not forget today\u2019s fast.',
+          'Bugünkü orucu unutmayın.',
+        ),
+      );
     } catch (_) {}
   }
 
@@ -1177,14 +1195,16 @@ class _AzkariAppState extends State<AzkariApp> with WidgetsBindingObserver {
     }
   }
 
-  /// يدمج ما تم في ويدجت الشاشة الرئيسية (ذكر جديد أو عدّاد) مع حالة التطبيق.
+  /// يدمج ما تم في ويدجت الشاشة الرئيسية (ذكر جديد أو ضغطات) مع حالة التطبيق.
   ///
   /// القاعدة: تُتبنّى حالة الويدجت فقط إذا زادت مراجعتها عن آخر مراجعة رآها
-  /// التطبيق، ثم يُعاد دفع حالة التطبيق النهائية إلى الويدجت — فلا يعود ذكر قديم
-  /// ولا يُكتب فوق اختيار المستخدم من الويدجت.
+  /// التطبيق، وتُضاف الضغطات الجديدة (فرق العدّاد) إلى عدّاد ذلك الذكر المحفوظ
+  /// — فلا تضيع ضغطة ولا تُضاعف عند تكرار المزامنة.
   Future<void> _pullTasbihFromWidget({bool pushBack = true}) async {
     final snapshot = await WidgetService.instance.readTasbihState();
     final seenRevision = widget.prefs.getInt('widget_revision_seen') ?? 0;
+    final lastPushedCount = widget.prefs.getInt('widget_pushed_count') ?? 0;
+    final lastPushedZikr = widget.prefs.getString('widget_pushed_zikr') ?? '';
     final plan = planTasbihSync(
       widget: snapshot,
       appZikr: tasbihPhrase,
@@ -1193,6 +1213,8 @@ class _AzkariAppState extends State<AzkariApp> with WidgetsBindingObserver {
       seenRevision: seenRevision,
       appCountForWidgetZikr:
           tasbihCountsByPhrase[snapshot.zikr] ?? snapshot.count,
+      lastPushedCount: lastPushedCount,
+      lastPushedZikr: lastPushedZikr,
     );
 
     if (plan.seenRevision != seenRevision) {
@@ -1214,7 +1236,7 @@ class _AzkariAppState extends State<AzkariApp> with WidgetsBindingObserver {
       changed = true;
     }
 
-    if (changed) {
+    if (changed || plan.addedFromWidget > 0) {
       tasbihCountsByPhrase[tasbihPhrase] = tasbihCount;
       saveLightState();
       if (mounted) setState(() {});

@@ -11,8 +11,29 @@ class SunTimes {
 
 /// الشروق والغروب لتاريخ ميلادي معيّن عند إحداثيات معيّنة.
 ///
-/// [date] يُستخدم يومه فقط (السنة/الشهر/اليوم)؛ الناتج بالتوقيت المحلي.
+/// [date] يُستخدم يومه فقط (السنة/الشهر/اليوم)؛ الناتج بالتوقيت المحلي للجهاز.
+/// للمقارنات والعرض الصحيحين استخدم [computeSunTimesUtc] مع مدينة محدّدة.
 SunTimes computeSunTimes({
+  required DateTime date,
+  required double latitude,
+  required double longitude,
+}) {
+  final utc = computeSunTimesUtc(
+    date: date,
+    latitude: latitude,
+    longitude: longitude,
+  );
+  return SunTimes(
+    sunrise: utc.sunrise?.toLocal(),
+    sunset: utc.sunset?.toLocal(),
+  );
+}
+
+/// نفس الحساب لكن الناتج **لحظات UTC** (instants) مستقلة عن منطقة الجهاز.
+///
+/// المقارنة بين اللحظات صحيحة مهما كانت منطقة الجهاز الزمنية، والعرض يتم
+/// بتحويلها إلى منطقة المدينة المختارة (انظر `CityClock`).
+SunTimes computeSunTimesUtc({
   required DateTime date,
   required double latitude,
   required double longitude,
@@ -47,8 +68,8 @@ SunTimes computeSunTimes({
   final double sunsetUtcMin = 720 - 4 * (longitude - ha) - eqTime;
 
   return SunTimes(
-    sunrise: _fromUtcMinutes(date, sunriseUtcMin),
-    sunset: _fromUtcMinutes(date, sunsetUtcMin),
+    sunrise: _fromUtcMinutesUtc(date, sunriseUtcMin),
+    sunset: _fromUtcMinutesUtc(date, sunsetUtcMin),
   );
 }
 
@@ -61,7 +82,38 @@ DateTime? maghribFor(
     computeSunTimes(date: date, latitude: latitude, longitude: longitude)
         .sunset;
 
-/// نافذة سنن الجمعة: تبدأ بمغرب الخميس وتنتهي بمغرب الجمعة.
+/// نافذة سنن الجمعة كلحظات UTC: من مغرب الخميس إلى مغرب الجمعة.
+///
+/// [now] يُستخدم لتحديد أسبوع اليوم فقط؛ الناتج لحظات مطلقة تصلح للمقارنة على
+/// أي جهاز، ويُعرض وقتها بمنطقة المدينة عبر `CityClock`.
+({DateTime? start, DateTime? end}) fridaySunnahWindowUtc(
+  DateTime now, {
+  required double latitude,
+  required double longitude,
+}) {
+  final DateTime today = DateTime.utc(now.year, now.month, now.day);
+  final DateTime currentThursday = DateTime.utc(
+    today.year,
+    today.month,
+    today.day - (today.weekday - DateTime.thursday),
+  );
+  final DateTime currentFriday =
+      DateTime.utc(currentThursday.year, currentThursday.month, currentThursday.day + 1);
+  return (
+    start: computeSunTimesUtc(
+      date: currentThursday,
+      latitude: latitude,
+      longitude: longitude,
+    ).sunset,
+    end: computeSunTimesUtc(
+      date: currentFriday,
+      latitude: latitude,
+      longitude: longitude,
+    ).sunset,
+  );
+}
+
+/// نافذة سنن الجمعة بالتوقيت المحلي للجهاز (توافقية فقط).
 bool isFridaySunnahWindow(
   DateTime now, {
   required DateTime thursdayMaghrib,
@@ -77,16 +129,9 @@ bool isFridaySunnahWindow(
   required double latitude,
   required double longitude,
 }) {
-  final DateTime today = DateTime(now.year, now.month, now.day);
-  final DateTime currentThursday =
-      DateTime(today.year, today.month, today.day - (today.weekday - DateTime.thursday));
-  final DateTime currentFriday =
-      DateTime(currentThursday.year, currentThursday.month, currentThursday.day + 1);
-  return (
-    start: maghribFor(currentThursday,
-        latitude: latitude, longitude: longitude),
-    end: maghribFor(currentFriday, latitude: latitude, longitude: longitude),
-  );
+  final utc = fridaySunnahWindowUtc(now,
+      latitude: latitude, longitude: longitude);
+  return (start: utc.start?.toLocal(), end: utc.end?.toLocal());
 }
 
 /// اليوم من السنة (1..366).
@@ -96,7 +141,7 @@ int _dayOfYear(DateTime date) {
   return day.difference(start).inDays + 1;
 }
 
-DateTime _fromUtcMinutes(DateTime date, double minutes) {
+DateTime _fromUtcMinutesUtc(DateTime date, double minutes) {
   final DateTime base = DateTime.utc(date.year, date.month, date.day);
-  return base.add(Duration(minutes: minutes.round())).toLocal();
+  return base.add(Duration(minutes: minutes.round()));
 }
