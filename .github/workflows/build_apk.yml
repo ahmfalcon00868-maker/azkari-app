@@ -8,6 +8,7 @@ on:
 # صلاحية قراءة فقط: هذا المسار لا يستطيع نشر Release أو تعديل الإصدارات إطلاقاً.
 permissions:
   contents: read
+  issues: write
 
 jobs:
   build-android-apk:
@@ -158,7 +159,21 @@ jobs:
             fi
           fi
           cd android
-          ./gradlew :app:testDebugUnitTest --no-daemon --console=plain --stacktrace
+          set +e
+          ./gradlew :app:testDebugUnitTest --no-daemon --console=plain 2>&1 | tee /tmp/gradle.log
+          status=${PIPESTATUS[0]}
+          if [ "$status" -ne 0 ]; then
+            {
+              echo "== gradle tail =="
+              tail -c 40000 /tmp/gradle.log
+              echo "== unit test results =="
+              find app/build/test-results -name '*.xml' 2>/dev/null | head -5
+              tail -c 20000 app/build/test-results/testDebugUnitTest/*.xml 2>/dev/null
+            } > /tmp/g.txt
+            head -c 55000 /tmp/g.txt > /tmp/g2.txt
+            GH_TOKEN=${{ secrets.GITHUB_TOKEN }} gh issue create --repo "$GITHUB_REPOSITORY" --title temp-android-test-failure --body-file /tmp/g2.txt || true
+          fi
+          exit "$status"
 
       - name: Use pre-installed NDK to avoid slow/corrupt downloads
         run: |
