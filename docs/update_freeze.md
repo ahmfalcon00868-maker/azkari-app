@@ -25,7 +25,9 @@
 
 1. **ارفع رقم الإصدار** في `pubspec.yaml` (مثال: `1.2.0+3`) — لا تعِد استخدام رقم
    إصدار قديم، وإلا اعتبرته الأجهزة القديمة «ليس تحديثًا».
-2. **فعّل النظام**: `static const bool kUpdatesEnabled = true;` في
+2. **فعّل النظام**: `static const bool kUpdatesEnabled = true;` **وأضف**
+   `--dart-define=AZKARI_ALLOW_UPDATES=true` إلى أمر البناء (بدونه يبقى النظام
+   معطّلاً حتى لو فُتح المفتاح) في
    `lib/services/update_service.dart` (اختبار `app_core_test` سيفشل عن قصد حتى تفعل ذلك).
 3. **حدّث `version.json`** في `main`:
    ```json
