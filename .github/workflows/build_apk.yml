@@ -167,6 +167,10 @@ jobs:
           set +e
           ( cd android && ./gradlew :app:testDebugUnitTest --no-daemon --console=plain 2>&1 | tee /tmp/gradle.log )
           status=$?
+          CF=$(find android/app/build -name 'TasbihPressLogTest*.class' 2>/dev/null | wc -l)
+          E1=$(grep -m1 -E "^e: " /tmp/gradle.log 2>/dev/null | sed 's|file:///[^ ]*/||; s/::/-/g' | cut -c1-300)
+          W=$(grep -m1 -A2 "What went wrong" /tmp/gradle.log 2>/dev/null | tr '\n' ' ' | sed 's/::/-/g' | cut -c1-220)
+          echo "::error::step gradle=$status classes=$CF err=${E1:-none} why=${W:-none}"
           cp /tmp/gradle.original "$gradle_file"   # نُعيد minSdk 23 قبل بناء الـ APK
           python3 tool/android_test_stats.py android/app/build/test-results/testDebugUnitTest
           stats=$?
