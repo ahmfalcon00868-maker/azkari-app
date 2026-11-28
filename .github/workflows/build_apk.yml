@@ -514,12 +514,15 @@ jobs:
         shell: bash
         run: |
           set -u
-          # نُلفّ stdout في ملف حتى نستطيع طبع آخر الخطوات كتعليق عند الفشل.
-          exec > >(tee -a boot-stdout.log) 2>&1
-          trap 'rc=$?; if [ "$rc" -ne 0 ]; then echo "::error::boot-failed rc=$rc last: $(grep -v "^::" boot-stdout.log 2>/dev/null | tail -6 | tr "\n" " " | cut -c1-500)"; fi' EXIT
           API=${{ matrix.api }}
           OUT="diag-api${API}"
           mkdir -p "$OUT"
+          # xtrace إلى ملف (لا stdout) ثم نطبعه كتعليق عند الفشل: يكشف أول أمر فشل.
+          exec 9> "$OUT/trace.log"
+          export BASH_XTRACEFD=9
+          PS4='+ line $LINENO: '
+          set -x
+          trap 'rc=$?; if [ "$rc" -ne 0 ]; then echo "::error::boot-failed rc=$rc trace: $(grep -a "line" "$OUT/trace.log" 2>/dev/null | tail -6 | tr "\n" " " | cut -c1-600)"; fi' EXIT
           SDK="${ANDROID_SDK_ROOT:-$ANDROID_HOME}"
           IMG="system-images;android-${API};google_apis;x86_64"
 
