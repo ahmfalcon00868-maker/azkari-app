@@ -9,14 +9,22 @@ on:
         description: 'تشخيص بدء التشغيل على محاكيات (تثبيت + فتح + logcat + صورة شاشة)'
         type: boolean
         default: false
+      apk_run_id:
+        description: 'معرّف تشغيل سابق لاستخدام الـ APK منه (اتركه فارغًا لبناء جديد)'
+        type: string
+        default: ''
 
 # صلاحية قراءة فقط: هذا المسار لا يستطيع نشر Release أو تعديل الإصدارات إطلاقاً.
 permissions:
   contents: read
+  # لازمة فقط لتنزيل أرتيفاكت الـ APK من تشغيل سابق عند إعادة التشخيص بلا بناء جديد.
+  actions: read
 
 jobs:
   build-android-apk:
     name: Build Azkari v1.1.0+2 APK
+    # يمكن تجاوز البناء كليًا عند إعادة تشخيص على نفس الـ APK.
+    if: github.event_name != 'workflow_dispatch' || inputs.apk_run_id == ''
     runs-on: ubuntu-latest
     steps:
       - name: Checkout code
@@ -361,7 +369,7 @@ jobs:
   # ===========================================================================
   startup-diagnosis:
     needs: build-android-apk
-    if: github.event_name == 'workflow_dispatch' && inputs.diagnose_emulators
+    if: always() && github.event_name == 'workflow_dispatch' && inputs.diagnose_emulators
     runs-on: ubuntu-latest
     timeout-minutes: 45
     strategy:
@@ -391,16 +399,29 @@ jobs:
           pattern: Azkari-*
           path: dist
           merge-multiple: true
+          run-id: ${{ inputs.apk_run_id || github.run_id }}
+          github-token: ${{ secrets.GITHUB_TOKEN }}
 
+      # الأرتيفاكت قد يصل ملف APK مباشرة أو داخل zip؛ نتعامل مع الحالتين.
       - name: Unpack APK
         run: |
           set -euo pipefail
           ls -la dist
           mkdir -p apk
-          unzip -o dist/*.zip -d apk
-          find apk -name '*.apk' -maxdepth 2
-          cp "$(find apk -name '*.apk' -maxdepth 2 | head -n 1)" startup.apk
+          for f in dist/*; do
+            [ -f "$f" ] || continue
+            if unzip -tq "$f" >/dev/null 2>&1; then
+              unzip -o "$f" -d apk
+            else
+              cp "$f" "apk/$(basename "$f")"
+            fi
+          done
+          find apk -maxdepth 2 -type f -printf '%p %s\n' | head
+          APK=$(find apk -maxdepth 2 -type f \( -name '*.apk' -o -size +20M \) | head -n 1)
+          test -n "$APK"
+          cp "$APK" startup.apk
           ls -l startup.apk
+          echo "startup.apk sha256: $(sha256sum startup.apk | cut -d' ' -f1)"
 
       - name: Enable KVM for the emulator
         run: |
