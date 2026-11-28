@@ -193,6 +193,7 @@ jobs:
             { echo "== tail =="; tail -c 25000 /tmp/android-tests.log; } > /tmp/a.txt
             sed -i 's/::/-/g' /tmp/a.txt
             echo "::error::android storage tests: $(grep -m2 -E '^e: |FAILED|What went wrong' /tmp/a.txt | tr '\n' ' ' | cut -c1-600)"
+            echo "::error::first failures: $(grep -ho 'message=\"[^\"]*\"' ${RESULTS}/*.xml 2>/dev/null | head -3 | tr '\n' ' ' | cut -c1-500)"
             exit 1
           fi
 

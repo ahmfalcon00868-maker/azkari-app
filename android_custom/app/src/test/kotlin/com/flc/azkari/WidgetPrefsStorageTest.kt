@@ -40,7 +40,7 @@ class WidgetPrefsStorageTest {
         assertEquals(1, WidgetPrefs.readInt(context, TasbihKeys.COUNT, 0))
         assertEquals(1, WidgetPrefs.readInt(context, TasbihKeys.LIFETIME, 0))
         assertEquals(1, WidgetPrefs.readInt(context, TasbihKeys.REVISION, 0))
-        assertEquals(1, WidgetPrefs.pressLog(context).readTotals()["سبحان الله"])
+        assertEquals(1, WidgetPrefs.pressLog(context).readTotals()["سبحان الله"] ?: -1)
 
         // (2) على القرص فعليًا.
         val file = prefsFile()
@@ -65,9 +65,9 @@ class WidgetPrefsStorageTest {
         val store = WidgetPrefs.stateStore(context)
         val counts = TasbihPressLog(store).readTotals()
 
-        assertEquals(2, counts["سبحان الله"])
-        assertEquals(1, counts["أستغفر الله"])
-        assertEquals(0, fresh.getInt(TasbihKeys.COUNT, -1))
+        assertEquals(2, counts["سبحان الله"] ?: -1)
+        assertEquals(1, counts["أستغفر الله"] ?: -1)
+        assertEquals(1, fresh.getInt(TasbihKeys.COUNT, -1))
         assertEquals("أستغفر الله", fresh.getString(TasbihKeys.ZIKR, null))
         assertEquals(4, WidgetPrefs.readInt(context, TasbihKeys.REVISION, 0))
         assertEquals(3, WidgetPrefs.readInt(context, TasbihKeys.LIFETIME, 0))
@@ -86,7 +86,7 @@ class WidgetPrefsStorageTest {
         WidgetPrefs.pressLog(context).press("سبحان الله")
 
         assertEquals(13, WidgetPrefs.readInt(context, TasbihKeys.COUNT, 0))
-        assertEquals(13, WidgetPrefs.pressLog(context).readTotals()["سبحان الله"])
+        assertEquals(13, WidgetPrefs.pressLog(context).readTotals()["سبحان الله"] ?: -1)
         assertEquals(
             "سبحان الله",
             WidgetPrefs.readString(context, TasbihKeys.TOTALS_SEED_ZIKR, "")
