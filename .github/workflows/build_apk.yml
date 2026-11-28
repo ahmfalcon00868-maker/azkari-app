@@ -447,8 +447,9 @@ jobs:
           arch: ${{ matrix.arch }}
           disable-animations: true
           emulator-options: -no-window -gpu swiftshader_indirect -noaudio -no-boot-anim -camera-back none
+          # ملاحظة: هذا السكربت يُنفَّذ بـ sh وليس bash، فلا pipefail ولا arrays.
           script: |
-            set -uo pipefail
+            set -u
             OUT="diag-api${{ matrix.api }}"
             mkdir -p "$OUT"
 
