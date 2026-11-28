@@ -425,6 +425,9 @@ jobs:
         # المصفوفة التي جرّب عليها المستخدم فعلًا (7/8/9 … 13) + هدف وسطي.
         # مصفوفة المطلوب كاملة: 7 → 16+.
         api: [31]
+        include:
+          - api: 31
+            target: default
     steps:
       - uses: actions/checkout@v4
 
@@ -514,7 +517,9 @@ jobs:
         shell: bash
         run: |
           set -u
+          set +e   # GitHub يشغّل bash بـ -e؛ نُلغيها لأننا نعالج الأخطاء صراحةً.
           API=${{ matrix.api }}
+          TARGET="${{ matrix.target || 'google_apis' }}"
           OUT="diag-api${API}"
           mkdir -p "$OUT"
           # xtrace إلى ملف (لا stdout) ثم نطبعه كتعليق عند الفشل: يكشف أول أمر فشل.
@@ -524,7 +529,7 @@ jobs:
           set -x
           trap 'rc=$?; if [ "$rc" -ne 0 ]; then echo "::error::boot-failed rc=$rc trace: $(grep -a "line" "$OUT/trace.log" 2>/dev/null | tail -6 | tr "\n" " " | cut -c1-600)"; fi' EXIT
           SDK="${ANDROID_SDK_ROOT:-$ANDROID_HOME}"
-          IMG="system-images;android-${API};google_apis;x86_64"
+          IMG="system-images;android-${API};${TARGET};x86_64"
 
           # حزمة emulator غير مثبّتة افتراضيًا على هذه الرانرات — نثبّتها أولًا.
           "$SDKM" --install "$IMG" "platforms;android-${API}" emulator platform-tools > "$OUT/sdkmanager.txt" 2>&1
