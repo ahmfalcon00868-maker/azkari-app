@@ -411,11 +411,17 @@ jobs:
           mkdir -p apk
           for f in dist/*; do
             [ -f "$f" ] || continue
-            if unzip -tq "$f" >/dev/null 2>&1; then
-              unzip -o "$f" -d apk
-            else
-              cp "$f" "apk/$(basename "$f")"
-            fi
+            case "$f" in
+              # ملف APK هو نفسه أرشيف zip: لا نفكّه، بل نستخدمه مباشرة.
+              *.apk) cp "$f" "apk/$(basename "$f")" ;;
+              *)
+                if unzip -l "$f" 2>/dev/null | grep -q '\.apk$'; then
+                  unzip -o "$f" -d apk
+                else
+                  cp "$f" "apk/$(basename "$f")"
+                fi
+                ;;
+            esac
           done
           find apk -maxdepth 2 -type f -printf '%p %s\n' | head
           APK=$(find apk -maxdepth 2 -type f \( -name '*.apk' -o -size +20M \) | head -n 1)
