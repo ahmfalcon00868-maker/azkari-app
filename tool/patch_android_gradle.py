@@ -23,39 +23,51 @@ ANDROID_ALL = (
     "15-robolectric-12650502-i7",
 )
 
-KTS_BLOCK = f'''
-
+# قالب Kotlin DSL (ليس f-string: أقواس Kotlin تبقى كما هي، و`__A14__`/`__A15__`
+# تُستبدل بأسماء الحزم).
+KTS_TEMPLATE = """
 // ---- اختبارات تخزين Android الحقيقية (Robolectric) — يُضاف وقت CI فقط ----
 val androidAllDeps by configurations.creating
 
-android {{
-    testOptions {{ unitTests.isIncludeAndroidResources = true }}
-}}
+android {
+    testOptions { unitTests.isIncludeAndroidResources = true }
+}
 
-dependencies {{
+dependencies {
     testImplementation("junit:junit:4.13.2")
     testImplementation("org.robolectric:robolectric:4.14.1")
     testImplementation("androidx.test:core:1.6.1")
-    androidAllDeps("org.robolectric:android-all-instrumented:{ANDROID_ALL[0]}")
-    androidAllDeps("org.robolectric:android-all-instrumented:{ANDROID_ALL[1]}")
-}}
+    androidAllDeps("org.robolectric:android-all-instrumented:__A14__")
+    androidAllDeps("org.robolectric:android-all-instrumented:__A15__")
+}
 
-// نُنزّل حزمة android-all عبر Gradle (لديه إعادة محاولة) ثم نشغّل Robolectric في
-// وضع offline، لأن جالب Robolectric الداخلي يفشل أحيانًا على الشبكة.
+// نُنزّل حزم android-all عبر Gradle (لديه إعادة محاولة) وننسخها **قبل** تشغيل
+// الاختبار (doFirst) ثم نشغّل Robolectric في وضع offline، لأن جالبه الداخلي يفشل
+// أحيانًا على الشبكة.
 val robolectricDepsDir = layout.buildDirectory.dir("robolectric-deps")
-val copyAndroidAll = tasks.register<Copy>("copyAndroidAll") {{
-    // نُبقي أسماء الحزم كما هي: <artifactId>-<version>.jar هو ما يبحث عنه Robolectric.
-    from(androidAllDeps)
-    into(robolectricDepsDir)
-}}
 
-tasks.withType<Test>().configureEach {{
-    dependsOn(copyAndroidAll)
-    systemProperty("robolectric.offline", "true")
-    systemProperty("robolectric.dependency.dir", robolectricDepsDir.get().asFile.absolutePath)
-}}
+tasks.withType<Test>().configureEach {
+    doFirst {
+        val dir = robolectricDepsDir.get().asFile
+        dir.mkdirs()
+        val copied = androidAllDeps.files.map { jar ->
+            val target = java.io.File(dir, jar.name)
+            jar.copyTo(target, overwrite = true)
+            target.name
+        }
+        println("[robolectric] deps=$dir files=$copied")
+        systemProperty("robolectric.offline", "true")
+        systemProperty("robolectric.dependency.dir", dir.absolutePath)
+    }
+}
 // ---- نهاية إعداد Robolectric ----
-'''
+"""
+
+KTS_BLOCK = (
+    KTS_TEMPLATE
+    .replace("__A14__", ANDROID_ALL[0])
+    .replace("__A15__", ANDROID_ALL[1])
+)
 
 GROOVY_BLOCK = f'''
 
