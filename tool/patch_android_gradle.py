@@ -27,7 +27,9 @@ ANDROID_ALL = (
 # تُستبدل بأسماء الحزم).
 KTS_TEMPLATE = """
 // ---- اختبارات تخزين Android الحقيقية (Robolectric) — يُضاف وقت CI فقط ----
-val androidAllDeps by configurations.creating
+// إعدادان منفصلان: إعداد واحد كان يوحّد النسختين ويُبقي الأعلى فقط.
+val androidAll34 by configurations.creating
+val androidAll35 by configurations.creating
 
 android {
     testOptions { unitTests.isIncludeAndroidResources = true }
@@ -37,8 +39,8 @@ dependencies {
     testImplementation("junit:junit:4.13.2")
     testImplementation("org.robolectric:robolectric:4.14.1")
     testImplementation("androidx.test:core:1.6.1")
-    androidAllDeps("org.robolectric:android-all-instrumented:__A14__")
-    androidAllDeps("org.robolectric:android-all-instrumented:__A15__")
+    androidAll34("org.robolectric:android-all-instrumented:__A14__")
+    androidAll35("org.robolectric:android-all-instrumented:__A15__")
 }
 
 // نُنزّل حزم android-all عبر Gradle (لديه إعادة محاولة) وننسخها **قبل** تشغيل
@@ -51,7 +53,7 @@ tasks.withType<Test>().configureEach {
         val dir = robolectricDepsDir.get().asFile
         dir.mkdirs()
         val names = mutableListOf<String>()
-        for (jar in androidAllDeps.files) {
+        for (jar in androidAll34.files + androidAll35.files) {
             jar.copyTo(File(dir, jar.name), overwrite = true)
             names.add(jar.name)
         }
