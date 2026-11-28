@@ -407,6 +407,7 @@ jobs:
         run: |
           set -euo pipefail
           ls -la dist
+          echo "::notice::dist entries: $(ls -A dist 2>&1 | tr '\n' ' ' | cut -c1-300)"
           mkdir -p apk
           for f in dist/*; do
             [ -f "$f" ] || continue
@@ -418,7 +419,10 @@ jobs:
           done
           find apk -maxdepth 2 -type f -printf '%p %s\n' | head
           APK=$(find apk -maxdepth 2 -type f \( -name '*.apk' -o -size +20M \) | head -n 1)
-          test -n "$APK"
+          if [ -z "$APK" ]; then
+            echo "::error::no APK found after unpack; apk/ listing: $(ls -laR apk 2>&1 | tr '\n' ' | ' | cut -c1-600)"
+            exit 1
+          fi
           cp "$APK" startup.apk
           ls -l startup.apk
           echo "startup.apk sha256: $(sha256sum startup.apk | cut -d' ' -f1)"
