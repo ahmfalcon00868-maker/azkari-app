@@ -24,6 +24,8 @@ def analyse(path: str) -> str:
     width, height, _fmt, _space = struct.unpack("<iiii", data[:16])
     pixels = data[16:]
     total_pixels = width * height
+    # بعض الإصدارات القديمة (API 24/26) تُضيف بايتات في نهاية اللقطة، فلا نشترط
+    # تساويًا تامًا للطول.
     if total_pixels <= 0 or len(pixels) < total_pixels * 4:
         return f"bad-size({width}x{height},bytes={len(pixels)})"
 
