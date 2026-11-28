@@ -375,9 +375,8 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        # نتحقق أولًا على أقدم وأحدث هدفين، ثم تُوسَّع المصفوفة.
-        # x86_64 + google_apis: الصور المتاحة لكل الإصدارات المطلوبة (24..36).
-        api: [24, 34]
+        # هدف واحد أولًا للتحقق من البنية التحتية نفسها؛ ثم تُوسَّع المصفوفة.
+        api: [30]
     steps:
       - uses: actions/checkout@v4
 
@@ -429,49 +428,66 @@ jobs:
 
       # نشغّل المحاكي يدويًا (بدل الأكشن الجاهز) لأن الأكشن يفشل بصمت على هذا
       # الرانر، ولأننا نحتاج طباعة سطور logcat كتعليقات يمكن قراءتها بلا تنزيل.
+      - name: Preflight (SDK, emulator tools, KVM)
+        run: |
+          set -u
+          SDK="${ANDROID_SDK_ROOT:-$ANDROID_HOME}"
+          echo "SDK=$SDK"
+          echo "::notice::preflight sdk=$SDK contents=$(ls "$SDK" 2>/dev/null | tr '\n' ' ' | cut -c1-300)"
+          echo "::notice::kvm=$(ls -l /dev/kvm 2>&1 | head -1) cpu=$(nproc) mem=$(free -g | awk '/Mem:/{print $2}')G"
+          SDKM=$(ls "$SDK"/cmdline-tools/*/bin/sdkmanager 2>/dev/null | head -1)
+          AVDM=$(ls "$SDK"/cmdline-tools/*/bin/avdmanager 2>/dev/null | head -1)
+          EMU=$(ls "$SDK"/emulator/emulator 2>/dev/null | head -1)
+          echo "::notice::tools sdkmanager=${SDKM:-none} avdmanager=${AVDM:-none} emulator=${EMU:-none}"
+          { echo "SDKM=$SDKM"; echo "AVDM=$AVDM"; echo "EMU=$EMU"; } >> "$GITHUB_ENV"
+          if [ -n "$EMU" ]; then
+            echo "::notice::accel-check=$("$EMU" -accel-check 2>&1 | tr '\n' ' ' | cut -c1-300)"
+          fi
+
       - name: Boot emulator, install, launch, capture logcat
         run: |
-          set -uo pipefail
+          set -u
           API=${{ matrix.api }}
           OUT="diag-api${API}"
           mkdir -p "$OUT"
           SDK="${ANDROID_SDK_ROOT:-$ANDROID_HOME}"
           IMG="system-images;android-${API};google_apis;x86_64"
 
-          echo "== sdk =="
-          ls "$SDK" | head -5
-          ( yes | "$SDK/cmdline-tools/latest/bin/sdkmanager" --licenses >/dev/null 2>&1 ) || true
-          "$SDK/cmdline-tools/latest/bin/sdkmanager" --install "$IMG" "platforms;android-${API}" > "$OUT/sdkmanager.txt" 2>&1 || true
-          tail -3 "$OUT/sdkmanager.txt" || true
+          "$SDKM" --install "$IMG" "platforms;android-${API}" > "$OUT/sdkmanager.txt" 2>&1
+          RC=$?
+          echo "::notice::sdkmanager rc=$RC tail=$(tail -c 300 "$OUT/sdkmanager.txt" | tr '\n' ' ')"
 
-          echo "no" | "$SDK/cmdline-tools/latest/bin/avdmanager" create avd -n "azkari$API" -k "$IMG" --device pixel --force >> "$OUT/avdmanager.txt" 2>&1 || true
-          tail -3 "$OUT/avdmanager.txt" 2>/dev/null || true
+          echo "no" | "$AVDM" create avd -n "azkari$API" -k "$IMG" --device pixel --force > "$OUT/avdmanager.txt" 2>&1
+          RC=$?
+          echo "::notice::avdmanager rc=$RC tail=$(tail -c 300 "$OUT/avdmanager.txt" | tr '\n' ' ')"
 
-          nohup "$SDK/emulator/emulator" -avd "azkari$API" -no-window -no-snapshot -noaudio \
-            -no-boot-anim -gpu swiftshader_indirect -camera-back none -camera-front none \
+          nohup "$EMU" -avd "azkari$API" -no-window -no-snapshot -noaudio -no-boot-anim \
+            -gpu swiftshader_indirect -camera-back none -camera-front none \
             -memory 2048 -port 5554 > "$OUT/emulator.log" 2>&1 &
           EMU_PID=$!
-          echo "emulator pid=$EMU_PID"
+          echo "::notice::emulator pid=$EMU_PID"
 
           adb start-server >/dev/null 2>&1 || true
+          adb wait-for-device >/dev/null 2>&1 || true
           booted=0
-          for i in $(seq 1 150); do
-            if ! kill -0 "$EMU_PID" 2>/dev/null; then echo "emulator process died"; break; fi
+          for i in $(seq 1 120); do
+            if ! kill -0 "$EMU_PID" 2>/dev/null; then
+              echo "::error::api=$API emulator process died: $(tail -c 1200 "$OUT/emulator.log" | tr '\n' ' ' | cut -c1-1000)"
+              break
+            fi
             BOOT=$(adb -s emulator-5554 shell getprop sys.boot_completed 2>/dev/null | tr -d '\r')
-            if [ "$BOOT" = "1" ]; then booted=1; echo "booted after $((i*5))s"; break; fi
+            if [ "$BOOT" = "1" ]; then booted=1; echo "::notice::api=$API booted after $((i*5))s"; break; fi
             sleep 5
           done
           if [ "$booted" != "1" ]; then
-            echo "::error::emulator api=$API did not boot"
-            tail -c 3000 "$OUT/emulator.log" | sed 's/::/-/g' | head -40 || true
+            echo "::error::api=$API did not boot: $(tail -c 1200 "$OUT/emulator.log" | tr '\n' ' ' | cut -c1-1000)"
             exit 1
           fi
 
-          adb -s emulator-5554 shell input keyevent 82 || true
           adb -s emulator-5554 logcat -c || true
-
           echo "== install =="
           adb -s emulator-5554 install -r startup.apk 2>&1 | tee "$OUT/install.txt" || true
+          echo "::notice::install=$(tail -c 300 "$OUT/install.txt" | tr '\n' ' ')"
 
           echo "== first launch =="
           adb -s emulator-5554 shell monkey -p com.flc.azkari -c android.intent.category.LAUNCHER 1 2>&1 | tee "$OUT/launch.txt" || true
@@ -503,16 +519,12 @@ jobs:
           adb -s emulator-5554 logcat -d -v threadtime > "$OUT/logcat-offline.txt" || true
           adb -s emulator-5554 exec-out screencap -p > "$OUT/screen-offline.png" || true
 
-          echo "== summary (also surfaced as annotations) =="
-          for f in pid-after-launch pid-second-launch pid-offline; do
-            printf '%s: %s\n' "$f" "$(cat "$OUT/$f.txt" 2>/dev/null || echo missing)"
-          done
-          echo "focus: $(cat "$OUT/focus.txt" 2>/dev/null | tr '\n' ' ' | cut -c1-200)"
-          CRASH=$(grep -hE 'FATAL EXCEPTION|beginningofcrash|beginning of crash' "$OUT"/logcat-*.txt 2>/dev/null | head -6 | sed 's/::/-/g' | tr '\n' ' | ' | cut -c1-900)
-          FLUTTER=$(grep -hE 'E/flutter|Unhandled Exception|MissingPluginException|PlatformException|LateInitializationError|NoSuchMethodError|ClassNotFoundException|NoClassDefFoundError|Failed to auto initialize' "$OUT"/logcat-*.txt 2>/dev/null | head -12 | sed 's/::/-/g' | tr '\n' ' | ' | cut -c1-1500)
-          echo "::notice::api=$API pids: first=$(cat "$OUT/pid-after-launch.txt" 2>/dev/null) second=$(cat "$OUT/pid-second-launch.txt" 2>/dev/null) offline=$(cat "$OUT/pid-offline.txt" 2>/dev/null)"
-          if [ -n "$CRASH" ]; then echo "::error::api=$API native crash: $CRASH"; fi
-          if [ -n "$FLUTTER" ]; then echo "::warning::api=$API flutter errors: $FLUTTER"; fi
+          echo "== summary =="
+          echo "::notice::api=$API pids first=$(cat "$OUT/pid-after-launch.txt" 2>/dev/null) second=$(cat "$OUT/pid-second-launch.txt" 2>/dev/null) offline=$(cat "$OUT/pid-offline.txt" 2>/dev/null) focus=$(cat "$OUT/focus.txt" 2>/dev/null | tr '\n' ' ' | cut -c1-160)"
+          CRASH=$(grep -haE 'FATAL EXCEPTION|beginning of crash|AndroidRuntime' "$OUT"/logcat-*.txt 2>/dev/null | head -8 | sed 's/::/-/g' | tr '\n' ' | ' | cut -c1-1200)
+          FLUT=$(grep -haE 'E/flutter|Unhandled Exception|MissingPluginException|PlatformException|LateInitializationError|NoSuchMethodError|ClassNotFoundException|NoClassDefFoundError|FacebookException' "$OUT"/logcat-*.txt 2>/dev/null | head -14 | sed 's/::/-/g' | tr '\n' ' | ' | cut -c1-1500)
+          echo "::notice::api=$API crash=$CRASH"
+          echo "::notice::api=$API flutter=$FLUT"
 
       - name: Upload diagnosis bundle
         if: always()
