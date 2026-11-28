@@ -50,12 +50,12 @@ tasks.withType<Test>().configureEach {
     doFirst {
         val dir = robolectricDepsDir.get().asFile
         dir.mkdirs()
-        val copied = androidAllDeps.files.map { jar ->
-            val target = java.io.File(dir, jar.name)
-            jar.copyTo(target, overwrite = true)
-            target.name
+        val names = mutableListOf<String>()
+        for (jar in androidAllDeps.files) {
+            jar.copyTo(File(dir, jar.name), overwrite = true)
+            names.add(jar.name)
         }
-        println("[robolectric] deps=$dir files=$copied")
+        println("[robolectric] deps=$dir files=$names")
         systemProperty("robolectric.offline", "true")
         systemProperty("robolectric.dependency.dir", dir.absolutePath)
     }
