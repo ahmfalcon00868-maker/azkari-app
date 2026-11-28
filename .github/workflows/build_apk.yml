@@ -461,6 +461,10 @@ jobs:
           echo "::notice::emulator binary=${EMU:-none} accel=$([ -n "$EMU" ] && "$EMU" -accel-check 2>&1 | tr '\n' ' ' | cut -c1-200)"
           if [ -z "$EMU" ]; then echo "::error::emulator binary still missing"; exit 1; fi
           echo "EMU=$EMU" >> "$GITHUB_ENV"
+          # adb غير موجود في PATH على هذه الرانرات (كان سبب فشل كل المحاولات).
+          export PATH="$SDK/platform-tools:$SDK/emulator:$PATH"
+          ADB="$SDK/platform-tools/adb"
+          echo "::notice::adb=$("$ADB" version 2>&1 | head -1)"
 
           # مسار AVD صريح لكلا الأداتين، وإلا يُنشئ avdmanager المجلد في مكان
           # لا يبحث فيه المحاكي (شوهد: Unknown AVD name).
