@@ -645,8 +645,12 @@ jobs:
           SCREEN_SECOND=$(python3 tool/screen_health.py "$OUT/screen-second-launch.raw" 2>&1 | tail -1)
           SCREEN_OFFLINE=$(python3 tool/screen_health.py "$OUT/screen-offline.raw" 2>&1 | tail -1)
           FOCUS=$(cat "$OUT/focus.txt" 2>/dev/null | tr '\n' ' ' | cut -c1-160)
+          # رصد مسار البدء المرن: كم مرحلة أساسية نجحت، وهل ظهر أي خطأ مُسجَّل.
+          STARTUP_OK=$(grep -ha '\[startup\] ✓' "$OUT"/logcat-first-launch.txt 2>/dev/null | wc -l | tr -d ' ')
+          STARTUP_ERR=$(grep -ha '\[startup\] ✗' "$OUT"/logcat-*.txt 2>/dev/null | head -3 | sed 's/::/-/g' | tr '\n' ' ' | cut -c1-280)
+          if [ -n "$STARTUP_ERR" ]; then echo "::warning::api=$API startup-log: $STARTUP_ERR"; fi
           DISPLAYED=$(grep -hcE 'Displayed com.flc.azkari' "$OUT"/logcat-*.txt 2>/dev/null | paste -sd+ - | bc 2>/dev/null || echo 0)
-          echo "::notice::api=$API pids[first=$(cat "$OUT/pid-after-launch.txt" 2>/dev/null) second=$(cat "$OUT/pid-second-launch.txt" 2>/dev/null) offline=$(cat "$OUT/pid-offline.txt" 2>/dev/null)] displayed=$DISPLAYED screens[first=$SCREEN_FIRST | second=$SCREEN_SECOND | offline=$SCREEN_OFFLINE] focus: $FOCUS"
+          echo "::notice::api=$API pids[first=$(cat "$OUT/pid-after-launch.txt" 2>/dev/null) second=$(cat "$OUT/pid-second-launch.txt" 2>/dev/null) offline=$(cat "$OUT/pid-offline.txt" 2>/dev/null)] displayed=$DISPLAYED screens[first=$SCREEN_FIRST | second=$SCREEN_SECOND | offline=$SCREEN_OFFLINE] startup_ok=$STARTUP_OK focus: $FOCUS"
 
           FATAL=$(grep -haE 'FATAL EXCEPTION|beginning of crash' "$OUT"/logcat-*.txt 2>/dev/null | head -3 | sed 's/::/-/g' | tr '\n' ' ' | cut -c1-400)
           if [ -n "$FATAL" ]; then echo "::error::api=$API fatal: $FATAL"; fi
