@@ -28,6 +28,7 @@ import 'services/volume_button_service.dart';
 import 'services/reminder_bootstrap.dart';
 import 'services/widget_sync_logic.dart';
 import 'services/widget_service.dart';
+import 'services/widget_sync_store.dart';
 import 'services/khushu_service.dart';
 import 'services/notification_service.dart';
 import 'services/cloud_sync_service.dart';
@@ -626,6 +627,11 @@ class _AzkariAppState extends State<AzkariApp> with WidgetsBindingObserver {
   /// آخر مراجعة ويدجت استوعبها التطبيق. تُحفظ **داخل** [kWidgetSyncStateKey]
   /// ليكون استهلاك الضغطات والمراجعة عملية واحدة غير قابلة للانقسام.
   int widgetRevisionSeen = 0;
+
+  /// تخزين متين (ملف + fsync) لحالة المزامنة الحرجة.
+  WidgetSyncStore? _widgetSyncStore;
+  WidgetSyncStore get widgetSyncStore =>
+      _widgetSyncStore ??= WidgetSyncStore(prefs: widget.prefs);
   late int currentStreak;
   late int bestStreak;
   late int totalAzkarCompleted;
@@ -876,46 +882,26 @@ class _AzkariAppState extends State<AzkariApp> with WidgetsBindingObserver {
     }
     // الحالة الذرّية (إن وُجدت) هي الأحدث: تحمل العدّادات والعلامات المائية
     // والإجمالي في كتابة واحدة، فلا يمكن أن تتضاعف ضغطات أو تُفقد.
-    final syncRaw = p.getString(kWidgetSyncStateKey);
-    if (syncRaw != null && syncRaw.isNotEmpty) {
-      try {
-        final decoded = jsonDecode(syncRaw);
-        if (decoded is Map) {
-          final counts = decoded['counts'];
-          if (counts is Map) {
-            final restored = <String, int>{};
-            counts.forEach((k, v) {
-              if (v is num) restored[k.toString()] = v.toInt();
-            });
-            if (restored.isNotEmpty) tasbihCountsByPhrase = restored;
-          }
-          final seen = decoded['seen'];
-          if (seen is Map) {
-            final restoredSeen = <String, int>{};
-            seen.forEach((k, v) {
-              if (v is num) restoredSeen[k.toString()] = v.toInt();
-            });
-            widgetTotalsSeen = restoredSeen;
-          }
-          final totalLifetime = decoded['lifetime'];
-          if (totalLifetime is num && totalLifetime.toInt() > tasbihLifetime) {
-            tasbihLifetime = totalLifetime.toInt();
-          }
-          final stateRevision = decoded['revision'];
-          if (stateRevision is num) {
-            widgetRevisionSeen = stateRevision.toInt();
-          }
-          final stateZikr = decoded['zikr'];
-          if (stateZikr is String && stateZikr.trim().isNotEmpty) {
-            tasbihPhrase = stateZikr;
-          }
-        }
-      } catch (_) {}
+    final WidgetSyncState? syncState =
+        WidgetSyncState.tryParse(p.getString(kWidgetSyncStateKey));
+    if (syncState != null) {
+      if (syncState.counts.isNotEmpty) {
+        tasbihCountsByPhrase = Map<String, int>.from(syncState.counts);
+      }
+      widgetTotalsSeen = Map<String, int>.from(syncState.watermarks);
+      if (syncState.lifetime > tasbihLifetime) {
+        tasbihLifetime = syncState.lifetime;
+      }
+      if (syncState.zikr.trim().isNotEmpty) {
+        tasbihPhrase = syncState.zikr;
+      }
     }
-    // ترقية: الإصدارات السابقة كانت تحفظ المراجعة في مفتاح منفصل.
-    if (widgetRevisionSeen == 0) {
-      widgetRevisionSeen = p.getInt('widget_revision_seen') ?? 0;
-    }
+    // المراجعة: من الحالة الحديثة (v=2 + وجود الحقل) ولو كانت صفرًا، وإلا المفتاح
+    // القديم للإصدارات السابقة. لا نستخدم «== 0» كإشارة غياب لأن الصفر قيمة صحيحة.
+    widgetRevisionSeen = WidgetSyncState.resolveRevision(
+      syncState,
+      p.getInt('widget_revision_seen') ?? 0,
+    );
     tasbihCount =
         tasbihCountsByPhrase[tasbihPhrase] ?? (p.getInt('tasbihCount') ?? 0);
 
@@ -1205,21 +1191,20 @@ class _AzkariAppState extends State<AzkariApp> with WidgetsBindingObserver {
     _restoreAzkarState();
   }
 
-  /// يكتب العدّادات + العلامات المائية + الإجمالي في **مفتاح واحد** لضمان أن
-  /// استهلاك ضغطات الودجت لا يتكرر ولا يضيع لو أُغلق التطبيق بعد المزامنة.
-  Future<void> persistWidgetSyncState() async {
+  /// يكتب الحالة الحرجة (عدّادات + علامات مائية + إجمالي + ذكر + مراجعة) في
+  /// **قيمة واحدة** عبر [WidgetSyncStore] الذي يثبّتها على القرص بـ fsync.
+  ///
+  /// يعيد `true` فقط عند تأكيد الإثبات؛ ولا يُعتبر `await setString` وحده نجاحًا.
+  Future<bool> persistWidgetSyncState() async {
     tasbihCountsByPhrase[tasbihPhrase] = tasbihCount;
-    final payload = jsonEncode(<String, dynamic>{
-      'v': 2,
-      'counts': tasbihCountsByPhrase,
-      'seen': widgetTotalsSeen,
-      'lifetime': tasbihLifetime,
-      'zikr': tasbihPhrase,
-      'revision': widgetRevisionSeen,
-    });
-    try {
-      await widget.prefs.setString(kWidgetSyncStateKey, payload);
-    } catch (_) {}
+    final payload = WidgetSyncState(
+      counts: tasbihCountsByPhrase,
+      watermarks: widgetTotalsSeen,
+      lifetime: tasbihLifetime,
+      zikr: tasbihPhrase,
+      revision: widgetRevisionSeen,
+    ).encode();
+    return widgetSyncStore.write(payload);
   }
 
   void saveLightState() {
@@ -1272,13 +1257,36 @@ class _AzkariAppState extends State<AzkariApp> with WidgetsBindingObserver {
   /// — فلا تضيع ضغطة ولا تُضاعف عند تكرار المزامنة.
   Future<void> _pullTasbihFromWidget({bool pushBack = true}) async {
     final snapshot = await WidgetService.instance.readTasbihState();
-    final seenRevision = widgetRevisionSeen;
+
+    // 1) المصدر الموثوق: الملف المتين (ثم نسخة التفضيلات كاحتياط).
+    final int legacyRevision = widget.prefs.getInt('widget_revision_seen') ?? 0;
+    final WidgetSyncState? stored =
+        WidgetSyncState.tryParse(await widgetSyncStore.read());
+    if (stored != null) {
+      if (stored.counts.isNotEmpty) {
+        tasbihCountsByPhrase = Map<String, int>.from(stored.counts);
+      }
+      if (stored.isModern || stored.watermarks.isNotEmpty) {
+        widgetTotalsSeen = Map<String, int>.from(stored.watermarks);
+      }
+      if (stored.lifetime > tasbihLifetime) {
+        tasbihLifetime = stored.lifetime;
+      }
+      if (stored.zikr.trim().isNotEmpty) {
+        tasbihPhrase = stored.zikr;
+      }
+      tasbihCount = tasbihCountsByPhrase[tasbihPhrase] ?? tasbihCount;
+    }
+    widgetRevisionSeen =
+        WidgetSyncState.resolveRevision(stored, legacyRevision);
+
+    // 2) الخطة (لا تعدّل شيئًا بعد؛ خطة غير قابلة للتعديل).
     final plan = planTasbihSync(
       widget: snapshot,
       appZikr: tasbihPhrase,
       appCount: tasbihCount,
       appLifetime: tasbihLifetime,
-      seenRevision: seenRevision,
+      seenRevision: widgetRevisionSeen,
       appCountsByPhrase: tasbihCountsByPhrase,
       watermarks: widgetTotalsSeen,
       lastPushedCount: widget.prefs.getInt('widget_pushed_count') ?? 0,
@@ -1287,24 +1295,42 @@ class _AzkariAppState extends State<AzkariApp> with WidgetsBindingObserver {
 
     final bool changed = plan.zikr != tasbihPhrase ||
         plan.count != tasbihCount ||
-        plan.lifetime != tasbihLifetime;
+        plan.lifetime != tasbihLifetime ||
+        plan.seenRevision != widgetRevisionSeen ||
+        plan.addedFromWidget > 0;
 
+    if (!changed) {
+      if (pushBack) syncTasbihWidget();
+      return;
+    }
+
+    // 3) **نُثبّت على القرص أولًا**، ثم نطبّق في الذاكرة. إذا لم يتأكد الإثبات
+    //    (fsync أو احتياط التفضيلات) لا نطبّق شيئًا: المحاولة القادمة ستعيد نفس
+    //    الخطة من نفس نقطة البداية، فلا فقدان ولا مضاعفة.
+    final bool persisted = await widgetSyncStore.write(
+      WidgetSyncState(
+        counts: plan.countsByPhrase,
+        watermarks: plan.watermarks,
+        lifetime: plan.lifetime,
+        zikr: plan.zikr,
+        revision: plan.seenRevision,
+      ).encode(),
+    );
+    if (!persisted) {
+      if (pushBack) syncTasbihWidget();
+      return;
+    }
+
+    // 4) الآن فقط نطبّق في الذاكرة.
     tasbihPhrase = plan.zikr;
     tasbihCount = plan.count;
     tasbihLifetime = plan.lifetime;
     tasbihCountsByPhrase = Map<String, int>.from(plan.countsByPhrase);
     widgetTotalsSeen = Map<String, int>.from(plan.watermarks);
-
-    // المراجعة المستهلكة تُحفظ **مع** العدّادات والعلامات المائية في نفس القيمة:
-    // لا يمكن أن تُستهلك المراجعة قبل تثبيت الضغطات، ولا العكس. ولو انقطعت
-    // العملية قبل الكتابة فكل شيء يبقى كما كان ⇒ إعادة المحاولة آمنة تمامًا.
     widgetRevisionSeen = plan.seenRevision;
-    await persistWidgetSyncState();
 
-    if (changed || plan.addedFromWidget > 0) {
-      saveLightState();
-      if (mounted) setState(() {});
-    }
+    saveLightState();
+    if (mounted) setState(() {});
     if (pushBack) syncTasbihWidget();
   }
 

@@ -4,6 +4,25 @@ import 'package:flutter_test/flutter_test.dart';
 
 import 'package:azkari/services/widget_sync_logic.dart';
 
+String stateBlob({
+  int version = 2,
+  Map<String, int> counts = const {},
+  Map<String, int> seen = const {},
+  int lifetime = 0,
+  String zikr = '',
+  Object? revision = 0,
+}) {
+  final map = <String, dynamic>{
+    'v': version,
+    'counts': counts,
+    'seen': seen,
+    'lifetime': lifetime,
+    'zikr': zikr,
+  };
+  if (revision != null) map['revision'] = revision;
+  return jsonEncode(map);
+}
+
 /// انقطاع محاكى (إغلاق التطبيق في منتصف العملية).
 class _Crash implements Exception {
   @override
@@ -103,10 +122,14 @@ class _App {
   int lastPushedCount = 0;
   String lastPushedZikr = '';
 
-  /// إعادة تشغيل التطبيق من الحالة المحفوظة (المصدر الأساسي: المفتاح الذرّي).
+  /// إعادة تشغيل التطبيق من الحالة المحفوظة.
+  ///
+  /// تستخدم نفس دوال الإنتاج: `WidgetSyncState.tryParse` و
+  /// `WidgetSyncState.resolveRevision` (إذن اختبار «صفر ليس غيابًا» يمرّ على
+  /// الكود الحقيقي لا على نسخة مقلّدة).
   factory _App.restore(_Disk disk, {String? fallbackZikr}) {
-    final raw = disk.blob;
-    if (raw == null || raw.isEmpty) {
+    final state = WidgetSyncState.tryParse(disk.blob);
+    if (state == null) {
       return _App(
         zikr: fallbackZikr ?? '',
         count: 0,
@@ -116,39 +139,29 @@ class _App {
         seenRevision: disk.legacySeenRevision,
       );
     }
-    final decoded = jsonDecode(raw) as Map<String, dynamic>;
-    final counts = <String, int>{
-      for (final e in (decoded['counts'] as Map).entries)
-        e.key.toString(): (e.value as num).toInt(),
-    };
-    final seen = <String, int>{
-      for (final e in (decoded['seen'] as Map).entries)
-        e.key.toString(): (e.value as num).toInt(),
-    };
-    final phrase = (decoded['zikr'] as String?) ?? fallbackZikr ?? '';
+    final phrase = state.zikr.isNotEmpty ? state.zikr : (fallbackZikr ?? '');
     return _App(
       zikr: phrase,
-      count: counts[phrase] ?? 0,
-      lifetime: (decoded['lifetime'] as num?)?.toInt() ?? 0,
-      storedCounts: counts,
-      watermarks: seen,
+      count: state.counts[phrase] ?? 0,
+      lifetime: state.lifetime,
+      storedCounts: state.counts,
+      watermarks: state.watermarks,
       disk: disk,
-      seenRevision: (decoded['revision'] as num?)?.toInt() ??
-          disk.legacySeenRevision,
+      seenRevision:
+          WidgetSyncState.resolveRevision(state, disk.legacySeenRevision),
     );
   }
 
   /// كتابة ذرّية واحدة تشمل المراجعة (كما في `persistWidgetSyncState`).
   void persist() {
     counts[zikr] = count;
-    disk.blob = jsonEncode(<String, dynamic>{
-      'v': 2,
-      'counts': counts,
-      'seen': seen,
-      'lifetime': lifetime,
-      'zikr': zikr,
-      'revision': seenRevision,
-    });
+    disk.blob = WidgetSyncState(
+      counts: counts,
+      watermarks: seen,
+      lifetime: lifetime,
+      zikr: zikr,
+      revision: seenRevision,
+    ).encode();
   }
 
   /// مزامنة واحدة: سحب من الويدجت ثم دفع حالة التطبيق إليه.
@@ -543,6 +556,27 @@ void main() {
       expect(app.counts[kA], 4);
       expect(app.counts[kB], 2);
       expect(app.lifetime, 6);
+    });
+
+    test('مراجعة صفر في الحالة الحديثة لا يطغى عليها المفتاح القديم (5)', () {
+      final disk = _Disk()
+        ..blob = stateBlob(revision: 0, counts: {kA: 3}, seen: {kA: 3}, zikr: kA)
+        ..legacySeenRevision = 5;
+
+      final app = _App.restore(disk);
+      expect(app.seenRevision, 0, reason: 'v=2 + حقل revision ⇒ القيمة 0 هي الصحيحة');
+
+      // الويدجت ما زالت على المراجعة 0 ⇒ لا استهلاك جديد.
+      final widget = _Widget(
+        zikr: kA,
+        count: 3,
+        lifetime: 3,
+        totals: {kA: 3},
+        revision: 0,
+        seededZikr: kA,
+      );
+      expect(app.sync(widget).addedFromWidget, 0);
+      expect(app.count, 3);
     });
 
     test('حالة محفوظة من إصدار أقدم (بلا revision داخل الحالة) تُرقّى بأمان', () {

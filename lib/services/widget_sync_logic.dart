@@ -1,3 +1,4 @@
+import 'dart:convert';
 import 'dart:math' as math;
 
 /// حالة ويدجت السبحة كما هي مخزّنة على الشاشة الرئيسية.
@@ -235,4 +236,87 @@ TasbihSyncPlan planTasbihSync({
     pushedCount: count,
     addedFromWidget: added,
   );
+}
+
+
+/// الحالة الذرّية لمزامنة الويدجت كما تُخزَّن في `widget_sync_state`.
+///
+/// الغرض: أن يكون العدّاد والعلامات المائية والإجمالي والذكر **والمراجعة
+/// المستهلكة** في قيمة واحدة، وأن يُستعاد التمييز بين «مراجعة صفر حديثة» و
+/// «لا مراجعة في الحالة» — وهذا فرق جوهري: صفر قد يكون قيمة صحيحة.
+class WidgetSyncState {
+  const WidgetSyncState({
+    this.schemaVersion = 2,
+    required this.counts,
+    required this.watermarks,
+    this.lifetime = 0,
+    this.zikr = '',
+    this.revision,
+  });
+
+  /// إصدار بنية الحالة؛ 2 يعني أن المراجعة تُحفظ داخلها.
+  final int schemaVersion;
+  final Map<String, int> counts;
+  final Map<String, int> watermarks;
+  final int lifetime;
+  final String zikr;
+
+  /// `null` = الحالة لا تحمل حقل مراجعة أصلًا (حالة قديمة).
+  final int? revision;
+
+  /// حالة حديثة تحتوي المراجعة.
+  bool get isModern => schemaVersion >= 2;
+
+  /// هل المراجعة داخل الحالة موثوقة؟ (v=2 **و** وجود الحقل، ولو كانت صفرًا)
+  bool get hasRevision => isModern && revision != null;
+
+  /// المراجعة المستهلكة: من الحالة الحديثة إن حملت الحقل، وإلا المفتاح القديم.
+  static int resolveRevision(WidgetSyncState? state, int legacyRevision) {
+    if (state != null && state.hasRevision) return state.revision!;
+    return legacyRevision;
+  }
+
+  String encode() => jsonEncode(<String, dynamic>{
+        'v': schemaVersion,
+        'counts': counts,
+        'seen': watermarks,
+        'lifetime': lifetime,
+        'zikr': zikr,
+        'revision': revision,
+      });
+
+  static WidgetSyncState? tryParse(String? raw) {
+    if (raw == null) return null;
+    final text = raw.trim();
+    if (text.isEmpty) return null;
+    try {
+      final decoded = jsonDecode(text);
+      if (decoded is! Map) return null;
+      final counts = _intMap(decoded['counts']);
+      final seen = _intMap(decoded['seen']);
+      final version = decoded['v'];
+      final lifetime = decoded['lifetime'];
+      final revision = decoded['revision'];
+      final zikr = decoded['zikr'];
+      return WidgetSyncState(
+        schemaVersion: version is num ? version.toInt() : 0,
+        counts: counts,
+        watermarks: seen,
+        lifetime: lifetime is num ? lifetime.toInt() : 0,
+        zikr: zikr is String ? zikr : '',
+        revision: revision is num ? revision.toInt() : null,
+      );
+    } catch (_) {
+      return null;
+    }
+  }
+
+  static Map<String, int> _intMap(dynamic value) {
+    if (value is! Map) return const <String, int>{};
+    final out = <String, int>{};
+    value.forEach((k, v) {
+      if (v is num) out[k.toString()] = v.toInt();
+    });
+    return out;
+  }
 }

@@ -13,6 +13,7 @@ import org.junit.Test
  * العملية قبل وصول البيانات للقرص).
  */
 private class FakeStore(initial: Map<String, Any> = emptyMap()) : WidgetStateStore {
+    var failCommit = false
     val values: MutableMap<String, Any> = LinkedHashMap(initial)
     var applies = 0
     var crashBeforeWrite = false
@@ -28,6 +29,10 @@ private class FakeStore(initial: Map<String, Any> = emptyMap()) : WidgetStateSto
     }
 
     override fun apply(writes: Map<String, Any>) {
+        if (failCommit) {
+            // نفشل في تأكيد الكتابة كما يفعل commit() العائد false.
+            throw IllegalStateException("SharedPreferences commit failed")
+        }
         if (crashBeforeWrite) {
             crashBeforeWrite = false
             // انقطاع العملية قبل الكتابة: لا تتغيّر أي قيمة.
@@ -247,6 +252,41 @@ class TasbihPressLogTest {
         assertEquals(4, log.readTotals()[A])
         // التهيئة لا تزيد المراجعة
         assertEquals(0, store.getInt(TasbihKeys.REVISION))
+    }
+
+    @Test
+    fun incrementReportsFailureWhenCommitIsNotConfirmed() {
+        val store = FakeStore(mapOf(TasbihKeys.ZIKR to A, TasbihKeys.COUNT to 4))
+        store.failCommit = true
+
+        val ok = WidgetPressHandlers.increment(store, A)
+
+        // لا يُعلن النجاح، ولا يُعرض شيء للمستخدم، ولا تتغيّر أي قيمة.
+        assertEquals(false, ok)
+        assertEquals(4, store.getInt(TasbihKeys.COUNT))
+        assertEquals(0, store.getInt(TasbihKeys.REVISION))
+        assertEquals("", store.getString(TasbihKeys.TOTALS))
+
+        // بعد عودة التخزين للعمل: ضغطة واحدة فقط.
+        store.failCommit = false
+        assertEquals(true, WidgetPressHandlers.increment(store, A))
+        assertEquals(5, store.getInt(TasbihKeys.COUNT))
+        assertEquals(5, TasbihPressLog(store).readTotals()[A])
+    }
+
+    @Test
+    fun switchZikrReportsFailureWhenCommitIsNotConfirmed() {
+        val store = FakeStore(mapOf(TasbihKeys.ZIKR to A, TasbihKeys.COUNT to 7))
+        store.failCommit = true
+
+        assertEquals(false, WidgetPressHandlers.switchZikr(store, B))
+        assertEquals(A, store.getString(TasbihKeys.ZIKR))
+        assertEquals(7, store.getInt(TasbihKeys.COUNT))
+
+        store.failCommit = false
+        assertEquals(true, WidgetPressHandlers.switchZikr(store, B))
+        assertEquals(B, store.getString(TasbihKeys.ZIKR))
+        assertEquals(0, store.getInt(TasbihKeys.COUNT))
     }
 
     @Test

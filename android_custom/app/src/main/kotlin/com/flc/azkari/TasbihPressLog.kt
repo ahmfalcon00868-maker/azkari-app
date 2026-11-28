@@ -191,3 +191,27 @@ private fun unescapeJson(value: String): String {
     }
     return sb.toString()
 }
+
+/**
+ * نقاط دخول الويدجت: تفصل «هل تمّ الحفظ فعلاً؟» عن تحديث العرض.
+ *
+ * `ACTION_INC` و`ACTION_NEXT` لا يعيدان رسم الويدجت إلا إذا أعادت هذه الدالة
+ * `true`، أي بعد تأكيد كتابة المعاملة على التخزين.
+ */
+object WidgetPressHandlers {
+    fun increment(store: WidgetStateStore, zikr: String): Boolean =
+        try {
+            TasbihPressLog(store).press(zikr)
+            true
+        } catch (_: Exception) {
+            false
+        }
+
+    fun switchZikr(store: WidgetStateStore, next: String): Boolean =
+        try {
+            TasbihPressLog(store).switchZikr(next)
+            true
+        } catch (_: Exception) {
+            false
+        }
+}

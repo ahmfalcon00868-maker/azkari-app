@@ -70,15 +70,22 @@ object WidgetPrefs {
             readInt(context, key, fallback)
 
         override fun apply(writes: Map<String, Any>) {
-            val editor = of(context).edit()
-            writes.forEach { (key, value) ->
-                when (value) {
-                    is Int -> editor.putInt(key, value)
-                    is Boolean -> editor.putBoolean(key, value)
-                    else -> editor.putString(key, value.toString())
+            // محاولتان: الكتابة الأولى قد تفشل (قرص ممتلئ/خطأ I/O)، ولا نعتبر
+            // العملية ناجحة أبدًا دون `commit() == true`.
+            repeat(2) { attempt ->
+                val editor = of(context).edit()
+                writes.forEach { (key, value) ->
+                    when (value) {
+                        is Int -> editor.putInt(key, value)
+                        is Boolean -> editor.putBoolean(key, value)
+                        else -> editor.putString(key, value.toString())
+                    }
+                }
+                if (editor.commit()) return
+                if (attempt == 1) {
+                    throw IllegalStateException("SharedPreferences commit failed")
                 }
             }
-            editor.commit()
         }
     }
 

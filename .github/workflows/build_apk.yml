@@ -163,6 +163,39 @@ jobs:
             exit 1
           fi
 
+      # اختبار تكامل تخزين Android الحقيقي (Robolectric + SharedPreferences فعلية).
+      # النتائج في build/app/ لأن قالب Flutter ينقل buildDir إلى جذر المستودع.
+      - name: Run Android storage tests (Robolectric)
+        run: |
+          set -uo pipefail
+          kts="android/app/build.gradle.kts"
+          grv="android/app/build.gradle"
+          if [ -f "$kts" ]; then gradle_file="$kts"; else gradle_file="$grv"; fi
+          cp "$gradle_file" /tmp/gradle.module.original
+          if [ "$gradle_file" = "$kts" ]; then
+            if ! grep -q 'robolectric' "$kts"; then
+              printf '\nandroid {\n    testOptions { unitTests.isIncludeAndroidResources = true }\n}\n\ndependencies {\n    testImplementation("junit:junit:4.13.2")\n    testImplementation("org.robolectric:robolectric:4.14.1")\n    testImplementation("androidx.test:core:1.6.1")\n}\n' >> "$kts"
+            fi
+          fi
+          sed -i 's/minSdk = 23/minSdk = 24/; s/minSdkVersion 23/minSdkVersion 24/' "$gradle_file"
+
+          set +e
+          ( cd android && ./gradlew :app:testDebugUnitTest --no-daemon --console=plain 2>&1 | tee /tmp/android-tests.log )
+          status=$?
+          cp /tmp/gradle.module.original "$gradle_file"   # نُعيد minSdk 23 قبل بناء الـ APK
+
+          RESULTS="$(ls -d build/app/test-results/testDebugUnitTest android/app/build/test-results/testDebugUnitTest 2>/dev/null | head -1)"
+          python3 tool/android_test_stats.py "${RESULTS:-build/app/test-results/testDebugUnitTest}"
+          stats=$?
+          set -e
+
+          if [ "$status" -ne 0 ] || [ "$stats" -ne 0 ]; then
+            { echo "== tail =="; tail -c 25000 /tmp/android-tests.log; } > /tmp/a.txt
+            sed -i 's/::/-/g' /tmp/a.txt
+            echo "::error::android storage tests: $(grep -m2 -E '^e: |FAILED|What went wrong' /tmp/a.txt | tr '\n' ' ' | cut -c1-600)"
+            exit 1
+          fi
+
       - name: Use pre-installed NDK to avoid slow/corrupt downloads
         run: |
           SDK_DIR="${ANDROID_HOME:-${ANDROID_SDK_ROOT:-/usr/local/lib/android/sdk}}"

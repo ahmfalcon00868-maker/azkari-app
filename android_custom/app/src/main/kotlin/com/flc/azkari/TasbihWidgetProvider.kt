@@ -50,16 +50,21 @@ class TasbihWidgetProvider : AppWidgetProvider() {
                 // معاملة واحدة داخل TasbihPressLog (لا تُحسب ضغطة مرتين ولا
                 // يمكن أن يُحفظ السجل دون مراجعة).
                 val zikr = WidgetPrefs.readString(context, KEY_ZIKR, ZIKR_POOL[0])
-                WidgetPrefs.pressLog(context).press(zikr)
-                refreshAll(context)
+                // لا نعرض نجاحًا قبل اكتمال الحفظ: الرسم يحدث فقط بعد تأكيد
+                // المعاملة (commit) على التخزين.
+                if (WidgetPressHandlers.increment(WidgetPrefs.stateStore(context), zikr)) {
+                    refreshAll(context)
+                }
             }
             ACTION_NEXT -> {
                 val current = WidgetPrefs.readString(context, KEY_ZIKR, "")
                 val idx = ZIKR_POOL.indexOf(current)
                 val next = ZIKR_POOL[(idx + 1) % ZIKR_POOL.size]
-                // تبديل الذكر + تصفير العرض + مراجعة + تهيئة السجل: معاملة واحدة.
-                WidgetPrefs.pressLog(context).switchZikr(next)
-                refreshAll(context)
+                // تبديل الذكر + تصفير العرض + مراجعة + تهيئة السجل: معاملة واحدة،
+                // والرسم بعد تأكيد الحفظ فقط.
+                if (WidgetPressHandlers.switchZikr(WidgetPrefs.stateStore(context), next)) {
+                    refreshAll(context)
+                }
             }
             else -> refreshAll(context)
         }
