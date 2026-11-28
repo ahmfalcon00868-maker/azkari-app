@@ -16,8 +16,12 @@ import sys
 
 BACKUP_SUFFIX = ".robolectric-backup"
 
-ANDROID_ALL = "14-robolectric-10818077-i7"
-ANDROID_ALL_JAR = f"android-all-instrumented-{ANDROID_ALL}.jar"
+# نُجهّز حزمتَي SDK: 34 (المستخدمة في @Config) و35 (targetSdk الافتراضي للقالب)،
+# حتى لا يعتمد الاختبار على أيّهما يختار Robolectric.
+ANDROID_ALL = (
+    "14-robolectric-10818077-i7",
+    "15-robolectric-12650502-i7",
+)
 
 KTS_BLOCK = f'''
 
@@ -32,16 +36,17 @@ dependencies {{
     testImplementation("junit:junit:4.13.2")
     testImplementation("org.robolectric:robolectric:4.14.1")
     testImplementation("androidx.test:core:1.6.1")
-    androidAllDeps("org.robolectric:android-all-instrumented:{ANDROID_ALL}")
+    androidAllDeps("org.robolectric:android-all-instrumented:{ANDROID_ALL[0]}")
+    androidAllDeps("org.robolectric:android-all-instrumented:{ANDROID_ALL[1]}")
 }}
 
 // نُنزّل حزمة android-all عبر Gradle (لديه إعادة محاولة) ثم نشغّل Robolectric في
 // وضع offline، لأن جالب Robolectric الداخلي يفشل أحيانًا على الشبكة.
 val robolectricDepsDir = layout.buildDirectory.dir("robolectric-deps")
 val copyAndroidAll = tasks.register<Copy>("copyAndroidAll") {{
+    // نُبقي أسماء الحزم كما هي: <artifactId>-<version>.jar هو ما يبحث عنه Robolectric.
     from(androidAllDeps)
     into(robolectricDepsDir)
-    rename {{ "{ANDROID_ALL_JAR}" }}
 }}
 
 tasks.withType<Test>().configureEach {{
