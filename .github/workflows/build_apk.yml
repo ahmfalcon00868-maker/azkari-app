@@ -376,7 +376,8 @@ jobs:
       fail-fast: false
       matrix:
         # هدف واحد أولًا للتحقق من البنية التحتية نفسها؛ ثم تُوسَّع المصفوفة.
-        api: [30]
+        # المصفوفة التي جرّب عليها المستخدم فعلًا (7/8/9 … 13) + هدف وسطي.
+        api: [24, 30, 33]
     steps:
       - uses: actions/checkout@v4
 
@@ -553,6 +554,13 @@ jobs:
           FLUT=$(grep -haE 'E/flutter|Unhandled Exception|MissingPluginException|PlatformException|LateInitializationError|NoSuchMethodError|ClassNotFoundException|NoClassDefFoundError|FacebookException' "$OUT"/logcat-*.txt 2>/dev/null | head -14 | sed 's/::/-/g' | tr '\n' ' | ' | cut -c1-1500)
           echo "::notice::api=$API crash=$CRASH"
           echo "::notice::api=$API flutter=$FLUT"
+
+          # سلسالة Caused by كاملة: أول 45 سطرًا من كتلة FATAL EXCEPTION.
+          CHAIN=$(awk '/FATAL EXCEPTION/{f=1} f{print} f&&c++>45{exit}' "$OUT/logcat-crash.txt" 2>/dev/null \
+            | sed 's/::/-/g' | tr '\n' ' | ' | cut -c1-4000)
+          echo "::error::api=$API fatal-chain: $CHAIN"
+          echo "::notice::api=$API flutter-lines=$(grep -cE 'flutter|Flutter' "$OUT"/logcat-first-launch.txt 2>/dev/null || echo 0) displayed=$(grep -hE 'Displayed com.flc.azkari' "$OUT"/logcat-*.txt 2>/dev/null | tail -2 | tr '\n' ' ' | cut -c1-300)"
+          echo "::notice::api=$API activity=$(adb -s "$SERIAL" shell dumpsys activity activities 2>/dev/null | grep -E 'ResumedActivity|topResumedActivity' | head -2 | tr '\n' ' ' | cut -c1-300)"
 
       - name: Upload diagnosis bundle
         if: always()
