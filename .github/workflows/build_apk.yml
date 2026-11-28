@@ -581,7 +581,12 @@ jobs:
           adb -s "$SERIAL" logcat -c || true
           echo "== install =="
           adb -s "$SERIAL" install -r startup.apk 2>&1 | tee "$OUT/install.txt" || true
-          echo "::notice::install=$(tail -c 300 "$OUT/install.txt" | tr '\n' ' ')"
+          echo "install: $(tail -c 200 "$OUT/install.txt" | tr '\n' ' ')"
+          # منح الأذونات مسبقًا: نافذة إذن الإشعارات على 13+ تحجب القياس الموضوعي للشاشة.
+          for perm in android.permission.POST_NOTIFICATIONS android.permission.RECORD_AUDIO; do
+            adb -s "$SERIAL" shell pm grant com.flc.azkari "$perm" >/dev/null 2>&1 || true
+          done
+          adb -s "$SERIAL" shell appops set com.flc.azkari SCHEDULE_EXACT_ALARM allow >/dev/null 2>&1 || true
 
           echo "== first launch =="
           adb -s "$SERIAL" shell monkey -p com.flc.azkari -c android.intent.category.LAUNCHER 1 2>&1 | tee "$OUT/launch.txt" || true
@@ -620,24 +625,18 @@ jobs:
           echo "::notice::api=$API crash=$CRASH"
           echo "::notice::api=$API flutter=$FLUT"
 
-          # تحليل الشاشة موضوعيًا: نسبة البكسلات شبه البيضاء (شاشة بيضاء = نسبة عالية جدًا).
-          for shot in first second offline; do
-            RAW="$OUT/screen-${shot}-launch.raw"
-            [ "$shot" = "offline" ] && RAW="$OUT/screen-offline.raw"
-            echo "::notice::api=$API screen-$shot: $(python3 tool/screen_health.py "$RAW" 2>&1 | tail -1)"
-          done
-          echo "::notice::api=$API displayed=$(grep -hcE 'Displayed com.flc.azkari' "$OUT"/logcat-*.txt 2>/dev/null | paste -sd+ - | bc 2>/dev/null || echo 0)"
+          # قياس موضوعي واحد مُجمَّع (GitHub يحتفظ بعدد محدود من التعليقات لكل خطوة).
+          SCREEN_FIRST=$(python3 tool/screen_health.py "$OUT/screen-first-launch.raw" 2>&1 | tail -1)
+          SCREEN_SECOND=$(python3 tool/screen_health.py "$OUT/screen-second-launch.raw" 2>&1 | tail -1)
+          SCREEN_OFFLINE=$(python3 tool/screen_health.py "$OUT/screen-offline.raw" 2>&1 | tail -1)
+          FOCUS=$(cat "$OUT/focus.txt" 2>/dev/null | tr '\n' ' ' | cut -c1-160)
+          DISPLAYED=$(grep -hcE 'Displayed com.flc.azkari' "$OUT"/logcat-*.txt 2>/dev/null | paste -sd+ - | bc 2>/dev/null || echo 0)
+          echo "::notice::api=$API pids[first=$(cat "$OUT/pid-after-launch.txt" 2>/dev/null) second=$(cat "$OUT/pid-second-launch.txt" 2>/dev/null) offline=$(cat "$OUT/pid-offline.txt" 2>/dev/null)] displayed=$DISPLAYED screens[first=$SCREEN_FIRST | second=$SCREEN_SECOND | offline=$SCREEN_OFFLINE] focus: $FOCUS"
 
-          # سلسالة Caused by كاملة: أول 45 سطرًا من كتلة FATAL EXCEPTION.
-          CHAIN=$(awk '/FATAL EXCEPTION/{f=1} f{print} f&&c++>45{exit}' "$OUT/logcat-crash.txt" 2>/dev/null \
-            | sed 's/::/-/g' | tr '\n' ' | ' | cut -c1-4000)
-          echo "::error::api=$API fatal-chain: $CHAIN"
-          # السلسلة الكاملة: كل سطور Caused by وأي سطر يشير إلى Room/WorkDatabase_Impl.
-          CAUSES=$(grep -haE 'Caused by|Room|WorkDatabase_Impl|ClassNotFound|NoClassDefFound|IllegalState|SQLite|sqlite' "$OUT"/logcat-*.txt 2>/dev/null \
-            | head -24 | sed 's/::/-/g' | cut -c1-260 | tr '\n' ' | ' | cut -c1-4000)
-          echo "::error::api=$API causes: $CAUSES"
-          echo "::notice::api=$API flutter-lines=$(grep -cE 'flutter|Flutter' "$OUT"/logcat-first-launch.txt 2>/dev/null || echo 0) displayed=$(grep -hE 'Displayed com.flc.azkari' "$OUT"/logcat-*.txt 2>/dev/null | tail -2 | tr '\n' ' ' | cut -c1-300)"
-          echo "::notice::api=$API activity=$(adb -s "$SERIAL" shell dumpsys activity activities 2>/dev/null | grep -E 'ResumedActivity|topResumedActivity' | head -2 | tr '\n' ' ' | cut -c1-300)"
+          FATAL=$(grep -haE 'FATAL EXCEPTION|beginning of crash' "$OUT"/logcat-*.txt 2>/dev/null | head -3 | sed 's/::/-/g' | tr '\n' ' ' | cut -c1-400)
+          if [ -n "$FATAL" ]; then echo "::error::api=$API fatal: $FATAL"; fi
+          FLUT=$(grep -haE 'E/flutter|Unhandled Exception|MissingPluginException|PlatformException|ClassNotFoundException|NoClassDefFoundError|FacebookException' "$OUT"/logcat-*.txt 2>/dev/null | head -6 | sed 's/::/-/g' | tr '\n' ' ' | cut -c1-600)
+          if [ -n "$FLUT" ]; then echo "::warning::api=$API flutter: $FLUT"; fi
 
       - name: Upload diagnosis bundle
         if: always()
