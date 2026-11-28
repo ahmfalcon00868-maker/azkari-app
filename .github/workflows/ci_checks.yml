@@ -41,6 +41,16 @@ jobs:
           set -uo pipefail
           flutter test --reporter expanded 2>&1 | tee test_out.log
 
+      - name: Report test count
+        if: always()
+        run: |
+          if [ -f test_out.log ]; then
+            LINE=$(grep -aoE '\+[0-9]+[^:]*: (All tests passed|Some tests failed)' test_out.log | tail -1)
+          else
+            LINE=""
+          fi
+          echo "::notice::tests ${LINE:-unknown}"
+
       # اسم الأرتيفاكت يحمل أعداد التحليل ليقرأها المطوّر من صفحة التشغيل مباشرة.
       - name: Decide analysis artifact name
         if: always()
