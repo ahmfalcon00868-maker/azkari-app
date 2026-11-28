@@ -462,9 +462,13 @@ jobs:
           if [ -z "$EMU" ]; then echo "::error::emulator binary still missing"; exit 1; fi
           echo "EMU=$EMU" >> "$GITHUB_ENV"
 
+          # مسار AVD صريح لكلا الأداتين، وإلا يُنشئ avdmanager المجلد في مكان
+          # لا يبحث فيه المحاكي (شوهد: Unknown AVD name).
+          export ANDROID_AVD_HOME="$HOME/.android/avd"
+          mkdir -p "$ANDROID_AVD_HOME"
           echo "no" | "$AVDM" create avd -n "azkari$API" -k "$IMG" --device pixel --force > "$OUT/avdmanager.txt" 2>&1
           RC=$?
-          echo "::notice::avdmanager rc=$RC tail=$(tail -c 300 "$OUT/avdmanager.txt" | tr '\n' ' ')"
+          echo "::notice::avdmanager rc=$RC avds=$(ls "$ANDROID_AVD_HOME" 2>&1 | tr '\n' ' ' | cut -c1-200) tail=$(tail -c 200 "$OUT/avdmanager.txt" | tr '\n' ' ')"
 
           nohup "$EMU" -avd "azkari$API" -no-window -no-snapshot -noaudio -no-boot-anim \
             -gpu swiftshader_indirect -camera-back none -camera-front none \
