@@ -423,7 +423,8 @@ jobs:
       matrix:
         # هدف واحد أولًا للتحقق من البنية التحتية نفسها؛ ثم تُوسَّع المصفوفة.
         # المصفوفة التي جرّب عليها المستخدم فعلًا (7/8/9 … 13) + هدف وسطي.
-        api: [24, 30, 33]
+        # مصفوفة المطلوب كاملة: 7 → 16+.
+        api: [24, 26, 28, 29, 30, 31, 33, 34, 35, 36]
     steps:
       - uses: actions/checkout@v4
 
@@ -589,7 +590,7 @@ jobs:
           adb -s "$SERIAL" shell dumpsys window 2>/dev/null | grep -E 'mCurrentFocus|mFocusedApp' > "$OUT/focus.txt" || true
           adb -s "$SERIAL" logcat -d -v threadtime > "$OUT/logcat-first-launch.txt" || true
           adb -s "$SERIAL" logcat -d -b crash -v threadtime > "$OUT/logcat-crash.txt" || true
-          adb -s "$SERIAL" exec-out screencap -p > "$OUT/screen-first-launch.png" || true
+          adb -s "$SERIAL" exec-out screencap > "$OUT/screen-first-launch.raw" 2>/dev/null || true
 
           echo "== second launch =="
           adb -s "$SERIAL" shell am force-stop com.flc.azkari || true
@@ -599,7 +600,7 @@ jobs:
           sleep 30
           adb -s "$SERIAL" shell pidof com.flc.azkari > "$OUT/pid-second-launch.txt" 2>&1 || true
           adb -s "$SERIAL" logcat -d -v threadtime > "$OUT/logcat-second-launch.txt" || true
-          adb -s "$SERIAL" exec-out screencap -p > "$OUT/screen-second-launch.png" || true
+          adb -s "$SERIAL" exec-out screencap > "$OUT/screen-second-launch.raw" 2>/dev/null || true
 
           echo "== offline launch =="
           adb -s "$SERIAL" shell am force-stop com.flc.azkari || true
@@ -610,7 +611,7 @@ jobs:
           sleep 30
           adb -s "$SERIAL" shell pidof com.flc.azkari > "$OUT/pid-offline.txt" 2>&1 || true
           adb -s "$SERIAL" logcat -d -v threadtime > "$OUT/logcat-offline.txt" || true
-          adb -s "$SERIAL" exec-out screencap -p > "$OUT/screen-offline.png" || true
+          adb -s "$SERIAL" exec-out screencap > "$OUT/screen-offline.raw" 2>/dev/null || true
 
           echo "== summary =="
           echo "::notice::api=$API pids first=$(cat "$OUT/pid-after-launch.txt" 2>/dev/null) second=$(cat "$OUT/pid-second-launch.txt" 2>/dev/null) offline=$(cat "$OUT/pid-offline.txt" 2>/dev/null) focus=$(cat "$OUT/focus.txt" 2>/dev/null | tr '\n' ' ' | cut -c1-160)"
@@ -618,6 +619,14 @@ jobs:
           FLUT=$(grep -haE 'E/flutter|Unhandled Exception|MissingPluginException|PlatformException|LateInitializationError|NoSuchMethodError|ClassNotFoundException|NoClassDefFoundError|FacebookException' "$OUT"/logcat-*.txt 2>/dev/null | head -14 | sed 's/::/-/g' | tr '\n' ' | ' | cut -c1-1500)
           echo "::notice::api=$API crash=$CRASH"
           echo "::notice::api=$API flutter=$FLUT"
+
+          # تحليل الشاشة موضوعيًا: نسبة البكسلات شبه البيضاء (شاشة بيضاء = نسبة عالية جدًا).
+          for shot in first second offline; do
+            RAW="$OUT/screen-${shot}-launch.raw"
+            [ "$shot" = "offline" ] && RAW="$OUT/screen-offline.raw"
+            echo "::notice::api=$API screen-$shot: $(python3 tool/screen_health.py "$RAW" 2>&1 | tail -1)"
+          done
+          echo "::notice::api=$API displayed=$(grep -hcE 'Displayed com.flc.azkari' "$OUT"/logcat-*.txt 2>/dev/null | paste -sd+ - | bc 2>/dev/null || echo 0)"
 
           # سلسالة Caused by كاملة: أول 45 سطرًا من كتلة FATAL EXCEPTION.
           CHAIN=$(awk '/FATAL EXCEPTION/{f=1} f{print} f&&c++>45{exit}' "$OUT/logcat-crash.txt" 2>/dev/null \
