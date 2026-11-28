@@ -401,6 +401,15 @@ jobs:
           echo "bytes=$BYTES" >> "$GITHUB_OUTPUT"
           cp "$APK" "Azkari-1.1.0+2.apk"
 
+      # رموز إزالة التعمية (--obfuscate --split-debug-info): لازمة لفك أي Stack Trace
+      # من النسخة المشحونة. تُرفع كأرتيفاكت فقط (لا نشر، لا Release).
+      - name: Upload obfuscation debug symbols
+        uses: actions/upload-artifact@v4
+        with:
+          name: azkari-debug-symbols-sha256-${{ steps.apk.outputs.sha }}
+          path: build/debug-info
+          if-no-files-found: error
+
       - name: Upload APK as workflow artifact only (no release, no publish)
         uses: actions/upload-artifact@v4
         with:
