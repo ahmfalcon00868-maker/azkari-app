@@ -164,25 +164,22 @@ jobs:
           fi
 
       # اختبار تكامل تخزين Android الحقيقي (Robolectric + SharedPreferences فعلية).
+      # الإعداد يُضاف إلى وحدة Android عبر tool/patch_android_gradle.py ويُزال بعد
+      # الاختبار، فلا يتغيّر ما يُبنى في الـ APK (minSdk يعود 23).
       # النتائج في build/app/ لأن قالب Flutter ينقل buildDir إلى جذر المستودع.
       - name: Run Android storage tests (Robolectric)
         run: |
           set -uo pipefail
           kts="android/app/build.gradle.kts"
-          grv="android/app/build.gradle"
-          if [ -f "$kts" ]; then gradle_file="$kts"; else gradle_file="$grv"; fi
-          cp "$gradle_file" /tmp/gradle.module.original
-          if [ "$gradle_file" = "$kts" ]; then
-            if ! grep -q 'robolectric' "$kts"; then
-              printf '\nandroid {\n    testOptions { unitTests.isIncludeAndroidResources = true }\n}\n\ndependencies {\n    testImplementation("junit:junit:4.13.2")\n    testImplementation("org.robolectric:robolectric:4.14.1")\n    testImplementation("androidx.test:core:1.6.1")\n}\n' >> "$kts"
-            fi
-          fi
+          if [ -f "$kts" ]; then gradle_file="$kts"; else gradle_file="android/app/build.gradle"; fi
+
+          python3 tool/patch_android_gradle.py add "$gradle_file"
           sed -i 's/minSdk = 23/minSdk = 24/; s/minSdkVersion 23/minSdkVersion 24/' "$gradle_file"
 
           set +e
           ( cd android && ./gradlew :app:testDebugUnitTest --no-daemon --console=plain 2>&1 | tee /tmp/android-tests.log )
           status=$?
-          cp /tmp/gradle.module.original "$gradle_file"   # نُعيد minSdk 23 قبل بناء الـ APK
+          python3 tool/patch_android_gradle.py restore "$gradle_file" || true
 
           RESULTS="$(ls -d build/app/test-results/testDebugUnitTest android/app/build/test-results/testDebugUnitTest 2>/dev/null | head -1)"
           python3 tool/android_test_stats.py "${RESULTS:-build/app/test-results/testDebugUnitTest}"
