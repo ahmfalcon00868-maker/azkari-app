@@ -9,6 +9,10 @@ on:
         description: 'تشخيص بدء التشغيل على محاكيات (تثبيت + فتح + logcat + صورة شاشة)'
         type: boolean
         default: false
+      inspect_only:
+        description: 'فحص الـ APK فقط (DEX/flags) بلا محاكي'
+        type: boolean
+        default: false
       apk_run_id:
         description: 'معرّف تشغيل سابق لاستخدام الـ APK منه (اتركه فارغًا لبناء جديد)'
         type: string
@@ -421,7 +425,23 @@ jobs:
           ls -l startup.apk
           echo "startup.apk sha256: $(sha256sum startup.apk | cut -d' ' -f1)"
 
+      # فحص الـ DEX المشحون: هل بقيت أصناف Room/WorkManager التي تُبحث بالاسم؟
+      - name: Inspect shipped DEX (Room / WorkManager / R8 keep)
+        run: |
+          set -u
+          unzip -Z1 startup.apk | grep -E '^classes.*\.dex$' > dex-list.txt
+          echo "::notice::dex files: $(tr '\n' ' ' < dex-list.txt)"
+          : > all.dex
+          while IFS= read -r f; do unzip -p startup.apk "$f" >> all.dex; done < dex-list.txt
+          echo "::notice::dex bytes=$(stat -c%s all.dex)"
+          for pat in WorkDatabase_Impl WorkDatabase androidx.work WorkManagerInitializer \
+                     androidx.startup androidx.room RoomDatabase r8-map-id; do
+            hits=$(strings all.dex | grep -c -- "$pat")
+            echo "::notice::dex '$pat' hits=$hits"
+          done
+
       - name: Enable KVM for the emulator
+        if: inputs.inspect_only != true
         run: |
           echo 'KERNEL=="kvm", GROUP="kvm", MODE="0666", OPTIONS+="static_node=kvm"'             | sudo tee /etc/udev/rules.d/99-kvm4all.rules
           sudo udevadm control --reload-rules
@@ -430,6 +450,7 @@ jobs:
       # نشغّل المحاكي يدويًا (بدل الأكشن الجاهز) لأن الأكشن يفشل بصمت على هذا
       # الرانر، ولأننا نحتاج طباعة سطور logcat كتعليقات يمكن قراءتها بلا تنزيل.
       - name: Preflight (SDK, emulator tools, KVM)
+        if: inputs.inspect_only != true
         run: |
           set -u
           SDK="${ANDROID_SDK_ROOT:-$ANDROID_HOME}"
@@ -446,6 +467,7 @@ jobs:
           fi
 
       - name: Boot emulator, install, launch, capture logcat
+        if: inputs.inspect_only != true
         run: |
           set -u
           API=${{ matrix.api }}
