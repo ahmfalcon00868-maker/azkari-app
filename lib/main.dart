@@ -35,6 +35,8 @@ import 'services/cloud_sync_service.dart';
 import 'services/update_service.dart';
 import 'screens/sha7nawy_payment_screen.dart';
 import 'widgets/google_play_icon.dart';
+import 'widgets/startup_failure_screen.dart';
+import 'services/startup_diagnostics.dart';
 
 /// صفحة التطبيق الرسمية للتحميل والمشاركة (متجر APKPure).
 ///
@@ -555,31 +557,127 @@ class AppColors {
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
-  FlutterError.onError = (details) {
+  _installStartupErrorHandlers();
+  // منطقة محمية: أي خطأ غير مُلتقَط كان يُبتلع سابقًا بلا أثر. الآن يُسجَّل
+  // ويُطبع، ولا يمنع الواجهة من الظهور.
+  await runZonedGuarded<Future<void>>(
+    _bootstrap,
+    (Object error, StackTrace stack) {
+      StartupDiagnostics.instance.error('uncaught-async', error, stack);
+    },
+  );
+}
+
+/// يجعل كل خطأ مرئيًا: في Logcat قبلًا، وفي شاشة الفشل عند الحاجة.
+void _installStartupErrorHandlers() {
+  FlutterError.onError = (FlutterErrorDetails details) {
+    StartupDiagnostics.instance
+        .error('framework', details.exception, details.stack);
+    // يُبقي السلوك القديم (طباعة الخطأ) لكن بعد تسجيله.
     FlutterError.presentError(details);
   };
-  ui.PlatformDispatcher.instance.onError = (error, stack) {
+  ui.PlatformDispatcher.instance.onError = (Object error, StackTrace stack) {
+    // سابقًا كانت `return true` وحدها: ابتلاع صامت كامل لكل خطأ غير متزامن.
+    StartupDiagnostics.instance.error('platform-dispatcher', error, stack);
+    // نُرجع true كي لا يُسقط خطأ في خدمة اختيارية التطبيق كله؛ لكنه لم يعد صامتًا.
     return true;
   };
-  try {
-    await JustAudioBackground.init(
+}
+
+/// مسار الإقلاع الأساسي: كل ما هو إلزامي لرسم أول إطار فقط.
+///
+/// ما لا يجوز أن يمنع الفتح: الصوت في الخلفية، الإشعارات، المزامنة السحابية،
+/// الإنترنت. كلها إما بمهلة صريحة هنا أو مؤجّلة إلى ما بعد أول إطار.
+Future<void> _bootstrap() async {
+  StartupDiagnostics.instance.phase('bootstrap-start');
+
+  await guardedStartup(
+    'orientation',
+    () => SystemChrome.setPreferredOrientations(const <DeviceOrientation>[
+      DeviceOrientation.portraitUp,
+      DeviceOrientation.portraitDown,
+    ]),
+    timeout: const Duration(seconds: 3),
+  );
+
+  // صوت الخلفية: يُنتظر لأنه يُستخدم في أول إطار (آية البدء)، لكن بمهلة صريحة
+  // حتى لا يُعلّق الإقلاع على أي جهاز.
+  await guardedStartup(
+    'audio-background',
+    () => JustAudioBackground.init(
       androidNotificationChannelId: 'com.flc.azkari.channel.audio',
       androidNotificationChannelName: 'تلاوة القرآن الكريم • أذكاري',
       androidNotificationIcon: 'drawable/ic_notification',
       androidNotificationOngoing: false,
       androidStopForegroundOnPause: true,
       notificationColor: const Color(0xFF0288D1),
+    ),
+    timeout: const Duration(seconds: 6),
+  );
+
+  final prefs = await loadPrefsSafely();
+  if (prefs == null) {
+    // فشل التخزين: رسالة مفهومة + إعادة محاولة، لا شاشة بيضاء ولا حذف بيانات.
+    StartupDiagnostics.instance.error(
+      'storage-unavailable',
+      'SharedPreferences.getInstance() failed twice',
     );
-  } catch (_) {}
-  await SystemChrome.setPreferredOrientations([
-    DeviceOrientation.portraitUp,
-    DeviceOrientation.portraitDown,
-  ]);
-  final prefs = await SharedPreferences.getInstance();
-  try {
-    await NotificationService.instance.init();
-  } catch (_) {}
+    runApp(
+      StartupFailureApp(
+        lang: _deviceLanguageCode(),
+        loadPrefs: loadPrefsSafely,
+        onReady: _startApplication,
+      ),
+    );
+    return;
+  }
+  _startApplication(prefs);
+}
+
+/// يفتح التطبيق الحقيقي ثم يؤجّل كل تهيئة اختيارية إلى ما بعد أول إطار.
+void _startApplication(SharedPreferences prefs) {
   runApp(AzkariApp(prefs: prefs));
+  WidgetsBinding.instance.addPostFrameCallback((_) {
+    _initOptionalServices();
+  });
+}
+
+/// تهيئة الخدمات الاختيارية: لا شيء منها يستطيع منع الواجهة من الظهور.
+Future<void> _initOptionalServices() async {
+  await guardedStartup(
+    'notifications',
+    () => NotificationService.instance.init(),
+    timeout: const Duration(seconds: 6),
+  );
+}
+
+/// قراءة التخزين المحلي بمحاولتين ومهلة لكل محاولة. تعيد `null` عند الفشل
+/// بدل رمي استثناء يُسقط الإقلاع.
+Future<SharedPreferences?> loadPrefsSafely() async {
+  const int attempts = 2;
+  for (int attempt = 1; attempt <= attempts; attempt++) {
+    try {
+      final SharedPreferences prefs = await SharedPreferences.getInstance()
+          .timeout(const Duration(seconds: 6));
+      StartupDiagnostics.instance.phase('storage-ready(attempt=$attempt)');
+      return prefs;
+    } catch (error, stack) {
+      StartupDiagnostics.instance.error('storage-attempt-$attempt', error, stack);
+      if (attempt < attempts) {
+        await Future<void>.delayed(const Duration(milliseconds: 300));
+      }
+    }
+  }
+  return null;
+}
+
+/// لغة شاشة الفشل: من الجهاز مباشرة (لا نعتمد على التخزين لأنه هو الفاشل).
+String _deviceLanguageCode() {
+  final String code =
+      ui.PlatformDispatcher.instance.locale.languageCode.toLowerCase();
+  if (code == 'tr') return 'tr';
+  if (code == 'en') return 'en';
+  return 'ar';
 }
 
 class AzkariApp extends StatefulWidget {
@@ -780,22 +878,36 @@ class _AzkariAppState extends State<AzkariApp> with WidgetsBindingObserver {
     super.initState();
     WidgetsBinding.instance.addObserver(this);
     WidgetsBinding.instance.addPostFrameCallback((_) async {
-      try {
-        final plugin = FlutterLocalNotificationsPlugin();
-        await plugin
-            .resolvePlatformSpecificImplementation<
-                AndroidFlutterLocalNotificationsPlugin>()
-            ?.requestNotificationsPermission();
-      } catch (_) {}
-      // أذونات الإشعارات وتنبيهات المواعيد الدقيقة (أندرويد 13+ و14+).
-      await NotificationService.instance.requestPermissions();
-      await AzkariProManager.syncServerSubscription(widget.prefs);
+      // كل ما هنا اختياري: فشله أو تعليقه لا يجوز أن يمنع الواجهة (ظهرت أصلًا).
+      await guardedStartup(
+        'notification-permission',
+        () async {
+          final plugin = FlutterLocalNotificationsPlugin();
+          await plugin
+              .resolvePlatformSpecificImplementation<
+                  AndroidFlutterLocalNotificationsPlugin>()
+              ?.requestNotificationsPermission();
+          // أذونات الإشعارات وتنبيهات المواعيد الدقيقة (أندرويد 13+ و14+).
+          await NotificationService.instance.requestPermissions();
+        },
+        timeout: const Duration(seconds: 6),
+      );
+      // المزامنة تحتاج إنترنت: بلا إنترنت تفشل بهدوء ولا تؤثر على المحتوى.
+      await guardedStartup(
+        'subscription-sync',
+        () => AzkariProManager.syncServerSubscription(widget.prefs),
+        timeout: const Duration(seconds: 10),
+      );
       if (mounted) setState(() {});
     });
     Timer.periodic(const Duration(minutes: 1), (_) async {
       if (!mounted) return;
-      final granted = await AzkariProManager.recordActiveMinuteAndCheckSecretReward(widget.prefs);
-      if (granted && mounted) setState(() {});
+      try {
+        final granted = await AzkariProManager.recordActiveMinuteAndCheckSecretReward(widget.prefs);
+        if (granted && mounted) setState(() {});
+      } catch (_) {
+        // عدّاد الدقائق ليس حرجًا: فشله لا يمسّ الاستخدام.
+      }
     });
     SoundEffectsService.instance.init();
     _loadPrefsFromDisk();
