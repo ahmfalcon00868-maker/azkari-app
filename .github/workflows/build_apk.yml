@@ -453,9 +453,14 @@ jobs:
           SDK="${ANDROID_SDK_ROOT:-$ANDROID_HOME}"
           IMG="system-images;android-${API};google_apis;x86_64"
 
-          "$SDKM" --install "$IMG" "platforms;android-${API}" > "$OUT/sdkmanager.txt" 2>&1
+          # حزمة emulator غير مثبّتة افتراضيًا على هذه الرانرات — نثبّتها أولًا.
+          "$SDKM" --install "$IMG" "platforms;android-${API}" emulator platform-tools > "$OUT/sdkmanager.txt" 2>&1
           RC=$?
           echo "::notice::sdkmanager rc=$RC tail=$(tail -c 300 "$OUT/sdkmanager.txt" | tr '\n' ' ')"
+          EMU=$(ls "$SDK"/emulator/emulator 2>/dev/null | head -1)
+          echo "::notice::emulator binary=${EMU:-none} accel=$([ -n "$EMU" ] && "$EMU" -accel-check 2>&1 | tr '\n' ' ' | cut -c1-200)"
+          if [ -z "$EMU" ]; then echo "::error::emulator binary still missing"; exit 1; fi
+          echo "EMU=$EMU" >> "$GITHUB_ENV"
 
           echo "no" | "$AVDM" create avd -n "azkari$API" -k "$IMG" --device pixel --force > "$OUT/avdmanager.txt" 2>&1
           RC=$?
