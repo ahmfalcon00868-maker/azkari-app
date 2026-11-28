@@ -427,68 +427,92 @@ jobs:
           sudo udevadm control --reload-rules
           sudo udevadm trigger --name-match=kvm
 
+      # نشغّل المحاكي يدويًا (بدل الأكشن الجاهز) لأن الأكشن يفشل بصمت على هذا
+      # الرانر، ولأننا نحتاج طباعة سطور logcat كتعليقات يمكن قراءتها بلا تنزيل.
       - name: Boot emulator, install, launch, capture logcat
-        uses: reactivecircus/android-emulator-runner@v2
-        with:
-          api-level: ${{ matrix.api }}
-          target: google_apis
-          arch: x86_64
-          emulator-boot-timeout: 900
-          disable-animations: true
-          emulator-options: >-
-            -no-window -no-snapshot -noaudio -no-boot-anim
-            -gpu swiftshader_indirect -camera-back none -camera-front none -memory 2048
-          # ملاحظة: هذا السكربت يُنفَّذ بـ sh وليس bash، فلا pipefail ولا arrays.
-          script: |
-            set -u
-            OUT="diag-api${{ matrix.api }}"
-            mkdir -p "$OUT"
+        run: |
+          set -uo pipefail
+          API=${{ matrix.api }}
+          OUT="diag-api${API}"
+          mkdir -p "$OUT"
+          SDK="${ANDROID_SDK_ROOT:-$ANDROID_HOME}"
+          IMG="system-images;android-${API};google_apis;x86_64"
 
-            adb logcat -c || true
-            echo "== install =="
-            adb install -r startup.apk 2>&1 | tee "$OUT/install.txt"
+          echo "== sdk =="
+          ls "$SDK" | head -5
+          ( yes | "$SDK/cmdline-tools/latest/bin/sdkmanager" --licenses >/dev/null 2>&1 ) || true
+          "$SDK/cmdline-tools/latest/bin/sdkmanager" --install "$IMG" "platforms;android-${API}" > "$OUT/sdkmanager.txt" 2>&1 || true
+          tail -3 "$OUT/sdkmanager.txt" || true
 
-            echo "== first launch =="
-            adb shell monkey -p com.flc.azkari -c android.intent.category.LAUNCHER 1 2>&1 | tee "$OUT/launch.txt" || true
-            sleep 35
+          echo "no" | "$SDK/cmdline-tools/latest/bin/avdmanager" create avd -n "azkari$API" -k "$IMG" --device pixel --force >> "$OUT/avdmanager.txt" 2>&1 || true
+          tail -3 "$OUT/avdmanager.txt" 2>/dev/null || true
 
-            adb shell pidof com.flc.azkari > "$OUT/pid-after-launch.txt" 2>&1 || true
-            adb shell dumpsys window 2>/dev/null | grep -E 'mCurrentFocus|mFocusedApp' > "$OUT/focus.txt" || true
-            adb shell dumpsys activity activities 2>/dev/null | grep -E 'topResumedActivity|ResumedActivity' | head -5 > "$OUT/resumed.txt" || true
-            adb logcat -d -v threadtime > "$OUT/logcat-first-launch.txt" || true
-            adb logcat -d -b crash -v threadtime > "$OUT/logcat-crash.txt" || true
-            adb exec-out screencap -p > "$OUT/screen-first-launch.png" || true
+          nohup "$SDK/emulator/emulator" -avd "azkari$API" -no-window -no-snapshot -noaudio \
+            -no-boot-anim -gpu swiftshader_indirect -camera-back none -camera-front none \
+            -memory 2048 -port 5554 > "$OUT/emulator.log" 2>&1 &
+          EMU_PID=$!
+          echo "emulator pid=$EMU_PID"
 
-            echo "== second launch (process death + relaunch) =="
-            adb shell am force-stop com.flc.azkari || true
-            sleep 2
-            adb logcat -c || true
-            adb shell monkey -p com.flc.azkari -c android.intent.category.LAUNCHER 1 >/dev/null 2>&1 || true
-            sleep 25
-            adb shell pidof com.flc.azkari > "$OUT/pid-second-launch.txt" 2>&1 || true
-            adb logcat -d -v threadtime > "$OUT/logcat-second-launch.txt" || true
-            adb exec-out screencap -p > "$OUT/screen-second-launch.png" || true
+          adb start-server >/dev/null 2>&1 || true
+          booted=0
+          for i in $(seq 1 150); do
+            if ! kill -0 "$EMU_PID" 2>/dev/null; then echo "emulator process died"; break; fi
+            BOOT=$(adb -s emulator-5554 shell getprop sys.boot_completed 2>/dev/null | tr -d '\r')
+            if [ "$BOOT" = "1" ]; then booted=1; echo "booted after $((i*5))s"; break; fi
+            sleep 5
+          done
+          if [ "$booted" != "1" ]; then
+            echo "::error::emulator api=$API did not boot"
+            tail -c 3000 "$OUT/emulator.log" | sed 's/::/-/g' | head -40 || true
+            exit 1
+          fi
 
-            echo "== offline launch (airplane mode on, wifi/data off) =="
-            adb shell am force-stop com.flc.azkari || true
-            adb shell svc wifi disable || true
-            adb shell svc data disable || true
-            adb shell cmd connectivity airplane-mode enable 2>/dev/null || true
-            adb logcat -c || true
-            adb shell monkey -p com.flc.azkari -c android.intent.category.LAUNCHER 1 >/dev/null 2>&1 || true
-            sleep 25
-            adb shell pidof com.flc.azkari > "$OUT/pid-offline.txt" 2>&1 || true
-            adb logcat -d -v threadtime > "$OUT/logcat-offline.txt" || true
-            adb exec-out screencap -p > "$OUT/screen-offline.png" || true
+          adb -s emulator-5554 shell input keyevent 82 || true
+          adb -s emulator-5554 logcat -c || true
 
-            echo "== summary =="
-            for f in pid-after-launch pid-second-launch pid-offline; do
-              printf '%s: %s\n' "$f" "$(cat "$OUT/$f.txt" 2>/dev/null || echo missing)"
-            done
-            echo "-- java/kotlin crash lines --"
-            grep -hE 'FATAL EXCEPTION|AndroidRuntime|beginning of crash' "$OUT"/logcat-*.txt | head -20 || true
-            echo "-- flutter/dart error lines --"
-            grep -hE 'E/flutter|Unhandled Exception|MissingPluginException|PlatformException|LateInitializationError|NoSuchMethodError|ClassNotFoundException|NoClassDefFoundError' "$OUT"/logcat-*.txt | head -40 || true
+          echo "== install =="
+          adb -s emulator-5554 install -r startup.apk 2>&1 | tee "$OUT/install.txt" || true
+
+          echo "== first launch =="
+          adb -s emulator-5554 shell monkey -p com.flc.azkari -c android.intent.category.LAUNCHER 1 2>&1 | tee "$OUT/launch.txt" || true
+          sleep 40
+          adb -s emulator-5554 shell pidof com.flc.azkari > "$OUT/pid-after-launch.txt" 2>&1 || true
+          adb -s emulator-5554 shell dumpsys window 2>/dev/null | grep -E 'mCurrentFocus|mFocusedApp' > "$OUT/focus.txt" || true
+          adb -s emulator-5554 logcat -d -v threadtime > "$OUT/logcat-first-launch.txt" || true
+          adb -s emulator-5554 logcat -d -b crash -v threadtime > "$OUT/logcat-crash.txt" || true
+          adb -s emulator-5554 exec-out screencap -p > "$OUT/screen-first-launch.png" || true
+
+          echo "== second launch =="
+          adb -s emulator-5554 shell am force-stop com.flc.azkari || true
+          sleep 3
+          adb -s emulator-5554 logcat -c || true
+          adb -s emulator-5554 shell monkey -p com.flc.azkari -c android.intent.category.LAUNCHER 1 >/dev/null 2>&1 || true
+          sleep 30
+          adb -s emulator-5554 shell pidof com.flc.azkari > "$OUT/pid-second-launch.txt" 2>&1 || true
+          adb -s emulator-5554 logcat -d -v threadtime > "$OUT/logcat-second-launch.txt" || true
+          adb -s emulator-5554 exec-out screencap -p > "$OUT/screen-second-launch.png" || true
+
+          echo "== offline launch =="
+          adb -s emulator-5554 shell am force-stop com.flc.azkari || true
+          adb -s emulator-5554 shell svc wifi disable || true
+          adb -s emulator-5554 shell svc data disable || true
+          adb -s emulator-5554 logcat -c || true
+          adb -s emulator-5554 shell monkey -p com.flc.azkari -c android.intent.category.LAUNCHER 1 >/dev/null 2>&1 || true
+          sleep 30
+          adb -s emulator-5554 shell pidof com.flc.azkari > "$OUT/pid-offline.txt" 2>&1 || true
+          adb -s emulator-5554 logcat -d -v threadtime > "$OUT/logcat-offline.txt" || true
+          adb -s emulator-5554 exec-out screencap -p > "$OUT/screen-offline.png" || true
+
+          echo "== summary (also surfaced as annotations) =="
+          for f in pid-after-launch pid-second-launch pid-offline; do
+            printf '%s: %s\n' "$f" "$(cat "$OUT/$f.txt" 2>/dev/null || echo missing)"
+          done
+          echo "focus: $(cat "$OUT/focus.txt" 2>/dev/null | tr '\n' ' ' | cut -c1-200)"
+          CRASH=$(grep -hE 'FATAL EXCEPTION|beginningofcrash|beginning of crash' "$OUT"/logcat-*.txt 2>/dev/null | head -6 | sed 's/::/-/g' | tr '\n' ' | ' | cut -c1-900)
+          FLUTTER=$(grep -hE 'E/flutter|Unhandled Exception|MissingPluginException|PlatformException|LateInitializationError|NoSuchMethodError|ClassNotFoundException|NoClassDefFoundError|Failed to auto initialize' "$OUT"/logcat-*.txt 2>/dev/null | head -12 | sed 's/::/-/g' | tr '\n' ' | ' | cut -c1-1500)
+          echo "::notice::api=$API pids: first=$(cat "$OUT/pid-after-launch.txt" 2>/dev/null) second=$(cat "$OUT/pid-second-launch.txt" 2>/dev/null) offline=$(cat "$OUT/pid-offline.txt" 2>/dev/null)"
+          if [ -n "$CRASH" ]; then echo "::error::api=$API native crash: $CRASH"; fi
+          if [ -n "$FLUTTER" ]; then echo "::warning::api=$API flutter errors: $FLUTTER"; fi
 
       - name: Upload diagnosis bundle
         if: always()
