@@ -424,7 +424,7 @@ jobs:
         # هدف واحد أولًا للتحقق من البنية التحتية نفسها؛ ثم تُوسَّع المصفوفة.
         # المصفوفة التي جرّب عليها المستخدم فعلًا (7/8/9 … 13) + هدف وسطي.
         # مصفوفة المطلوب كاملة: 7 → 16+.
-        api: [31, 24]
+        api: [31]
     steps:
       - uses: actions/checkout@v4
 
@@ -511,8 +511,12 @@ jobs:
 
       - name: Boot emulator, install, launch, capture logcat
         if: inputs.inspect_only != true
+        shell: bash
         run: |
           set -u
+          # نُلفّ stdout في ملف حتى نستطيع طبع آخر الخطوات كتعليق عند الفشل.
+          exec > >(tee -a boot-stdout.log) 2>&1
+          trap 'rc=$?; if [ "$rc" -ne 0 ]; then echo "::error::boot-failed rc=$rc last: $(grep -v "^::" boot-stdout.log 2>/dev/null | tail -6 | tr "\n" " " | cut -c1-500)"; fi' EXIT
           API=${{ matrix.api }}
           OUT="diag-api${API}"
           mkdir -p "$OUT"

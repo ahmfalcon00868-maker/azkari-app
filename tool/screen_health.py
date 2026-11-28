@@ -26,14 +26,18 @@ def analyse(path: str) -> str:
     total_pixels = width * height
     # بعض الإصدارات القديمة (API 24/26) تُضيف بايتات في نهاية اللقطة، فلا نشترط
     # تساويًا تامًا للطول.
-    if total_pixels <= 0 or len(pixels) < total_pixels * 4:
+    # بعض الإصدارات القديمة (API 24/26) تقصّ آخر صف/بايتات من اللقطة الخام؛
+    # نسمح بنقص يصل إلى صف واحد بدل رفض القياس كله.
+    minimum = total_pixels * 4 - 4 * max(1, width)
+    if total_pixels <= 0 or len(pixels) < minimum:
         return f"bad-size({width}x{height},bytes={len(pixels)})"
 
     step = max(1, total_pixels // MAX_SAMPLES)
     white = 0
     counted = 0
     colors: set[tuple[int, int, int]] = set()
-    for index in range(0, total_pixels, step):
+    usable = len(pixels) // 4
+    for index in range(0, min(total_pixels, usable), step):
         offset = index * 4
         red, green, blue = pixels[offset], pixels[offset + 1], pixels[offset + 2]
         if red > WHITE_THRESHOLD and green > WHITE_THRESHOLD and blue > WHITE_THRESHOLD:
