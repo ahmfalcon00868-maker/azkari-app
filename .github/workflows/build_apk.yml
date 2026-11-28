@@ -477,15 +477,30 @@ jobs:
           echo "::notice::emulator pid=$EMU_PID"
 
           adb start-server >/dev/null 2>&1 || true
-          adb wait-for-device >/dev/null 2>&1 || true
+          # لا نفترض الرقم التسلسلي: نأخذ أول جهاز فعلي يظهر في adb.
+          SERIAL=""
+          for i in $(seq 1 60); do
+            SERIAL=$(adb devices 2>/dev/null | awk 'NR>1 && $2=="device" {print $1; exit}')
+            [ -n "$SERIAL" ] && break
+            sleep 3
+          done
+          echo "::notice::api=$API serial=${SERIAL:-none} devices=$(adb devices 2>&1 | tr '\n' ' ' | cut -c1-300)"
+          if [ -z "$SERIAL" ]; then
+            echo "::error::api=$API no adb device: $(tail -c 800 "$OUT/emulator.log" | tr '\n' ' ' | cut -c1-700)"
+            exit 1
+          fi
+          adb -s "$SERIAL" wait-for-device >/dev/null 2>&1 || true
           booted=0
           for i in $(seq 1 120); do
             if ! kill -0 "$EMU_PID" 2>/dev/null; then
               echo "::error::api=$API emulator process died: $(tail -c 1200 "$OUT/emulator.log" | tr '\n' ' ' | cut -c1-1000)"
               break
             fi
-            BOOT=$(adb -s emulator-5554 shell getprop sys.boot_completed 2>/dev/null | tr -d '\r')
+            BOOT=$(adb -s "$SERIAL" shell getprop sys.boot_completed 2>/dev/null | tr -d '\r')
             if [ "$BOOT" = "1" ]; then booted=1; echo "::notice::api=$API booted after $((i*5))s"; break; fi
+            if [ $((i % 12)) -eq 0 ]; then
+              echo "::notice::api=$API still booting at $((i*5))s (boot_completed=${BOOT:-empty} bootanim=$(adb -s "$SERIAL" shell getprop init.svc.bootanim 2>/dev/null | tr -d '\r'))"
+            fi
             sleep 5
           done
           if [ "$booted" != "1" ]; then
@@ -493,40 +508,40 @@ jobs:
             exit 1
           fi
 
-          adb -s emulator-5554 logcat -c || true
+          adb -s "$SERIAL" logcat -c || true
           echo "== install =="
-          adb -s emulator-5554 install -r startup.apk 2>&1 | tee "$OUT/install.txt" || true
+          adb -s "$SERIAL" install -r startup.apk 2>&1 | tee "$OUT/install.txt" || true
           echo "::notice::install=$(tail -c 300 "$OUT/install.txt" | tr '\n' ' ')"
 
           echo "== first launch =="
-          adb -s emulator-5554 shell monkey -p com.flc.azkari -c android.intent.category.LAUNCHER 1 2>&1 | tee "$OUT/launch.txt" || true
+          adb -s "$SERIAL" shell monkey -p com.flc.azkari -c android.intent.category.LAUNCHER 1 2>&1 | tee "$OUT/launch.txt" || true
           sleep 40
-          adb -s emulator-5554 shell pidof com.flc.azkari > "$OUT/pid-after-launch.txt" 2>&1 || true
-          adb -s emulator-5554 shell dumpsys window 2>/dev/null | grep -E 'mCurrentFocus|mFocusedApp' > "$OUT/focus.txt" || true
-          adb -s emulator-5554 logcat -d -v threadtime > "$OUT/logcat-first-launch.txt" || true
-          adb -s emulator-5554 logcat -d -b crash -v threadtime > "$OUT/logcat-crash.txt" || true
-          adb -s emulator-5554 exec-out screencap -p > "$OUT/screen-first-launch.png" || true
+          adb -s "$SERIAL" shell pidof com.flc.azkari > "$OUT/pid-after-launch.txt" 2>&1 || true
+          adb -s "$SERIAL" shell dumpsys window 2>/dev/null | grep -E 'mCurrentFocus|mFocusedApp' > "$OUT/focus.txt" || true
+          adb -s "$SERIAL" logcat -d -v threadtime > "$OUT/logcat-first-launch.txt" || true
+          adb -s "$SERIAL" logcat -d -b crash -v threadtime > "$OUT/logcat-crash.txt" || true
+          adb -s "$SERIAL" exec-out screencap -p > "$OUT/screen-first-launch.png" || true
 
           echo "== second launch =="
-          adb -s emulator-5554 shell am force-stop com.flc.azkari || true
+          adb -s "$SERIAL" shell am force-stop com.flc.azkari || true
           sleep 3
-          adb -s emulator-5554 logcat -c || true
-          adb -s emulator-5554 shell monkey -p com.flc.azkari -c android.intent.category.LAUNCHER 1 >/dev/null 2>&1 || true
+          adb -s "$SERIAL" logcat -c || true
+          adb -s "$SERIAL" shell monkey -p com.flc.azkari -c android.intent.category.LAUNCHER 1 >/dev/null 2>&1 || true
           sleep 30
-          adb -s emulator-5554 shell pidof com.flc.azkari > "$OUT/pid-second-launch.txt" 2>&1 || true
-          adb -s emulator-5554 logcat -d -v threadtime > "$OUT/logcat-second-launch.txt" || true
-          adb -s emulator-5554 exec-out screencap -p > "$OUT/screen-second-launch.png" || true
+          adb -s "$SERIAL" shell pidof com.flc.azkari > "$OUT/pid-second-launch.txt" 2>&1 || true
+          adb -s "$SERIAL" logcat -d -v threadtime > "$OUT/logcat-second-launch.txt" || true
+          adb -s "$SERIAL" exec-out screencap -p > "$OUT/screen-second-launch.png" || true
 
           echo "== offline launch =="
-          adb -s emulator-5554 shell am force-stop com.flc.azkari || true
-          adb -s emulator-5554 shell svc wifi disable || true
-          adb -s emulator-5554 shell svc data disable || true
-          adb -s emulator-5554 logcat -c || true
-          adb -s emulator-5554 shell monkey -p com.flc.azkari -c android.intent.category.LAUNCHER 1 >/dev/null 2>&1 || true
+          adb -s "$SERIAL" shell am force-stop com.flc.azkari || true
+          adb -s "$SERIAL" shell svc wifi disable || true
+          adb -s "$SERIAL" shell svc data disable || true
+          adb -s "$SERIAL" logcat -c || true
+          adb -s "$SERIAL" shell monkey -p com.flc.azkari -c android.intent.category.LAUNCHER 1 >/dev/null 2>&1 || true
           sleep 30
-          adb -s emulator-5554 shell pidof com.flc.azkari > "$OUT/pid-offline.txt" 2>&1 || true
-          adb -s emulator-5554 logcat -d -v threadtime > "$OUT/logcat-offline.txt" || true
-          adb -s emulator-5554 exec-out screencap -p > "$OUT/screen-offline.png" || true
+          adb -s "$SERIAL" shell pidof com.flc.azkari > "$OUT/pid-offline.txt" 2>&1 || true
+          adb -s "$SERIAL" logcat -d -v threadtime > "$OUT/logcat-offline.txt" || true
+          adb -s "$SERIAL" exec-out screencap -p > "$OUT/screen-offline.png" || true
 
           echo "== summary =="
           echo "::notice::api=$API pids first=$(cat "$OUT/pid-after-launch.txt" 2>/dev/null) second=$(cat "$OUT/pid-second-launch.txt" 2>/dev/null) offline=$(cat "$OUT/pid-offline.txt" 2>/dev/null) focus=$(cat "$OUT/focus.txt" 2>/dev/null | tr '\n' ' ' | cut -c1-160)"
