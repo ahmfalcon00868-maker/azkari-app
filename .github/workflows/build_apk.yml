@@ -1,13 +1,34 @@
-name: Build Azkari v1.0.0 Android APK
+name: Build Azkari v1.1.0+2 APK
 
 on:
   push:
     branches: [ "main", "master" ]
   workflow_dispatch:
+    inputs:
+      diagnose_emulators:
+        description: 'تشخيص بدء التشغيل على محاكيات (تثبيت + فتح + logcat + صورة شاشة)'
+        type: boolean
+        default: false
+      inspect_only:
+        description: 'فحص الـ APK فقط (DEX/flags) بلا محاكي'
+        type: boolean
+        default: false
+      apk_run_id:
+        description: 'معرّف تشغيل سابق لاستخدام الـ APK منه (اتركه فارغًا لبناء جديد)'
+        type: string
+        default: ''
+
+# صلاحية قراءة فقط: هذا المسار لا يستطيع نشر Release أو تعديل الإصدارات إطلاقاً.
+permissions:
+  contents: read
+  # لازمة فقط لتنزيل أرتيفاكت الـ APK من تشغيل سابق عند إعادة التشخيص بلا بناء جديد.
+  actions: read
 
 jobs:
   build-android-apk:
-    name: Build Azkari v1.0.0 APK
+    name: Build Azkari v1.1.0+2 APK
+    # يمكن تجاوز البناء كليًا عند إعادة تشخيص على نفس الـ APK.
+    if: github.event_name != 'workflow_dispatch' || inputs.apk_run_id == ''
     runs-on: ubuntu-latest
     steps:
       - name: Checkout code
@@ -25,7 +46,17 @@ jobs:
           channel: 'stable'
 
       - name: Create Android platform files
-        run: flutter create --org com.flc --project-name azkari --platforms=android .
+        run: |
+          flutter create --org com.flc --project-name azkari --platforms=android .
+          # ترمي `flutter create` اختبار القالب الافتراضي (widget_test.dart) الذي
+          # يختبر تطبيقاً غير تطبيقنا، فيُحذف حتى لا يُسقط فحص الاختبارات.
+          rm -f test/widget_test.dart
+
+      - name: Apply custom Android sources (home widgets & volume keys)
+        run: |
+          if [ -d android_custom ]; then
+            cp -R android_custom/. android/
+          fi
 
       - name: Ensure speech_to_text dependency in pubspec.yaml
         run: |
@@ -39,6 +70,20 @@ jobs:
 
       - name: Get dependencies
         run: flutter pub get
+
+      - name: Assert trailer version is 1.1.0+2
+        run: |
+          V=$(python3 -c "import re;print(re.search(r'^version:\s*(\S+)', open('pubspec.yaml',encoding='utf-8').read(), re.M).group(1))")
+          echo "pubspec version = $V"
+          test "$V" = "1.1.0+2"
+
+      - name: Run unit tests (blocks the APK if anything fails)
+        id: tests
+        run: |
+          set -euo pipefail
+          flutter test --reporter json > test_report.json
+          python3 tool/test_stats.py test_report.json | tee test_stats.txt
+          grep -E '^(count|passed|failed)=' test_stats.txt >> "$GITHUB_OUTPUT"
 
       - name: Configure Android assets, permissions, and Gradle
         run: |
@@ -56,8 +101,26 @@ jobs:
           m = open(mp, encoding="utf-8").read()
           m = re.sub("android:label=\"[^\"]*\"", "android:label=\"أذكاري\"", m, count=1)
           m = m.replace("android:name=\".MainActivity\"", "android:name=\"com.ryanheise.audioservice.AudioServiceActivity\"", 1)
-          if "android:usesCleartextTraffic" not in m:
-              m = m.replace("<application", "<application\n        android:usesCleartextTraffic=\"true\"", 1)
+          # كل الاتصالات في التطبيق HTTPS (تم التحقق: لا يوجد أي http:// في lib أو assets)
+          # لذلك نزيل أي سماح عام بـ HTTP بدل تفعيله.
+          m = re.sub(r"\s*android:usesCleartextTraffic=\"[^\"]*\"", "", m)
+          # نُثبّت المنع صراحةً في تطبيقنا: مكتبات قد تُعلن السماح فترثه النسخة النهائية.
+          m = m.replace("<application", "<application\n        android:usesCleartextTraffic=\"false\"", 1)
+          if "xmlns:tools" not in m:
+              m = m.replace("<manifest ", "<manifest xmlns:tools=\"http://schemas.android.com/tools\" ", 1)
+          # لا يوجد أي تكامل إعلاني في التطبيق: نزيل صلاحيات الهوية الإعلانية
+          # التي تفرضها مكتبات طرف ثالث (Facebook SDK/play-services-ads-identifier).
+          ad_perms = [
+              "com.google.android.gms.permission.AD_ID",
+              "android.permission.ACCESS_ADSERVICES_AD_ID",
+              "android.permission.ACCESS_ADSERVICES_ATTRIBUTION",
+              "android.permission.ACCESS_ADSERVICES_CUSTOM_AUDIENCE",
+              "android.permission.ACCESS_ADSERVICES_TOPICS",
+          ]
+          for perm in ad_perms:
+              if perm not in m:
+                  line = "\n    <uses-permission android:name=\"%s\" tools:node=\"remove\"/>" % perm
+                  m = m.replace("<application", line + "\n<application", 1)
           perms = "\n    <uses-permission android:name=\"android.permission.RECEIVE_BOOT_COMPLETED\"/>\n    <uses-permission android:name=\"android.permission.VIBRATE\"/>\n    <uses-permission android:name=\"android.permission.POST_NOTIFICATIONS\"/>\n    <uses-permission android:name=\"android.permission.SCHEDULE_EXACT_ALARM\"/>\n    <uses-permission android:name=\"android.permission.USE_EXACT_ALARM\"/>\n    <uses-permission android:name=\"android.permission.SYSTEM_ALERT_WINDOW\"/>\n    <uses-permission android:name=\"android.permission.WAKE_LOCK\"/>\n    <uses-permission android:name=\"android.permission.RECORD_AUDIO\"/>\n    <uses-permission android:name=\"android.permission.FOREGROUND_SERVICE\"/>\n    <uses-permission android:name=\"android.permission.FOREGROUND_SERVICE_MEDIA_PLAYBACK\"/>\n    <uses-permission android:name=\"android.permission.FOREGROUND_SERVICE_SPECIAL_USE\"/>\n    <uses-permission android:name=\"android.permission.REQUEST_INSTALL_PACKAGES\"/>\n"
           if "SYSTEM_ALERT_WINDOW" not in m:
               m = m.replace("<application", perms + "<application", 1)
@@ -67,6 +130,23 @@ jobs:
           svcs = "\n        <service android:name=\"flutter.overlay.window.flutter_overlay_window.OverlayService\" android:foregroundServiceType=\"specialUse\" android:exported=\"false\"><property android:name=\"android.app.PROPERTY_SPECIAL_USE_FGS_SUBTYPE\" android:value=\"Floating Zikr Reminder Overlay\"/></service>\n        <service android:name=\"com.ryanheise.audioservice.AudioService\" android:foregroundServiceType=\"mediaPlayback\" android:stopWithTask=\"false\" android:exported=\"true\"><intent-filter><action android:name=\"android.media.browse.MediaBrowserService\" /></intent-filter></service>\n        <receiver android:name=\"com.ryanheise.audioservice.MediaButtonReceiver\" android:exported=\"true\"><intent-filter><action android:name=\"android.intent.action.MEDIA_BUTTON\" /></intent-filter></receiver>\n        <receiver android:exported=\"false\" android:name=\"com.dexterous.flutterlocalnotifications.ScheduledNotificationReceiver\" />\n        <receiver android:exported=\"false\" android:name=\"com.dexterous.flutterlocalnotifications.ScheduledNotificationBootReceiver\"><intent-filter><action android:name=\"android.intent.action.BOOT_COMPLETED\"/><action android:name=\"android.intent.action.MY_PACKAGE_REPLACED\"/></intent-filter></receiver>\n"
           if "OverlayService" not in m:
               m = m.replace("</application>", svcs + "</application>", 1)
+          widgets = "\n        <receiver android:name=\"com.flc.azkari.TasbihWidgetProvider\" android:exported=\"true\"><intent-filter><action android:name=\"android.appwidget.action.APPWIDGET_UPDATE\"/><action android:name=\"com.flc.azkari.TASBIH_WIDGET_INC\"/><action android:name=\"com.flc.azkari.TASBIH_WIDGET_NEXT\"/></intent-filter><meta-data android:name=\"android.appwidget.provider\" android:resource=\"@xml/widget_tasbih_info\"/></receiver>\n        <receiver android:name=\"com.flc.azkari.AyahWidgetProvider\" android:exported=\"true\"><intent-filter><action android:name=\"android.appwidget.action.APPWIDGET_UPDATE\"/></intent-filter><meta-data android:name=\"android.appwidget.provider\" android:resource=\"@xml/widget_ayah_info\"/></receiver>\n"
+          if "TasbihWidgetProvider" not in m:
+              m = m.replace("</application>", widgets + "</application>", 1)
+          # الانهيار المثبت على API 24/30/33: InitializationProvider يهيّئ WorkManager
+          # تلقائيًا ويفشل إنشاء WorkDatabase قبل تشغيل Flutter ⇒ FATAL قبل أي واجهة.
+          # التطبيق لا يستخدم WorkManager إطلاقًا (لا workmanager في pubspec ولا
+          # استدعاء native)، فمنع التهيئة التلقائية يزيل مسار الانهيار.
+          if "WorkManagerInitializer" not in m:
+              startup_provider = (
+                  "\n        <provider"
+                  " android:name=\"androidx.startup.InitializationProvider\""
+                  " android:authorities=\"${applicationId}.androidx-startup\""
+                  " android:exported=\"false\" tools:node=\"merge\">"
+                  "\n            <meta-data android:name=\"androidx.work.WorkManagerInitializer\" tools:node=\"remove\" />"
+                  "\n        </provider>\n"
+              )
+              m = m.replace("</application>", startup_provider + "</application>", 1)
           open(mp, "w", encoding="utf-8").write(m)
           kts = "android/app/build.gradle.kts"
           grv = "android/app/build.gradle"
@@ -75,6 +155,9 @@ jobs:
               if "isCoreLibraryDesugaringEnabled" not in g:
                   g = g.replace("compileOptions {", "compileOptions {\n        isCoreLibraryDesugaringEnabled = true", 1)
               g = re.sub(r"minSdk\s*=\s*flutter\.minSdkVersion", "minSdk = 23", g)
+              # منع R8 من حذف موارد الإشعارات (ic_notification / splash_ayah)
+              if "isShrinkResources" not in g and "buildTypes {" in g:
+                  g = g.replace("buildTypes {", "buildTypes {\n        release {\n            isShrinkResources = false\n            proguardFiles(getDefaultProguardFile(\"proguard-android-optimize.txt\"), \"proguard-rules.pro\")\n        }\n", 1)
               if "desugar_jdk_libs" not in g:
                   g += "\ndependencies {\n    coreLibraryDesugaring(\"com.android.tools:desugar_jdk_libs:2.0.4\")\n}\n"
               open(kts, "w", encoding="utf-8").write(g)
@@ -83,10 +166,65 @@ jobs:
               if "coreLibraryDesugaringEnabled" not in g:
                   g = g.replace("compileOptions {", "coreLibraryDesugaringEnabled true", 1)
               g = re.sub(r"minSdkVersion\s+flutter\.minSdkVersion", "minSdkVersion 23", g)
+              if "shrinkResources" not in g and "buildTypes {" in g:
+                  g = g.replace("buildTypes {", "buildTypes {\n        release {\n            shrinkResources false\n        }\n", 1)
               if "desugar_jdk_libs" not in g:
                   g += "\ndependencies {\n    coreLibraryDesugaring \"com.android.tools:desugar_jdk_libs:2.0.4\"\n}\n"
               open(grv, "w", encoding="utf-8").write(g)
           '
+
+      # اختبارات وحدة Kotlin للمنطق الأصلي لسجل الضغطات (JVM، بلا جهاز).
+      # ملاحظة: نرفع minSdk مؤقتاً إلى 24 لبناء نسخة debug (بعض المكتبات تطلب
+      # ذلك) ثم نعيده إلى 23 فوراً حتى يبقى الـ APK المُسلَّم بلا أي تغيير.
+      # اختبارات منطق الويدجت الأصلي: مشروع Gradle/JVM مستقل يترجم نفس ملف
+      # Kotlin المشحون في الـ APK (لا يحتاج Android SDK ولا يحاكي المنطق).
+      - name: Run native widget logic tests (Kotlin/JVM)
+        run: |
+          set -uo pipefail
+          set +e
+          ( cd android && ./gradlew -p ../tool/kotlin_tests test --no-daemon --console=plain 2>&1 | tee /tmp/kotlin-tests.log )
+          status=$?
+          python3 tool/android_test_stats.py tool/kotlin_tests/build/test-results/test
+          stats=$?
+          set -e
+          if [ "$status" -ne 0 ] || [ "$stats" -ne 0 ]; then
+            { echo "== tail =="; tail -c 25000 /tmp/kotlin-tests.log; } > /tmp/k.txt
+            sed -i 's/::/-/g' /tmp/k.txt
+            echo "::error::native widget logic tests: $(grep -m2 -E '^e: |FAILED|What went wrong' /tmp/k.txt | tr '\n' ' ' | cut -c1-600)"
+            exit 1
+          fi
+
+      # اختبار تكامل تخزين Android الحقيقي (Robolectric + SharedPreferences فعلية).
+      # الإعداد يُضاف إلى وحدة Android عبر tool/patch_android_gradle.py ويُزال بعد
+      # الاختبار، فلا يتغيّر ما يُبنى في الـ APK (minSdk يعود 23).
+      # النتائج في build/app/ لأن قالب Flutter ينقل buildDir إلى جذر المستودع.
+      - name: Run Android storage tests (Robolectric)
+        run: |
+          set -uo pipefail
+          kts="android/app/build.gradle.kts"
+          if [ -f "$kts" ]; then gradle_file="$kts"; else gradle_file="android/app/build.gradle"; fi
+
+          python3 tool/patch_android_gradle.py add "$gradle_file"
+          sed -i 's/minSdk = 23/minSdk = 24/; s/minSdkVersion 23/minSdkVersion 24/' "$gradle_file"
+
+          set +e
+          ( cd android && ./gradlew :app:testDebugUnitTest --no-daemon --console=plain 2>&1 | tee /tmp/android-tests.log )
+          status=$?
+          python3 tool/patch_android_gradle.py restore "$gradle_file" || true
+
+          RESULTS="$(ls -d build/app/test-results/testDebugUnitTest android/app/build/test-results/testDebugUnitTest 2>/dev/null | head -1)"
+          python3 tool/android_test_stats.py "${RESULTS:-build/app/test-results/testDebugUnitTest}"
+          stats=$?
+          set -e
+
+          if [ "$status" -ne 0 ] || [ "$stats" -ne 0 ]; then
+            { echo "== tail =="; tail -c 25000 /tmp/android-tests.log; } > /tmp/a.txt
+            sed -i 's/::/-/g' /tmp/a.txt
+            echo "::error::android storage tests: $(grep -m2 -E '^e: |FAILED|What went wrong' /tmp/a.txt | tr '\n' ' ' | cut -c1-600)"
+            echo "::error::first failures: $(grep -ho 'message=\"[^\"]*\"' ${RESULTS}/*.xml 2>/dev/null | head -3 | tr '\n' ' ' | cut -c1-500)"
+            echo "::error::robolectric deps: $(ls -1 build/app/robolectric-deps 2>/dev/null | tr '\n' ' ' | cut -c1-300)"
+            exit 1
+          fi
 
       - name: Use pre-installed NDK to avoid slow/corrupt downloads
         run: |
@@ -151,6 +289,34 @@ jobs:
               open(grv, "w", encoding="utf-8").write(txt)
           '
 
+      - name: Write R8 keep rules (Room / WorkManager / Startup)
+        run: |
+          python3 -c '
+          rules = """
+          # أصناف تُبحث عن أسمائها بالانعكاس وقت التشغيل (Room *_Impl، WorkManager، AndroidX Startup).
+          -keep class androidx.work.** { *; }
+          -keep class androidx.room.** { *; }
+          -keep class * extends androidx.room.RoomDatabase { *; }
+          -keepclassmembers class * extends androidx.room.RoomDatabase { <init>(); }
+          -keep class * implements androidx.startup.Initializer { *; }
+          -keepclassmembers class * implements androidx.startup.Initializer { <init>(); }
+          -dontwarn androidx.work.**
+          """
+          path = "android/app/proguard-rules.pro"
+          old = open(path, encoding="utf-8").read() if __import__("os").path.exists(path) else ""
+          if "androidx.work.**" not in old:
+              open(path, "a", encoding="utf-8").write(rules)
+              print("keep rules added")
+          else:
+              print("keep rules already present")
+          '
+
+      - name: Report who pulls androidx.work
+        run: |
+          set -uo pipefail
+          ( cd android && ./gradlew -q :app:dependencyInsight --dependency androidx.work --configuration releaseRuntimeClasspath 2>/dev/null | head -25 ) \
+            | sed 's/^/dep: /' | while IFS= read -r l; do echo "::notice::$l"; done
+
       - name: Generate Launcher Icon
         run: |
           if [ -f "assets/images/app_icon.png" ]; then
@@ -158,10 +324,346 @@ jobs:
           fi
 
       - name: Build Release APK
-        run: flutter build apk --release --obfuscate --split-debug-info=build/debug-info
+        run: |
+          set -euo pipefail
+          flutter build apk --release --obfuscate --split-debug-info=build/debug-info 2>&1 | tee build.log
 
-      - name: Upload APK Artifact
+      - name: Verify shipped APK manifest (no cleartext HTTP, no AD_ID)
+        run: |
+          set -uo pipefail
+          exec > >(tee verify.log) 2>&1
+          APK=$(find build -name "app-release.apk" -type f 2>/dev/null | head -n 1)
+          if [ -z "$APK" ]; then
+            echo "::error::APK not found after build"
+            find build -name "*.apk" -type f 2>/dev/null | head -20
+            exit 1
+          fi
+          echo "APK: $APK"
+          echo "APK_PATH=$APK" >> "$GITHUB_ENV"
+          SDK_DIR="${ANDROID_HOME:-${ANDROID_SDK_ROOT:-/usr/local/lib/android/sdk}}"
+          AAPT=$(ls -1 "$SDK_DIR"/build-tools/*/aapt2 2>/dev/null | sort -V | tail -n 1)
+          echo "using: $AAPT"
+          "$AAPT" dump permissions "$APK" > perms.txt
+          "$AAPT" dump xmltree --file AndroidManifest.xml "$APK" > manifest.txt
+          echo "--- permissions ---"; cat perms.txt
+          fail=0
+          if grep -Eq "uses-permission: name='(com\\.google\\.android\\.gms\\.permission\\.AD_ID|android\\.permission\\.ACCESS_ADSERVICES_[A-Z_]+)'" perms.txt; then
+            echo "::error::advertising-ID permissions are shipped in the APK"
+            grep -E "AD_ID|ACCESS_ADSERVICES" perms.txt
+            fail=1
+          fi
+          if grep -qi 'usesCleartextTraffic' manifest.txt; then
+            grep -i 'usesCleartextTraffic' manifest.txt | head -3
+            if grep -i 'usesCleartextTraffic' manifest.txt | grep -qvi '0x0'; then
+              echo "::error::cleartext HTTP is enabled in the shipped manifest"
+              fail=1
+            fi
+          fi
+          if ! grep -q 'com.flc.azkari.TasbihWidgetProvider' manifest.txt; then
+            echo "::error::tasbih widget receiver missing from the shipped manifest"
+            fail=1
+          fi
+          if ! grep -q 'com.flc.azkari.AyahWidgetProvider' manifest.txt; then
+            echo "::error::ayah widget receiver missing from the shipped manifest"
+            fail=1
+          fi
+          if [ "$fail" -ne 0 ]; then exit 1; fi
+          echo "APK manifest hardened ✔"
+
+      - name: Record manifest provenance for advertising permissions
+        if: always()
+        run: |
+          REPORT=$(find build -name 'manifest-merger-release-report.txt' 2>/dev/null | head -n 1)
+          echo "merger report: ${REPORT:-not found}"
+          if [ -n "$REPORT" ]; then
+            grep -E 'AD_ID|ACCESS_ADSERVICES|installreferrer|BIND_GET_INSTALL_REFERRER' "$REPORT" \
+              | sed 's/^[[:space:]]*//' | head -6 \
+              | while IFS= read -r line; do echo "::notice::provenance: $line"; done
+          fi
+
+      - name: Verify signature & compute checksums
+        id: apk
+        run: |
+          set -euo pipefail
+          APK="${APK_PATH:-build/app/outputs/flutter-apk/app-release.apk}"
+          test -f "$APK" || { echo "::error::APK missing at $APK"; exit 1; }
+          SHA=$(sha256sum "$APK" | awk '{print $1}')
+          SDK_DIR="${ANDROID_HOME:-${ANDROID_SDK_ROOT:-/usr/local/lib/android/sdk}}"
+          APKSIGNER=$(ls -1 "$SDK_DIR"/build-tools/*/apksigner 2>/dev/null | sort -V | tail -n 1)
+          CERT=$("$APKSIGNER" verify --print-certs "$APK" | grep -m1 'SHA-256 digest' | awk '{print $NF}')
+          test -n "$CERT"
+          echo "APK SHA-256:  $SHA"
+          echo "Signer SHA-256: $CERT"
+          BYTES=$(stat -c%s "$APK")
+          echo "APK bytes:     $BYTES"
+          echo "sha=$SHA" >> "$GITHUB_OUTPUT"
+          echo "cert=$CERT" >> "$GITHUB_OUTPUT"
+          echo "bytes=$BYTES" >> "$GITHUB_OUTPUT"
+          cp "$APK" "Azkari-1.1.0+2.apk"
+
+      # رموز إزالة التعمية (--obfuscate --split-debug-info): لازمة لفك أي Stack Trace
+      # من النسخة المشحونة. تُرفع كأرتيفاكت فقط (لا نشر، لا Release).
+      - name: Upload obfuscation debug symbols
         uses: actions/upload-artifact@v4
         with:
-          name: Azkari-v1-Release-APK
-          path: build/app/outputs/flutter-apk/app-release.apk
+          name: azkari-debug-symbols-sha256-${{ steps.apk.outputs.sha }}
+          path: build/debug-info
+          if-no-files-found: error
+
+      - name: Upload APK as workflow artifact only (no release, no publish)
+        uses: actions/upload-artifact@v4
+        with:
+          name: Azkari-1.1.0-2-sha256-${{ steps.apk.outputs.sha }}-cert-${{ steps.apk.outputs.cert }}-tests-${{ steps.tests.outputs.count }}-apk-bytes-${{ steps.apk.outputs.bytes }}
+          path: Azkari-1.1.0+2.apk
+          if-no-files-found: error
+
+  # ===========================================================================
+  # تشخيص بدء التشغيل على محاكيات حقيقية (اختياري، لا يمسّ الـ APK ولا النشر).
+  # يُشغَّل فقط عند workflow_dispatch مع diagnose_emulators = true.
+  # الهدف: الحصول على أول Exception فعلي وlogcat، لا مجرد «البناء نجح».
+  # ===========================================================================
+  startup-diagnosis:
+    needs: build-android-apk
+    if: always() && github.event_name == 'workflow_dispatch' && inputs.diagnose_emulators
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    strategy:
+      fail-fast: false
+      matrix:
+        # هدف واحد أولًا للتحقق من البنية التحتية نفسها؛ ثم تُوسَّع المصفوفة.
+        # المصفوفة التي جرّب عليها المستخدم فعلًا (7/8/9 … 13) + هدف وسطي.
+        # مصفوفة المطلوب كاملة: 7 → 16+.
+        api: [24, 26, 28, 29, 30, 31, 33, 34, 35, 36]
+        include:
+          # صورة API 31 الافتراضية google_apis غير مستقرة على هذه الرانرات.
+          - api: 31
+            target: default
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Download the shipped APK artifact
+        uses: actions/download-artifact@v4
+        with:
+          pattern: Azkari-*
+          path: dist
+          merge-multiple: true
+          run-id: ${{ inputs.apk_run_id || github.run_id }}
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+
+      # الأرتيفاكت قد يصل ملف APK مباشرة أو داخل zip؛ نتعامل مع الحالتين.
+      - name: Unpack APK
+        run: |
+          set -euo pipefail
+          ls -la dist
+          echo "::notice::dist entries: $(ls -A dist 2>&1 | tr '\n' ' ' | cut -c1-300)"
+          mkdir -p apk
+          for f in dist/*; do
+            [ -f "$f" ] || continue
+            case "$f" in
+              # ملف APK هو نفسه أرشيف zip: لا نفكّه، بل نستخدمه مباشرة.
+              *.apk) cp "$f" "apk/$(basename "$f")" ;;
+              *)
+                if unzip -l "$f" 2>/dev/null | grep -q '\.apk$'; then
+                  unzip -o "$f" -d apk
+                else
+                  cp "$f" "apk/$(basename "$f")"
+                fi
+                ;;
+            esac
+          done
+          find apk -maxdepth 2 -type f -printf '%p %s\n' | head
+          APK=$(find apk -maxdepth 2 -type f \( -name '*.apk' -o -size +20M \) | head -n 1)
+          if [ -z "$APK" ]; then
+            echo "::error::no APK found after unpack; apk/ listing: $(ls -laR apk 2>&1 | tr '\n' ' | ' | cut -c1-600)"
+            exit 1
+          fi
+          cp "$APK" startup.apk
+          ls -l startup.apk
+          echo "startup.apk sha256: $(sha256sum startup.apk | cut -d' ' -f1)"
+
+      # فحص الـ DEX المشحون: هل بقيت أصناف Room/WorkManager التي تُبحث بالاسم؟
+      - name: Inspect shipped DEX (Room / WorkManager / R8 keep)
+        run: |
+          set -u
+          unzip -Z1 startup.apk | grep -E '^classes.*\.dex$' > dex-list.txt
+          echo "::notice::dex files: $(tr '\n' ' ' < dex-list.txt)"
+          : > all.dex
+          while IFS= read -r f; do unzip -p startup.apk "$f" >> all.dex; done < dex-list.txt
+          echo "::notice::dex bytes=$(stat -c%s all.dex)"
+          for pat in WorkDatabase_Impl WorkDatabase androidx.work WorkManagerInitializer \
+                     androidx.startup androidx.room RoomDatabase r8-map-id; do
+            hits=$(strings all.dex | grep -c -- "$pat")
+            echo "::notice::dex '$pat' hits=$hits"
+          done
+
+      - name: Enable KVM for the emulator
+        if: inputs.inspect_only != true
+        run: |
+          echo 'KERNEL=="kvm", GROUP="kvm", MODE="0666", OPTIONS+="static_node=kvm"'             | sudo tee /etc/udev/rules.d/99-kvm4all.rules
+          sudo udevadm control --reload-rules
+          sudo udevadm trigger --name-match=kvm
+
+      # نشغّل المحاكي يدويًا (بدل الأكشن الجاهز) لأن الأكشن يفشل بصمت على هذا
+      # الرانر، ولأننا نحتاج طباعة سطور logcat كتعليقات يمكن قراءتها بلا تنزيل.
+      - name: Preflight (SDK, emulator tools, KVM)
+        if: inputs.inspect_only != true
+        run: |
+          set -u
+          SDK="${ANDROID_SDK_ROOT:-$ANDROID_HOME}"
+          echo "SDK=$SDK"
+          echo "::notice::preflight sdk=$SDK contents=$(ls "$SDK" 2>/dev/null | tr '\n' ' ' | cut -c1-300)"
+          echo "::notice::kvm=$(ls -l /dev/kvm 2>&1 | head -1) cpu=$(nproc) mem=$(free -g | awk '/Mem:/{print $2}')G"
+          SDKM=$(ls "$SDK"/cmdline-tools/*/bin/sdkmanager 2>/dev/null | head -1)
+          AVDM=$(ls "$SDK"/cmdline-tools/*/bin/avdmanager 2>/dev/null | head -1)
+          EMU=$(ls "$SDK"/emulator/emulator 2>/dev/null | head -1)
+          echo "::notice::tools sdkmanager=${SDKM:-none} avdmanager=${AVDM:-none} emulator=${EMU:-none}"
+          { echo "SDKM=$SDKM"; echo "AVDM=$AVDM"; echo "EMU=$EMU"; } >> "$GITHUB_ENV"
+          if [ -n "$EMU" ]; then
+            echo "::notice::accel-check=$("$EMU" -accel-check 2>&1 | tr '\n' ' ' | cut -c1-300)"
+          fi
+
+      - name: Boot emulator, install, launch, capture logcat
+        if: inputs.inspect_only != true
+        shell: bash
+        run: |
+          set -u
+          set +e   # GitHub يشغّل bash بـ -e؛ نُلغيها لأننا نعالج الأخطاء صراحةً.
+          API=${{ matrix.api }}
+          TARGET="${{ matrix.target || 'google_apis' }}"
+          OUT="diag-api${API}"
+          mkdir -p "$OUT"
+          # xtrace إلى ملف (لا stdout) ثم نطبعه كتعليق عند الفشل: يكشف أول أمر فشل.
+          exec 9> "$OUT/trace.log"
+          export BASH_XTRACEFD=9
+          PS4='+ line $LINENO: '
+          set -x
+          trap 'rc=$?; if [ "$rc" -ne 0 ]; then echo "::error::boot-failed rc=$rc trace: $(grep -a "line" "$OUT/trace.log" 2>/dev/null | tail -6 | tr "\n" " " | cut -c1-600)"; fi' EXIT
+          SDK="${ANDROID_SDK_ROOT:-$ANDROID_HOME}"
+          IMG="system-images;android-${API};${TARGET};x86_64"
+
+          # حزمة emulator غير مثبّتة افتراضيًا على هذه الرانرات — نثبّتها أولًا.
+          "$SDKM" --install "$IMG" "platforms;android-${API}" emulator platform-tools > "$OUT/sdkmanager.txt" 2>&1
+          RC=$?
+          echo "sdkmanager rc=$RC"
+          EMU=$(ls "$SDK"/emulator/emulator 2>/dev/null | head -1)
+          echo "emulator=${EMU:-none} accel=$([ -n "$EMU" ] && "$EMU" -accel-check 2>&1 | head -1)"
+          if [ -z "$EMU" ]; then echo "::error::emulator binary still missing"; exit 1; fi
+          echo "EMU=$EMU" >> "$GITHUB_ENV"
+          # adb غير موجود في PATH على هذه الرانرات (كان سبب فشل كل المحاولات).
+          export PATH="$SDK/platform-tools:$SDK/emulator:$PATH"
+          ADB="$SDK/platform-tools/adb"
+          echo "adb=$("$ADB" version 2>&1 | head -1)"
+
+          # مسار AVD صريح لكلا الأداتين، وإلا يُنشئ avdmanager المجلد في مكان
+          # لا يبحث فيه المحاكي (شوهد: Unknown AVD name).
+          export ANDROID_AVD_HOME="$HOME/.android/avd"
+          mkdir -p "$ANDROID_AVD_HOME"
+          echo "no" | "$AVDM" create avd -n "azkari$API" -k "$IMG" --device pixel --force > "$OUT/avdmanager.txt" 2>&1
+          RC=$?
+          echo "avdmanager rc=$RC avds=$(ls "$ANDROID_AVD_HOME" 2>&1 | tr '\n' ' ' | cut -c1-120)"
+
+          nohup "$EMU" -avd "azkari$API" -no-window -no-snapshot -noaudio -no-boot-anim \
+            -gpu swiftshader_indirect -camera-back none -camera-front none \
+            -memory 2048 -port 5554 > "$OUT/emulator.log" 2>&1 &
+          EMU_PID=$!
+          echo "emulator pid=$EMU_PID"
+
+          adb start-server >/dev/null 2>&1 || true
+          # لا نفترض الرقم التسلسلي: نأخذ أول جهاز فعلي يظهر في adb.
+          SERIAL=""
+          for i in $(seq 1 60); do
+            SERIAL=$(adb devices 2>/dev/null | awk 'NR>1 && $2=="device" {print $1; exit}')
+            [ -n "$SERIAL" ] && break
+            sleep 3
+          done
+          echo "serial=${SERIAL:-none}"
+          if [ -z "$SERIAL" ]; then
+            echo "::error::api=$API no adb device: $(tail -c 800 "$OUT/emulator.log" | tr '\n' ' ' | cut -c1-700)"
+            exit 1
+          fi
+          adb -s "$SERIAL" wait-for-device >/dev/null 2>&1 || true
+          booted=0
+          for i in $(seq 1 120); do
+            if ! kill -0 "$EMU_PID" 2>/dev/null; then
+              echo "::error::api=$API emulator process died: $(tail -c 1200 "$OUT/emulator.log" | tr '\n' ' ' | cut -c1-1000)"
+              break
+            fi
+            BOOT=$(adb -s "$SERIAL" shell getprop sys.boot_completed 2>/dev/null | tr -d '\r')
+            if [ "$BOOT" = "1" ]; then booted=1; echo "booted after $((i*5))s"; break; fi
+            if [ $((i % 24)) -eq 0 ]; then
+              echo "still booting at $((i*5))s (boot_completed=${BOOT:-empty})"
+            fi
+            sleep 5
+          done
+          if [ "$booted" != "1" ]; then
+            echo "::error::api=$API did not boot: $(tail -c 1200 "$OUT/emulator.log" | tr '\n' ' ' | cut -c1-1000)"
+            exit 1
+          fi
+
+          adb -s "$SERIAL" logcat -c || true
+          echo "== install =="
+          adb -s "$SERIAL" install -r startup.apk 2>&1 | tee "$OUT/install.txt" || true
+          echo "install: $(tail -c 200 "$OUT/install.txt" | tr '\n' ' ')"
+          # منح الأذونات مسبقًا: نافذة إذن الإشعارات على 13+ تحجب القياس الموضوعي للشاشة.
+          for perm in android.permission.POST_NOTIFICATIONS android.permission.RECORD_AUDIO; do
+            adb -s "$SERIAL" shell pm grant com.flc.azkari "$perm" >/dev/null 2>&1 || true
+          done
+          adb -s "$SERIAL" shell appops set com.flc.azkari SCHEDULE_EXACT_ALARM allow >/dev/null 2>&1 || true
+
+          echo "== first launch =="
+          adb -s "$SERIAL" shell monkey -p com.flc.azkari -c android.intent.category.LAUNCHER 1 2>&1 | tee "$OUT/launch.txt" || true
+          sleep 40
+          adb -s "$SERIAL" shell pidof com.flc.azkari > "$OUT/pid-after-launch.txt" 2>&1 || true
+          adb -s "$SERIAL" shell dumpsys window 2>/dev/null | grep -E 'mCurrentFocus|mFocusedApp' > "$OUT/focus.txt" || true
+          adb -s "$SERIAL" logcat -d -v threadtime > "$OUT/logcat-first-launch.txt" || true
+          adb -s "$SERIAL" logcat -d -b crash -v threadtime > "$OUT/logcat-crash.txt" || true
+          adb -s "$SERIAL" exec-out screencap > "$OUT/screen-first-launch.raw" 2>/dev/null || true
+
+          echo "== second launch =="
+          adb -s "$SERIAL" shell am force-stop com.flc.azkari || true
+          sleep 3
+          adb -s "$SERIAL" logcat -c || true
+          adb -s "$SERIAL" shell monkey -p com.flc.azkari -c android.intent.category.LAUNCHER 1 >/dev/null 2>&1 || true
+          sleep 30
+          adb -s "$SERIAL" shell pidof com.flc.azkari > "$OUT/pid-second-launch.txt" 2>&1 || true
+          adb -s "$SERIAL" logcat -d -v threadtime > "$OUT/logcat-second-launch.txt" || true
+          adb -s "$SERIAL" exec-out screencap > "$OUT/screen-second-launch.raw" 2>/dev/null || true
+
+          echo "== offline launch =="
+          adb -s "$SERIAL" shell am force-stop com.flc.azkari || true
+          adb -s "$SERIAL" shell svc wifi disable || true
+          adb -s "$SERIAL" shell svc data disable || true
+          adb -s "$SERIAL" logcat -c || true
+          adb -s "$SERIAL" shell monkey -p com.flc.azkari -c android.intent.category.LAUNCHER 1 >/dev/null 2>&1 || true
+          sleep 30
+          adb -s "$SERIAL" shell pidof com.flc.azkari > "$OUT/pid-offline.txt" 2>&1 || true
+          adb -s "$SERIAL" logcat -d -v threadtime > "$OUT/logcat-offline.txt" || true
+          adb -s "$SERIAL" exec-out screencap > "$OUT/screen-offline.raw" 2>/dev/null || true
+
+          # قياس موضوعي واحد مُجمَّع (GitHub يحتفظ بعدد محدود من التعليقات لكل خطوة).
+          SCREEN_FIRST=$(python3 tool/screen_health.py "$OUT/screen-first-launch.raw" 2>&1 | tail -1)
+          SCREEN_SECOND=$(python3 tool/screen_health.py "$OUT/screen-second-launch.raw" 2>&1 | tail -1)
+          SCREEN_OFFLINE=$(python3 tool/screen_health.py "$OUT/screen-offline.raw" 2>&1 | tail -1)
+          FOCUS=$(cat "$OUT/focus.txt" 2>/dev/null | tr '\n' ' ' | cut -c1-160)
+          # رصد مسار البدء المرن: كم مرحلة أساسية نجحت، وهل ظهر أي خطأ مُسجَّل.
+          STARTUP_OK=$(grep -ha '\[startup\] ✓' "$OUT"/logcat-first-launch.txt 2>/dev/null | wc -l | tr -d ' ')
+          STARTUP_ERR=$(grep -ha '\[startup\] ✗' "$OUT"/logcat-*.txt 2>/dev/null | head -3 | sed 's/::/-/g' | tr '\n' ' ' | cut -c1-280)
+          if [ -n "$STARTUP_ERR" ]; then echo "::warning::api=$API startup-log: $STARTUP_ERR"; fi
+          DISPLAYED=$(grep -hcE 'Displayed com.flc.azkari' "$OUT"/logcat-*.txt 2>/dev/null | paste -sd+ - | bc 2>/dev/null || echo 0)
+          echo "::notice::api=$API pids[first=$(cat "$OUT/pid-after-launch.txt" 2>/dev/null) second=$(cat "$OUT/pid-second-launch.txt" 2>/dev/null) offline=$(cat "$OUT/pid-offline.txt" 2>/dev/null)] displayed=$DISPLAYED screens[first=$SCREEN_FIRST | second=$SCREEN_SECOND | offline=$SCREEN_OFFLINE] startup_ok=$STARTUP_OK focus: $FOCUS"
+
+          FATAL=$(grep -haE 'FATAL EXCEPTION|beginning of crash' "$OUT"/logcat-*.txt 2>/dev/null | head -3 | sed 's/::/-/g' | tr '\n' ' ' | cut -c1-400)
+          if [ -n "$FATAL" ]; then echo "::error::api=$API fatal: $FATAL"; fi
+          FLUT=$(grep -haE 'E/flutter|Unhandled Exception|MissingPluginException|PlatformException|ClassNotFoundException|NoClassDefFoundError|FacebookException' "$OUT"/logcat-*.txt 2>/dev/null | head -6 | sed 's/::/-/g' | tr '\n' ' ' | cut -c1-600)
+          if [ -n "$FLUT" ]; then echo "::warning::api=$API flutter: $FLUT"; fi
+          # `if` بشرط فارغ يُعيد 1، وكان آخر أمر في السكربت فيُسقط الخطوة بلا سبب حقيقي.
+          echo "boot-step-complete api=$API"
+          exit 0
+
+      - name: Upload diagnosis bundle
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: startup-diagnosis-api${{ matrix.api }}
+          path: diag-api${{ matrix.api }}
+          if-no-files-found: warn

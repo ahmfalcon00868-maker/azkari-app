@@ -9,6 +9,27 @@ import 'package:path_provider/path_provider.dart';
 import 'package:url_launcher/url_launcher.dart';
 
 class UpdateService {
+  /// مفتاح تعطيل/تشغيل نظام التحديثات داخل التطبيق.
+  ///
+  /// اتركه `false` أثناء تطوير إصدار جديد: التطبيق حينها **لا يتحقق** من أي
+  /// تحديث ولا يعرض أي إشعار ولا ينزّل ولا يثبّت أي ملف، مهما كان محتوى
+  /// `version.json` أو إصدارات GitHub. لا تضبطه على `true` إلا عند صدور نسخة
+  /// جاهزة للتوزيع على المستخدمين.
+  static const bool kUpdatesEnabled = false;
+
+  /// حماية ثانية مستقلة عن الفرع: حتى لو فُتح [kUpdatesEnabled] في مكان ما،
+  /// لا يعمل أي فحص/تنزيل/تثبيت إلا في بناء صُرّح له صراحةً وقت البناء:
+  ///
+  ///     flutter build apk --dart-define=AZKARI_ALLOW_UPDATES=true
+  ///
+  /// بناؤنا الحالي (وبناء أي فرع تجريبي) لا يمرّر هذا التعريف، فالتحديثات
+  /// ميتة تماماً بغضّ النظر عن قيمة المفتاح أعلاه.
+  static const bool kUpdatesBuildFlag =
+      bool.fromEnvironment('AZKARI_ALLOW_UPDATES', defaultValue: false);
+
+  /// هل نظام التحديث فعّال فعلاً في هذا البناء؟
+  static bool get updatesActive => kUpdatesEnabled && kUpdatesBuildFlag;
+
   static const String _versionUrl =
       'https://raw.githubusercontent.com/ahmfalcon00868-maker/azkari-app/main/version.json';
   static const String _releasesApiUrl =
@@ -32,6 +53,22 @@ class UpdateService {
     bool isEnglish = false,
     bool showNoUpdateMessage = false,
   }) async {
+    // Kill switch: لا يصل أي تحديث للمستخدمين أثناء التطوير.
+    if (!updatesActive) {
+      if (showNoUpdateMessage && context.mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(
+              isEnglish
+                  ? 'Updates are paused while the next version is being prepared.'
+                  : 'التحديثات متوقفة مؤقتًا ريثما يُجهَّز الإصدار القادم.',
+            ),
+          ),
+        );
+      }
+      return;
+    }
+
     if (_isDownloading && _isInBackground && context.mounted) {
       _showDownloadDialog(context, isEnglish);
       return;
@@ -84,7 +121,10 @@ class UpdateService {
             }
             if (releaseApk != null && tag.isNotEmpty) {
               final cleanTag = tag.replaceFirst(RegExp(r'^v'), '');
-              if (cleanTag != info.version && remoteBuild <= localBuild) {
+              // لا نعتبر الإصدار تحديثًا إلا إذا كان أحدث فعلاً؛ مقارنة
+              // "مختلف" فقط كانت تعرض على مستخدمي 1.1.0 "تحديثًا" إلى 1.0.0.
+              if (remoteBuild <= localBuild &&
+                  isNewerVersion(cleanTag, info.version)) {
                 remoteVersion = cleanTag;
                 apkUrl = releaseApk;
                 notes = (rel['body'] ?? '').toString();
@@ -150,6 +190,33 @@ class UpdateService {
         );
       }
     }
+  }
+
+  /// هل [remote] أحدث فعليًا من [local]؟ مقارنة رقمية على النقاط.
+  ///
+  /// إصدار مساوٍ أو أقدم يُعتبر "ليس تحديثًا"، حتى لا يُطلب من المستخدم
+  /// تثبيت نسخة أقدم من التي لديه.
+  static bool isNewerVersion(String remote, String local) {
+    List<int> parse(String version) {
+      final core =
+          version.trim().replaceFirst(RegExp(r'^[vV]'), '').split('+').first;
+      return core
+          .split('.')
+          .map((part) =>
+              int.tryParse(RegExp(r'^\d+').stringMatch(part) ?? '') ?? 0)
+          .toList();
+    }
+
+    final remoteParts = parse(remote);
+    final localParts = parse(local);
+    final length =
+        remoteParts.length > localParts.length ? remoteParts.length : localParts.length;
+    for (var i = 0; i < length; i++) {
+      final a = i < remoteParts.length ? remoteParts[i] : 0;
+      final b = i < localParts.length ? localParts[i] : 0;
+      if (a != b) return a > b;
+    }
+    return false;
   }
 
   static void _refreshDialog() {
@@ -270,6 +337,7 @@ class UpdateService {
     bool isEnglish, {
     bool reset = false,
   }) async {
+    if (!updatesActive) return;
     _activeApkUrl = apkUrl;
     _isCancelled = false;
     _isPaused = false;

@@ -1,0 +1,70 @@
+name: Code checks
+
+# فحوصات سريعة (تحليل + اختبارات + حرس التجميد) تعمل على كل فرع،
+# منفصلة عن بناء الـ APK. لا تنشر أي إصدار.
+on:
+  push:
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  analyze-and-test:
+    name: Analyze & Test
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          channel: 'stable'
+
+      - name: Get dependencies
+        run: flutter pub get
+
+      - name: Release guard (freeze must stay on)
+        run: python3 tool/release_guard.py
+
+      - name: Analyze (errors are fatal, warnings/infos are reported)
+        run: |
+          set -uo pipefail
+          flutter analyze --no-fatal-warnings --no-fatal-infos > analyze.log 2>&1 || true
+          python3 tool/analyze_summary.py analyze.log
+
+      - name: Run tests
+        id: tests
+        run: |
+          set -uo pipefail
+          flutter test --reporter expanded 2>&1 | tee test_out.log
+
+      - name: Report test count
+        if: always()
+        run: |
+          if [ -f test_out.log ]; then
+            LINE=$(grep -aoE '\+[0-9]+[^:]*: (All tests passed|Some tests failed)' test_out.log | tail -1)
+          else
+            LINE=""
+          fi
+          echo "::notice::tests ${LINE:-unknown}"
+
+      # اسم الأرتيفاكت يحمل أعداد التحليل ليقرأها المطوّر من صفحة التشغيل مباشرة.
+      - name: Decide analysis artifact name
+        if: always()
+        run: |
+          if [ -f analyze_counts.txt ]; then
+            echo "ANALYZE_NAME=$(cat analyze_counts.txt)" >> "$GITHUB_ENV"
+          else
+            echo "ANALYZE_NAME=errors=unknown" >> "$GITHUB_ENV"
+          fi
+
+      - name: Store analysis log as artifact
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: analyze-${{ env.ANALYZE_NAME }}
+          path: analyze.log
+          if-no-files-found: ignore

@@ -11,22 +11,31 @@ class QiblaCity {
   final String nameEn;
   final double lat;
   final double lng;
-  const QiblaCity(this.nameAr, this.nameEn, this.lat, this.lng);
+
+  /// منطقة المدينة الزمنية (IANA) — تُستخدم لعرض مواقيت الشروق/المغرب
+  /// بتوقيت المدينة نفسها لا بتوقيت الجهاز.
+  final String timeZone;
+
+  const QiblaCity(this.nameAr, this.nameEn, this.lat, this.lng,
+      [this.timeZone = 'Africa/Cairo']);
 }
 
 const List<QiblaCity> kQiblaCities = [
-  QiblaCity('القاهرة، مصر', 'Cairo, Egypt', 30.0444, 31.2357),
-  QiblaCity('بني سويف، مصر', 'Beni Suef, Egypt', 29.0661, 31.0994),
-  QiblaCity('الإسكندرية، مصر', 'Alexandria, Egypt', 31.2001, 29.9187),
-  QiblaCity('المنصورة، مصر', 'Mansoura, Egypt', 31.0409, 31.3785),
-  QiblaCity('أسيوط، مصر', 'Asyut, Egypt', 27.1809, 31.1837),
-  QiblaCity('الرياض، السعودية', 'Riyadh, KSA', 24.7136, 46.6753),
-  QiblaCity('جدة، السعودية', 'Jeddah, KSA', 21.4858, 39.1925),
-  QiblaCity('دبي، الإمارات', 'Dubai, UAE', 25.2048, 55.2708),
-  QiblaCity('عمّان، الأردن', 'Amman, Jordan', 31.9454, 35.9284),
-  QiblaCity('الكويت', 'Kuwait City', 29.3759, 47.9774),
-  QiblaCity('الدوحة، قطر', 'Doha, Qatar', 25.2854, 51.5310),
-  QiblaCity('الرباط، المغرب', 'Rabat, Morocco', 34.0209, -6.8416),
+  QiblaCity('القاهرة، مصر', 'Cairo, Egypt', 30.0444, 31.2357, 'Africa/Cairo'),
+  QiblaCity('المنيا، مصر', 'Minya, Egypt', 28.1099, 30.7503, 'Africa/Cairo'),
+  QiblaCity('بني سويف، مصر', 'Beni Suef, Egypt', 29.0661, 31.0994, 'Africa/Cairo'),
+  QiblaCity('الإسكندرية، مصر', 'Alexandria, Egypt', 31.2001, 29.9187, 'Africa/Cairo'),
+  QiblaCity('المنصورة، مصر', 'Mansoura, Egypt', 31.0409, 31.3785, 'Africa/Cairo'),
+  QiblaCity('أسيوط، مصر', 'Asyut, Egypt', 27.1809, 31.1837, 'Africa/Cairo'),
+  QiblaCity('الرياض، السعودية', 'Riyadh, KSA', 24.7136, 46.6753, 'Asia/Riyadh'),
+  QiblaCity('جدة، السعودية', 'Jeddah, KSA', 21.4858, 39.1925, 'Asia/Riyadh'),
+  QiblaCity('دبي، الإمارات', 'Dubai, UAE', 25.2048, 55.2708, 'Asia/Dubai'),
+  QiblaCity('عمّان، الأردن', 'Amman, Jordan', 31.9454, 35.9284, 'Asia/Amman'),
+  QiblaCity('الكويت', 'Kuwait City', 29.3759, 47.9774, 'Asia/Kuwait'),
+  QiblaCity('الدوحة، قطر', 'Doha, Qatar', 25.2854, 51.5310, 'Asia/Qatar'),
+  QiblaCity('الرباط، المغرب', 'Rabat, Morocco', 34.0209, -6.8416, 'Africa/Casablanca'),
+  QiblaCity('إستانبول، تركيا', 'Istanbul, Türkiye', 41.0082, 28.9784, 'Europe/Istanbul'),
+  QiblaCity('لندن، بريطانيا', 'London, UK', 51.5072, -0.1276, 'Europe/London'),
 ];
 
 class ToolsHubScreen extends StatefulWidget {
@@ -134,7 +143,7 @@ class _ToolsHubScreenState extends State<ToolsHubScreen> {
                 if (ctx.mounted) Navigator.pop(ctx);
                 if (mounted) {
                   ScaffoldMessenger.of(context).showSnackBar(
-                    SnackBar(content: Text(tr('تمت الاستعادة بنجاح ✓', 'Restored ✓'))),
+                    SnackBar(content: Text(tr('تمت الاستعادة بنجاح ', 'Restored '))),
                   );
                 }
               } catch (_) {
@@ -168,7 +177,7 @@ class _ToolsHubScreenState extends State<ToolsHubScreen> {
       length: 4,
       child: Scaffold(
         appBar: AppBar(
-          title: Text(tr('الأدوات والعادات 🧭', 'Tools & Habits 🧭')),
+          title: Text(tr('الأدوات والعادات ', 'Tools & Habits ')),
           bottom: TabBar(
             isScrollable: true,
             tabs: [
@@ -246,8 +255,8 @@ class _ToolsHubScreenState extends State<ToolsHubScreen> {
                 const SizedBox(height: 20),
                 Text(
                   tr(
-                    'زاوية القبلة من الشمال الحقيقي: ${angle.toStringAsFixed(1)}°',
-                    'Qibla Bearing from True North: ${angle.toStringAsFixed(1)}°',
+'زاوية القبلة من الشمال الحقيقي: ${angle.toStringAsFixed(1)}°',
+'Qibla Bearing from True North: ${angle.toStringAsFixed(1)}°',
                   ),
                   textAlign: TextAlign.center,
                   style: const TextStyle(
@@ -256,8 +265,8 @@ class _ToolsHubScreenState extends State<ToolsHubScreen> {
                 const SizedBox(height: 8),
                 Text(
                   tr(
-                    'وجّه أعلى الهاتف نحو الشمال ثم اتبع اتجاه السهم نحو الكعبة المشرفة 🕋',
-                    'Face North and follow the arrow toward the Kaaba 🕋',
+'وجّه أعلى الهاتف نحو الشمال ثم اتبع اتجاه السهم نحو الكعبة المشرفة ',
+'Face North and follow the arrow toward the Kaaba ',
                   ),
                   textAlign: TextAlign.center,
                   style: const TextStyle(color: Colors.grey),
@@ -275,7 +284,7 @@ class _ToolsHubScreenState extends State<ToolsHubScreen> {
                         controller: _habitController,
                         decoration: InputDecoration(
                           hintText: tr('أضف ذكراً أو عادة يومية خاصة...',
-                              'Add custom habit or dhikr...'),
+'Add custom habit or dhikr...'),
                           border: OutlineInputBorder(
                               borderRadius: BorderRadius.circular(14)),
                         ),
@@ -300,7 +309,7 @@ class _ToolsHubScreenState extends State<ToolsHubScreen> {
                     child: Padding(
                       padding: const EdgeInsets.all(24),
                       child: Text(tr('لم تضف أي عادات مخصصة بعد',
-                          'No custom habits yet')),
+'No custom habits yet')),
                     ),
                   )
                 else
@@ -379,8 +388,8 @@ class _ToolsHubScreenState extends State<ToolsHubScreen> {
                         color: Color(0xFF38BDF8)),
                     title: Text(tr('تصدير نسخة احتياطية', 'Export Backup')),
                     subtitle: Text(tr(
-                        'احفظ سجل إنجازاتك وعاداتك في ملف أو شاركه لنفسك',
-                        'Save or share your progress & habits')),
+'احفظ سجل إنجازاتك وعاداتك في ملف أو شاركه لنفسك',
+'Save or share your progress & habits')),
                     onTap: _exportBackup,
                   ),
                 ),
@@ -400,16 +409,16 @@ class _ToolsHubScreenState extends State<ToolsHubScreen> {
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
                         Text(
-                          tr('حل مشكلة تأخر الإشعارات 🔋',
-                              'Fix Delayed Notifications 🔋'),
+                          tr('حل مشكلة تأخر الإشعارات ',
+'Fix Delayed Notifications '),
                           style: const TextStyle(
                               fontWeight: FontWeight.bold, fontSize: 16),
                         ),
                         const SizedBox(height: 8),
                         Text(
                           tr(
-                            'إذا لم تصلك تنبيهات أذكار الصباح والمساء في وقتها:\n1. افتح إعدادات الهاتف > التطبيقات > أذكاري.\n2. اختر البطارية > اختر "غير مقيد" (Unrestricted).\n3. فعّل إذن التنبيهات والظهور فوق التطبيقات.',
-                            'If reminders are delayed:\n1. Phone Settings > Apps > Azkari.\n2. Battery > Set to "Unrestricted".\n3. Enable Notifications & Alarms.',
+'إذا لم تصلك تنبيهات أذكار الصباح والمساء في وقتها:\n1. افتح إعدادات الهاتف > التطبيقات > أذكاري.\n2. اختر البطارية > اختر "غير مقيد" (Unrestricted).\n3. فعّل إذن التنبيهات والظهور فوق التطبيقات.',
+'If reminders are delayed:\n1. Phone Settings > Apps > Azkari.\n2. Battery > Set to "Unrestricted".\n3. Enable Notifications & Alarms.',
                           ),
                           style: const TextStyle(height: 1.7),
                         ),

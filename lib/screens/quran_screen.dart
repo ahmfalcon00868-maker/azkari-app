@@ -13,6 +13,7 @@ import 'package:share_plus/share_plus.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:speech_to_text/speech_to_text.dart' as stt;
 
+import '../services/khushu_service.dart';
 import 'sha7nawy_payment_screen.dart';
 
 class QuranReciter {
@@ -75,37 +76,37 @@ String transliterateQuranWord(String rawWord, {bool turkish = false}) {
 
   // Exact common Quranic words for natural reading
   const exactCommon = {
-    'بسم': 'bism',
-    'الله': 'Allahi',
-    'لله': 'lillahi',
-    'الرحمن': 'ar-Rahmani',
-    'الرحيم': 'ar-Rahimi',
-    'الحمد': 'al-hamdu',
-    'رب': 'Rabbi',
-    'العالمين': 'al-alamin',
-    'مالك': 'Maliki',
-    'ملك': 'Maliki',
-    'يوم': 'yawmi',
-    'الدين': 'ad-din',
-    'اياك': 'iyyaka',
-    'نعبد': 'na’budu',
-    'نستعين': 'nasta’in',
-    'اهدنا': 'ihdina',
-    'الصراط': 'as-sirata',
-    'المستقيم': 'al-mustaqim',
-    'صراط': 'sirata',
-    'الذين': 'alladhina',
-    'انعمت': 'an’amta',
-    'عليهم': 'alayhim',
-    'غير': 'ghayri',
-    'المغضوب': 'al-maghdubi',
-    'ولا': 'wa la',
-    'الضالين': 'ad-dallin',
-    'الم': 'Alif-Lam-Mim',
-    'قل': 'qul',
-    'هو': 'Huwa',
-    'احد': 'Ahad',
-    'الصمد': 'as-Samad',
+'بسم': 'bism',
+'الله': 'Allahi',
+'لله': 'lillahi',
+'الرحمن': 'ar-Rahmani',
+'الرحيم': 'ar-Rahimi',
+'الحمد': 'al-hamdu',
+'رب': 'Rabbi',
+'العالمين': 'al-alamin',
+'مالك': 'Maliki',
+'ملك': 'Maliki',
+'يوم': 'yawmi',
+'الدين': 'ad-din',
+'اياك': 'iyyaka',
+'نعبد': 'na’budu',
+'نستعين': 'nasta’in',
+'اهدنا': 'ihdina',
+'الصراط': 'as-sirata',
+'المستقيم': 'al-mustaqim',
+'صراط': 'sirata',
+'الذين': 'alladhina',
+'انعمت': 'an’amta',
+'عليهم': 'alayhim',
+'غير': 'ghayri',
+'المغضوب': 'al-maghdubi',
+'ولا': 'wa la',
+'الضالين': 'ad-dallin',
+'الم': 'Alif-Lam-Mim',
+'قل': 'qul',
+'هو': 'Huwa',
+'احد': 'Ahad',
+'الصمد': 'as-Samad',
   };
   if (exactCommon.containsKey(bare)) {
     final res = exactCommon[bare]!;
@@ -123,20 +124,20 @@ String transliterateQuranWord(String rawWord, {bool turkish = false}) {
 
   final Map<String, String> cons = turkish
       ? const {
-          'ب': 'b', 'ت': 't', 'ث': 's', 'ج': 'c', 'ح': 'h', 'خ': 'h',
-          'د': 'd', 'ذ': 'z', 'ر': 'r', 'ز': 'z', 'س': 's', 'ش': 'ş',
-          'ص': 's', 'ض': 'd', 'ط': 't', 'ظ': 'z', 'ع': 'a', 'غ': 'ğ',
-          'ف': 'f', 'ق': 'k', 'ك': 'k', 'ل': 'l', 'م': 'm', 'ن': 'n',
-          'ه': 'h', 'ة': 'h', 'و': 'v', 'ي': 'y', 'ى': 'a', 'ء': '’',
-          'أ': 'e', 'إ': 'i', 'آ': 'a', 'ا': 'a', 'ٱ': 'a', 'ؤ': 'u', 'ئ': 'y',
+'ب': 'b', 'ت': 't', 'ث': 's', 'ج': 'c', 'ح': 'h', 'خ': 'h',
+'د': 'd', 'ذ': 'z', 'ر': 'r', 'ز': 'z', 'س': 's', 'ش': 'ş',
+'ص': 's', 'ض': 'd', 'ط': 't', 'ظ': 'z', 'ع': 'a', 'غ': 'ğ',
+'ف': 'f', 'ق': 'k', 'ك': 'k', 'ل': 'l', 'م': 'm', 'ن': 'n',
+'ه': 'h', 'ة': 'h', 'و': 'v', 'ي': 'y', 'ى': 'a', 'ء': '’',
+'أ': 'e', 'إ': 'i', 'آ': 'a', 'ا': 'a', 'ٱ': 'a', 'ؤ': 'u', 'ئ': 'y',
         }
       : const {
-          'ب': 'b', 'ت': 't', 'ث': 'th', 'ج': 'j', 'ح': 'h', 'خ': 'kh',
-          'د': 'd', 'ذ': 'dh', 'ر': 'r', 'ز': 'z', 'س': 's', 'ش': 'sh',
-          'ص': 's', 'ض': 'd', 'ط': 't', 'ظ': 'z', 'ع': 'a', 'غ': 'gh',
-          'ف': 'f', 'ق': 'q', 'ك': 'k', 'ل': 'l', 'م': 'm', 'ن': 'n',
-          'ه': 'h', 'ة': 'h', 'و': 'w', 'ي': 'y', 'ى': 'a', 'ء': '’',
-          'أ': 'a', 'إ': 'i', 'آ': 'aa', 'ا': 'a', 'ٱ': 'a', 'ؤ': 'u', 'ئ': 'y',
+'ب': 'b', 'ت': 't', 'ث': 'th', 'ج': 'j', 'ح': 'h', 'خ': 'kh',
+'د': 'd', 'ذ': 'dh', 'ر': 'r', 'ز': 'z', 'س': 's', 'ش': 'sh',
+'ص': 's', 'ض': 'd', 'ط': 't', 'ظ': 'z', 'ع': 'a', 'غ': 'gh',
+'ف': 'f', 'ق': 'q', 'ك': 'k', 'ل': 'l', 'م': 'm', 'ن': 'n',
+'ه': 'h', 'ة': 'h', 'و': 'w', 'ي': 'y', 'ى': 'a', 'ء': '’',
+'أ': 'a', 'إ': 'i', 'آ': 'aa', 'ا': 'a', 'ٱ': 'a', 'ؤ': 'u', 'ئ': 'y',
         };
 
   final runes = w.runes.toList();
@@ -192,16 +193,16 @@ const List<(String, String)> kQuranFonts = [
 
 String fontLabelForLang(String id, String lang) {
   const enMap = {
-    'AmiriQuran': 'Uthmani (Amiri)',
-    'Lateef': 'Lateef Font',
-    'Scheherazade': 'Scheherazade',
-    'NotoKufi': 'Noto Kufi',
+'AmiriQuran': 'Uthmani (Amiri)',
+'Lateef': 'Lateef Font',
+'Scheherazade': 'Scheherazade',
+'NotoKufi': 'Noto Kufi',
   };
   const trMap = {
-    'AmiriQuran': 'Osmani (Amiri)',
-    'Lateef': 'Latif Hat',
-    'Scheherazade': 'Şehrazat Hat',
-    'NotoKufi': 'Noto Kufi',
+'AmiriQuran': 'Osmani (Amiri)',
+'Lateef': 'Latif Hat',
+'Scheherazade': 'Şehrazat Hat',
+'NotoKufi': 'Noto Kufi',
   };
   if (lang == 'tr') return trMap[id] ?? id;
   if (lang == 'en') return enMap[id] ?? id;
@@ -456,7 +457,9 @@ void showSpotlightTour(
                 left: 18,
                 right: 18,
                 top: showAbove ? null : ((hole?.bottom ?? 120) + 18).clamp(48.0, screenH - 220),
-                bottom: showAbove ? (screenH - (hole?.top ?? screenH * 0.6) + 18).clamp(48.0, screenH - 220) : null,
+                bottom: showAbove
+                    ? (screenH - hole.top + 18).clamp(48.0, screenH - 220)
+                    : null,
                 child: Container(
                   padding: const EdgeInsets.all(16),
                   decoration: BoxDecoration(
@@ -484,7 +487,7 @@ void showSpotlightTour(
                               borderRadius: BorderRadius.circular(999),
                             ),
                             child: Text(
-                              '${idx + 1} / ${steps.length}',
+'${idx + 1} / ${steps.length}',
                               style: const TextStyle(
                                 color: Color(0xFF38BDF8),
                                 fontSize: 11.5,
@@ -699,11 +702,11 @@ class _QuranHomeScreenState extends State<QuranHomeScreen> {
     return List.generate(30, (i) {
       final j = i + 1;
       return {
-        'juz': j,
-        'surahCount': juzSurahs[j]?.length ?? 0,
-        'hizbCount': juzHizbs[j]?.length ?? 2,
-        'firstSurah': juzFirstAyah[j]?.$1 ?? 1,
-        'firstAyah': juzFirstAyah[j]?.$2 ?? 1,
+'juz': j,
+'surahCount': juzSurahs[j]?.length ?? 0,
+'hizbCount': juzHizbs[j]?.length ?? 2,
+'firstSurah': juzFirstAyah[j]?.$1 ?? 1,
+'firstAyah': juzFirstAyah[j]?.$2 ?? 1,
       };
     });
   }
@@ -795,9 +798,9 @@ class _QuranHomeScreenState extends State<QuranHomeScreen> {
                         builder: (dCtx) => AlertDialog(
                           title: Text(tr('تحميل القرآن كاملاً', 'Download Full Quran Audio', 'Tüm Kur’an Seslerini İndir')),
                           content: Text(tr(
-                            'سيتم تحميل التلاوات للاستماع بدون إنترنت.\nالحجم التقريبي للمصحف كاملاً: ~750 ميجابايت (يمكنك الإيقاف في أي وقت).',
-                            'Audio files will be saved for offline listening.\nEstimated total size: ~750 MB (you can stop anytime).',
-                            'Sesler çevrimdışı dinleme için indirilecek.\nTahmini toplam boyut: ~750 MB (istediğiniz zaman durdurabilirsiniz).',
+'سيتم تحميل التلاوات للاستماع بدون إنترنت.\nالحجم التقريبي للمصحف كاملاً: ~750 ميجابايت (يمكنك الإيقاف في أي وقت).',
+'Audio files will be saved for offline listening.\nEstimated total size: ~750 MB (you can stop anytime).',
+'Sesler çevrimdışı dinleme için indirilecek.\nTahmini toplam boyut: ~750 MB (istediğiniz zaman durdurabilirsiniz).',
                           )),
                           actions: [
                             TextButton(
@@ -843,7 +846,7 @@ class _QuranHomeScreenState extends State<QuranHomeScreen> {
                           const SizedBox(height: 4),
                           Text(
                             tr('جاري تحميل السور للاستماع بدون نت: $_downloadDoneCount / 114',
-                                'Downloading Surahs offline: $_downloadDoneCount / 114'),
+'Downloading Surahs offline: $_downloadDoneCount / 114'),
                             style: const TextStyle(fontSize: 12),
                           ),
                         ],
@@ -872,8 +875,8 @@ class _QuranHomeScreenState extends State<QuranHomeScreen> {
                               Expanded(
                                 child: Text(
                                   tr(
-                                    'متابعة العلامة المرجعية: $lastName (آية ${lastAyah ?? 1})',
-                                    'Resume Bookmark: $lastName (Ayah ${lastAyah ?? 1})',
+'متابعة العلامة المرجعية: $lastName (آية ${lastAyah ?? 1})',
+'Resume Bookmark: $lastName (Ayah ${lastAyah ?? 1})',
                                   ),
                                   style: const TextStyle(
                                     color: Colors.white,
@@ -983,8 +986,8 @@ class _QuranHomeScreenState extends State<QuranHomeScreen> {
                                 ),
                                 subtitle: Text(
                                   tr(
-                                    'عدد السور: ${j['surahCount']} • الأحزاب: ${j['hizbCount']}',
-                                    'Surahs: ${j['surahCount']} • Hizbs: ${j['hizbCount']}',
+'عدد السور: ${j['surahCount']} • الأحزاب: ${j['hizbCount']}',
+'Surahs: ${j['surahCount']} • Hizbs: ${j['hizbCount']}',
                                   ),
                                 ),
                                 trailing: const Icon(
@@ -1006,9 +1009,9 @@ class _QuranHomeScreenState extends State<QuranHomeScreen> {
                                 decoration: InputDecoration(
                                   prefixIcon: const Icon(Icons.search_rounded),
                                   hintText: tr(
-                                    'ابحث عن آية (مثال: الله نور السماوات أو 2:255)...',
-                                    'Search Ayah (e.g. Arabic word or 2:255)...',
-                                    'Ayet ara (ör. Arapça kelime veya 2:255)...',
+'ابحث عن آية (مثال: الله نور السماوات أو 2:255)...',
+'Search Ayah (e.g. Arabic word or 2:255)...',
+'Ayet ara (ör. Arapça kelime veya 2:255)...',
                                   ),
                                   border: OutlineInputBorder(
                                     borderRadius: BorderRadius.circular(18),
@@ -1034,9 +1037,9 @@ class _QuranHomeScreenState extends State<QuranHomeScreen> {
                                             const SizedBox(height: 12),
                                             Text(
                                               tr(
-                                                'اكتب كلمة من الآية أو رقمها (مثل 2:255) للبحث المباشر',
-                                                'Type a word from an Ayah or reference (like 2:255) to search',
-                                                'Doğrudan aramak için ayetten bir kelime veya 2:255 yazın',
+'اكتب كلمة من الآية أو رقمها (مثل 2:255) للبحث المباشر',
+'Type a word from an Ayah or reference (like 2:255) to search',
+'Doğrudan aramak için ayetten bir kelime veya 2:255 yazın',
                                               ),
                                               textAlign: TextAlign.center,
                                               style: const TextStyle(color: Colors.grey),
@@ -1058,11 +1061,11 @@ class _QuranHomeScreenState extends State<QuranHomeScreen> {
                                         for (final a in ayahsList) {
                                           if (a['numberInSurah'] == aTarget) {
                                             matches.add({
-                                              'surahNum': sTarget,
-                                              'surahName': s['name'],
-                                              'surahEn': s['englishName'],
-                                              'ayahNum': aTarget,
-                                              'text': a['text'],
+'surahNum': sTarget,
+'surahName': s['name'],
+'surahEn': s['englishName'],
+'ayahNum': aTarget,
+'text': a['text'],
                                             });
                                             break;
                                           }
@@ -1078,11 +1081,11 @@ class _QuranHomeScreenState extends State<QuranHomeScreen> {
                                         final aText = (a['text'] ?? '').toString();
                                         if (normalizeArabicForSearch(aText).contains(normAyahQ)) {
                                           matches.add({
-                                            'surahNum': sNum,
-                                            'surahName': s['name'],
-                                            'surahEn': s['englishName'],
-                                            'ayahNum': a['numberInSurah'],
-                                            'text': aText,
+'surahNum': sNum,
+'surahName': s['name'],
+'surahEn': s['englishName'],
+'ayahNum': a['numberInSurah'],
+'text': aText,
                                           });
                                           if (matches.length >= 60) break;
                                         }
@@ -1117,7 +1120,7 @@ class _QuranHomeScreenState extends State<QuranHomeScreen> {
                                           ),
                                         ),
                                         subtitle: Text(
-                                          '${widget.appLang == 'ar' ? item['surahName'] : item['surahEn']} • ${tr('الآية', 'Ayah', 'Ayet')} ${item['ayahNum']}',
+'${widget.appLang == 'ar' ? item['surahName'] : item['surahEn']} • ${tr('الآية', 'Ayah', 'Ayet')} ${item['ayahNum']}',
                                           style: const TextStyle(color: Color(0xFF38BDF8), fontSize: 12),
                                         ),
                                         trailing: const Icon(Icons.arrow_forward_ios_rounded, size: 15),
@@ -1206,6 +1209,11 @@ class _SurahReaderScreenState extends State<SurahReaderScreen> {
   bool _repeatSurah = false;
   bool _autoNextSurah = true;
   bool _advancingSurah = false;
+
+  /// جلسة «ردد واحفظ» نشطة: تمنع تماماً الانتقال التلقائي للسورة التالية
+  /// الذي كان يقطع الترديد بعد الآية الأولى.
+  bool _isHifzSessionActive = false;
+  int _hifzSessionToken = 0;
   double _speed = 1.0;
 
   Timer? _sleepTimer;
@@ -1304,7 +1312,11 @@ class _SurahReaderScreenState extends State<SurahReaderScreen> {
           _ayahProgress = 0.0;
         }
       });
-      if (state.processingState == ProcessingState.completed && !_advancingSurah) {
+      // أثناء جلسة «ردد واحفظ» لا نُنفّذ الانتقال التلقائي للسورة التالية:
+      // انتهاء صوت الآية الواحدة ليس نهاية السورة.
+      if (state.processingState == ProcessingState.completed &&
+          !_advancingSurah &&
+          !_isHifzSessionActive) {
         _advancingSurah = true;
         try {
           widget.onSurahCompleted?.call();
@@ -1437,9 +1449,6 @@ class _SurahReaderScreenState extends State<SurahReaderScreen> {
     return 'https://everyayah.com/data/${_currentReciter.everyAyahFolder}/$sStr$aStr.mp3';
   }
 
-  String get _surahAudioUrl =>
-      'https://cdn.islamic.network/quran/audio-surah/128/$_reciterId/$_surahNumber.mp3';
-
   Future<void> _ensureMediaArtUri() async {
     if (QuranAudioManager.instance.cachedArtUri != null) return;
     try {
@@ -1448,7 +1457,7 @@ class _SurahReaderScreenState extends State<SurahReaderScreen> {
       if (!await f.exists()) {
         // Pure solid Sky Blue (#0288D1) 1x1 PNG so Android MediaStyle tints the notification Sky Blue
         final skyBluePng = base64Decode(
-          'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk2P7/PwAFfwL9l9vP4QAAAABJRU5ErkJggg==',
+'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk2P7/PwAFfwL9l9vP4QAAAABJRU5ErkJggg==',
         );
         await f.writeAsBytes(skyBluePng);
       }
@@ -1492,7 +1501,7 @@ class _SurahReaderScreenState extends State<SurahReaderScreen> {
     }
     try {
       final url =
-          'https://api.quran.com/api/v4/recitations/$recId/by_chapter/$_surahNumber?per_page=300';
+'https://api.quran.com/api/v4/recitations/$recId/by_chapter/$_surahNumber?per_page=300';
       final res = await http.get(Uri.parse(url)).timeout(const Duration(seconds: 6));
       if (res.statusCode == 200) {
         final data = jsonDecode(res.body) as Map<String, dynamic>;
@@ -1551,7 +1560,7 @@ class _SurahReaderScreenState extends State<SurahReaderScreen> {
             AudioSource.file(localPath, tag: _surahMediaItem(ayahNum: numInSurah)));
       } else {
         final exactUrl = QuranAudioManager.instance.exactAudioUrls[
-            '${_currentReciter.quranComId}_$_surahNumber:$numInSurah'];
+'${_currentReciter.quranComId}_$_surahNumber:$numInSurah'];
         final url = exactUrl ?? _ayahAudioUrl(numInSurah);
         await _player.setAudioSource(
             AudioSource.uri(Uri.parse(url), tag: _surahMediaItem(ayahNum: numInSurah)));
@@ -1590,7 +1599,7 @@ class _SurahReaderScreenState extends State<SurahReaderScreen> {
           ));
         } else {
           final exactUrl = QuranAudioManager.instance.exactAudioUrls[
-              '${_currentReciter.quranComId}_$_surahNumber:$numInSurah'];
+'${_currentReciter.quranComId}_$_surahNumber:$numInSurah'];
           sources.add(AudioSource.uri(
             Uri.parse(exactUrl ?? _ayahAudioUrl(numInSurah)),
             tag: _surahMediaItem(ayahNum: numInSurah),
@@ -1645,9 +1654,9 @@ class _SurahReaderScreenState extends State<SurahReaderScreen> {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
             content: Text(tr(
-              'تم حفظ السورة كاملة للاستماع بدون نت',
-              'Surah audio saved offline',
-              'Sure çevrimdışı dinleme için kaydedildi',
+'تم حفظ السورة كاملة للاستماع بدون نت',
+'Surah audio saved offline',
+'Sure çevrimdışı dinleme için kaydedildi',
             )),
           ),
         );
@@ -1657,9 +1666,9 @@ class _SurahReaderScreenState extends State<SurahReaderScreen> {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
             content: Text(tr(
-              'فشل التحميل: تأكد من الاتصال بالإنترنت',
-              'Download failed: check internet connection',
-              'İndirme başarısız: internet bağlantısını kontrol edin',
+'فشل التحميل: تأكد من الاتصال بالإنترنت',
+'Download failed: check internet connection',
+'İndirme başarısız: internet bağlantısını kontrol edin',
             )),
           ),
         );
@@ -1731,11 +1740,11 @@ class _SurahReaderScreenState extends State<SurahReaderScreen> {
                 ),
                 const SizedBox(height: 8),
                 Text(tr(
-                  '• الفتحة (ـَ) والضمة (ـُ) والكسرة (ـِ): حركات النطق الأساسية.\n'
-                  '• السكون (ـْ): خلو الحرف من الحركة.\n'
-                  '• التنوين (ـً ـٌ ـٍ): نون ساكنة تُلفظ ولا تُكتب.\n'
-                  '• (مـ): وقف لازم • (لا): عدم الوقف • (ج): وقف جائز • (صلى): الوصل أولى • (قلى): الوقف أولى.',
-                  'Basic Arabic diacritics (Fatha, Damma, Kasra, Sukun, Tanween) and Mushaf pause marks.',
+'• الفتحة (ـَ) والضمة (ـُ) والكسرة (ـِ): حركات النطق الأساسية.\n'
+'• السكون (ـْ): خلو الحرف من الحركة.\n'
+'• التنوين (ـً ـٌ ـٍ): نون ساكنة تُلفظ ولا تُكتب.\n'
+'• (مـ): وقف لازم • (لا): عدم الوقف • (ج): وقف جائز • (صلى): الوصل أولى • (قلى): الوقف أولى.',
+'Basic Arabic diacritics (Fatha, Damma, Kasra, Sukun, Tanween) and Mushaf pause marks.',
                 ), style: const TextStyle(height: 1.7)),
               ],
             ),
@@ -1836,9 +1845,9 @@ class _SurahReaderScreenState extends State<SurahReaderScreen> {
                               builder: (dCtx) => AlertDialog(
                                 title: Text(tr('تغيير القارئ', 'Change Reciter', 'Kari Değiştir')),
                                 content: Text(tr(
-                                  'التلاوة تعمل حالياً. هل تريد إيقاف القارئ الحالي والتشغيل بصوت القارئ الجديد؟',
-                                  'Audio is currently playing. Switch to the new reciter?',
-                                  'Ses şu an çalıyor. Yeni kariye geçilsin mi?',
+'التلاوة تعمل حالياً. هل تريد إيقاف القارئ الحالي والتشغيل بصوت القارئ الجديد؟',
+'Audio is currently playing. Switch to the new reciter?',
+'Ses şu an çalıyor. Yeni kariye geçilsin mi?',
                                 )),
                                 actions: [
                                   TextButton(
@@ -1938,9 +1947,9 @@ class _SurahReaderScreenState extends State<SurahReaderScreen> {
                 ),
                 Text(
                   tr(
-                    'ضبط تزامن الكلمات: ${_syncOffsetMs > 0 ? "+$_syncOffsetMs" : "$_syncOffsetMs"} مللي ثانية',
-                    'Word Sync Offset: ${_syncOffsetMs > 0 ? "+$_syncOffsetMs" : "$_syncOffsetMs"} ms',
-                    'Kelime Senkron Ayarı: ${_syncOffsetMs > 0 ? "+$_syncOffsetMs" : "$_syncOffsetMs"} ms',
+'ضبط تزامن الكلمات: ${_syncOffsetMs > 0 ? "+$_syncOffsetMs" : "$_syncOffsetMs"} مللي ثانية',
+'Word Sync Offset: ${_syncOffsetMs > 0 ? "+$_syncOffsetMs" : "$_syncOffsetMs"} ms',
+'Kelime Senkron Ayarı: ${_syncOffsetMs > 0 ? "+$_syncOffsetMs" : "$_syncOffsetMs"} ms',
                   ),
                   style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13),
                 ),
@@ -2000,7 +2009,7 @@ class _SurahReaderScreenState extends State<SurahReaderScreen> {
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Text(
-              tr('مؤقت التلاوة قبل النوم 🌙', 'Bedtime Recitation Timer 🌙'),
+              tr('مؤقت التلاوة قبل النوم ', 'Bedtime Recitation Timer '),
               style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
             ),
             const SizedBox(height: 10),
@@ -2072,7 +2081,7 @@ class _SurahReaderScreenState extends State<SurahReaderScreen> {
     }
     try {
       final url =
-          'https://api.quran.com/api/v4/quran/translations/$transId?verse_key=$_surahNumber:$ayahNum';
+'https://api.quran.com/api/v4/quran/translations/$transId?verse_key=$_surahNumber:$ayahNum';
       final res = await http.get(Uri.parse(url)).timeout(const Duration(seconds: 5));
       if (res.statusCode == 200) {
         final data = jsonDecode(res.body) as Map<String, dynamic>;
@@ -2102,7 +2111,6 @@ class _SurahReaderScreenState extends State<SurahReaderScreen> {
         builder: (ctx, setSheetState) {
           final ayah = _ayahs[idx] as Map<String, dynamic>;
           final numInSurah = ayah['numberInSurah'] as int;
-          final globalNum = ayah['number'] as int;
           final text = (ayah['text'] ?? '').toString();
           final tafsir = (_tafsirAyahs[idx]['text'] ?? '').toString();
           final surahName = (_currentSurah['name'] ?? '').toString();
@@ -2417,7 +2425,7 @@ class _SurahReaderScreenState extends State<SurahReaderScreen> {
                                 fontWeight: FontWeight.w900)),
                       ),
                       const SizedBox(width: 8),
-                      Text(tr('استوديو الحفظ الذكي', 'Smart Hifz Studio'),
+                      Text(tr('أدوات التلاوة والحفظ', 'Recitation & Hifz Tools'),
                           style: const TextStyle(
                               fontSize: 16.5, fontWeight: FontWeight.bold)),
                     ],
@@ -2433,9 +2441,9 @@ class _SurahReaderScreenState extends State<SurahReaderScreen> {
                     borderRadius: BorderRadius.circular(16),
                     side: BorderSide(color: Colors.grey.withOpacity(0.22))),
                 leading: const Icon(Icons.mic_rounded, color: Color(0xFFF59E0B)),
-                title: Text(tr('التسميع الذكي بالإخفاء', 'Smart Hidden-Text Recitation'),
+                title: Text(tr('تلاوة', 'Tilawa'),
                     style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 14)),
-                subtitle: Text(tr('كشف كلمة/آية + ذكاء المدّ وإعادة الآية', 'Hide/reveal words + Madd & Repeat forgiveness'),
+                subtitle: Text(tr('سمِّع لنا ونحن نصحح لك إذا يوجد أخطاء', 'Recite to us and we will correct any mistakes'),
                     style: const TextStyle(fontSize: 11.5)),
                 trailing: const Icon(Icons.arrow_forward_ios_rounded, size: 15),
                 onTap: () {
@@ -2449,9 +2457,9 @@ class _SurahReaderScreenState extends State<SurahReaderScreen> {
                     borderRadius: BorderRadius.circular(16),
                     side: BorderSide(color: Colors.grey.withOpacity(0.22))),
                 leading: const Icon(Icons.repeat_on_rounded, color: Color(0xFF0288D1)),
-                title: Text(tr('وضع الحفظ (تكرار + صمت تلقائي)', 'Hifz Mode (Auto-Silence Repeat)'),
+                title: Text(tr('ردد واحفظ', 'Repeat & Memorize'),
                     style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 14)),
-                subtitle: Text(tr('يتوقف بعد كل آية بنفس مدة تلاوة القارئ', 'Pauses automatically matching reciter duration'),
+                subtitle: Text(tr('القارئ يعطيك مساحة لكي تردد وراءه للحفظ بسهولة', 'The reciter gives you room to repeat after him and memorize with ease'),
                     style: const TextStyle(fontSize: 11.5)),
                 trailing: const Icon(Icons.arrow_forward_ios_rounded, size: 15),
                 onTap: () {
@@ -2484,8 +2492,8 @@ class _SurahReaderScreenState extends State<SurahReaderScreen> {
         ),
         content: Text(
           tr(
-            'انتهت تجربتك اليومية المجانية (3 آيات). فعّل أذكاري PRO للاستمتاع غير المحدود بـ "$featureName" وجميع أدوات الحفظ.',
-            'Your daily 3-Ayah free taste is used. Unlock Azkari PRO for unlimited "$featureName".',
+'انتهت تجربتك اليومية المجانية (3 آيات). فعّل أذكاري PRO للاستمتاع غير المحدود بـ "$featureName" وجميع أدوات الحفظ.',
+'Your daily 3-Ayah free taste is used. Unlock Azkari PRO for unlimited "$featureName".',
           ),
         ),
         actions: [
@@ -2520,8 +2528,45 @@ class _SurahReaderScreenState extends State<SurahReaderScreen> {
     return AzkariProManager.isPro(widget.prefs);
   }
 
+  /// إيقاف جلسة «ردد واحفظ» فوراً والعودة للتلاوة العادية.
+  Future<void> _stopHifzSession() async {
+    if (!_isHifzSessionActive) return;
+    _hifzSessionToken++;
+    _isHifzSessionActive = false;
+    try {
+      await _player.stop();
+    } catch (_) {}
+    if (!mounted) return;
+    setState(() {});
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(tr('تم إيقاف جلسة «ردد واحفظ»',
+'Repeat & Memorize session stopped', 'Tekrar Et & Ezberle oturumu durduruldu')),
+      ),
+    );
+  }
+
+  /// ينتظر انتهاء صوت الآية الحالية بدقة ويعيد مدة الصوت الحقيقية بالملي ثانية.
+  Future<int> _waitForAyahAudioEnd({required int token}) async {
+    final startWatch = Stopwatch()..start();
+    // انتظار بدء الصوت فعلياً (أو مهلة قصيرة إن فشل التحميل).
+    while (mounted &&
+        !_player.playing &&
+        startWatch.elapsedMilliseconds < 4000 &&
+        token == _hifzSessionToken) {
+      await Future.delayed(const Duration(milliseconds: 120));
+    }
+    var durMs = _player.duration?.inMilliseconds ?? 0;
+    final playWatch = Stopwatch()..start();
+    while (mounted && _player.playing && token == _hifzSessionToken) {
+      await Future.delayed(const Duration(milliseconds: 120));
+    }
+    if (durMs <= 0) durMs = playWatch.elapsedMilliseconds;
+    return durMs.clamp(500, 180000);
+  }
+
   Future<void> _openHifzSheet() async {
-    if (!await _ensureProOrPrompt(tr('وضع الحفظ والتكرار الصامت', 'Hifz Mode'))) return;
+    if (!await _ensureProOrPrompt(tr('ردد واحفظ', 'Repeat & Memorize'))) return;
     int fromAyah = 1;
     int toAyah = _ayahs.length.clamp(1, 5);
     int repeatCount = 3;
@@ -2544,14 +2589,14 @@ class _SurahReaderScreenState extends State<SurahReaderScreen> {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(
-                  tr('وضع الحفظ (تكرار مع صمت تلقائي)', 'Hifz Mode (Auto-Silence Repeat)'),
+                  tr('ردد واحفظ', 'Repeat & Memorize'),
                   style: const TextStyle(fontSize: 17, fontWeight: FontWeight.bold),
                 ),
                 const SizedBox(height: 6),
                 Text(
                   tr(
-                    'يتوقف الصوت تلقائياً بعد كل آية بنفس مدة تلاوة القارئ لتقرأها غيباً.',
-                    'Pauses automatically after each Ayah for the exact reciter duration so you can recite from memory.',
+'القارئ يعطيك مساحة لكي تردد وراءه للحفظ بسهولة، ثم يعطيك صمتاً تلقائياً بنفس مدة القراءة.',
+'The reciter gives you room to repeat after him and memorize with ease, then pauses for the same duration.',
                   ),
                   style: const TextStyle(fontSize: 12.5, color: Colors.grey),
                 ),
@@ -2642,39 +2687,55 @@ class _SurahReaderScreenState extends State<SurahReaderScreen> {
                         : () async {
                             setS(() => running = true);
                             Navigator.pop(sCtx);
-                            for (int r = 0; r < repeatCount; r++) {
-                              for (int ay = fromAyah; ay <= toAyah; ay++) {
-                                if (!mounted) return;
-                                final idx = ay - 1;
-                                await _playSingleAyah(idx);
-                                final startWait = DateTime.now();
-                                while (mounted && _player.playing) {
-                                  await Future.delayed(const Duration(milliseconds: 250));
-                                }
-                                final elapsedMs = DateTime.now()
-                                    .difference(startWait)
-                                    .inMilliseconds
-                                    .clamp(1200, 120000);
-                                final silenceMs = (elapsedMs * silenceMultiplier).round();
-                                if (mounted) {
-                                  ScaffoldMessenger.of(context).showSnackBar(
+                            _hifzSessionToken++;
+                            final token = _hifzSessionToken;
+                            setState(() => _isHifzSessionActive = true);
+                            try {
+                              for (int r = 0; r < repeatCount; r++) {
+                                for (int ay = fromAyah; ay <= toAyah; ay++) {
+                                  if (!mounted || token != _hifzSessionToken) {
+                                    return;
+                                  }
+                                  final idx = ay - 1;
+                                  await _playSingleAyah(idx);
+                                  if (!mounted || token != _hifzSessionToken) {
+                                    return;
+                                  }
+                                  final audioMs =
+                                      await _waitForAyahAudioEnd(token: token);
+                                  if (!mounted || token != _hifzSessionToken) {
+                                    return;
+                                  }
+                                  final silenceMs =
+                                      (audioMs * silenceMultiplier).round();
+                                  final messenger =
+                                      ScaffoldMessenger.of(context);
+                                  messenger.hideCurrentSnackBar();
+                                  messenger.showSnackBar(
                                     SnackBar(
-                                      duration: Duration(milliseconds: silenceMs),
+                                      duration:
+                                          Duration(milliseconds: silenceMs),
                                       content: Text(
                                         tr(
-                                          'دورك الآن: ردّد الآية $ay غيباً (${(silenceMs / 1000).toStringAsFixed(1)} ث)...',
-                                          'Your turn: recite Ayah $ay (${(silenceMs / 1000).toStringAsFixed(1)}s)...',
+'دورك الآن: ردّد الآية $ay غيباً (${(silenceMs / 1000).toStringAsFixed(1)} ث)...',
+'Your turn: recite Ayah $ay (${(silenceMs / 1000).toStringAsFixed(1)}s)...',
                                         ),
                                       ),
                                     ),
                                   );
+                                  await Future.delayed(
+                                      Duration(milliseconds: silenceMs));
                                 }
-                                await Future.delayed(Duration(milliseconds: silenceMs));
+                              }
+                            } finally {
+                              if (token == _hifzSessionToken) {
+                                _isHifzSessionActive = false;
+                                if (mounted) setState(() {});
                               }
                             }
                           },
                     icon: const Icon(Icons.play_arrow_rounded),
-                    label: Text(tr('بدء جلسة الحفظ', 'Start Hifz Session')),
+                    label: Text(tr('بدء جلسة «ردد واحفظ»', 'Start Repeat & Memorize')),
                   ),
                 ),
               ],
@@ -2686,7 +2747,7 @@ class _SurahReaderScreenState extends State<SurahReaderScreen> {
   }
 
   Future<void> _openSmartTasmeeSheet() async {
-    if (!await _ensureProOrPrompt(tr('التسميع الذكي بالإخفاء', 'Smart Recitation'))) return;
+    if (!await _ensureProOrPrompt(tr('تلاوة', 'Tilawa'))) return;
     int targetAyahIdx = (_playingAyahIndex ?? 0).clamp(0, _ayahs.length - 1);
     final speech = stt.SpeechToText();
     bool listening = false;
@@ -2753,8 +2814,8 @@ class _SurahReaderScreenState extends State<SurahReaderScreen> {
                 feedbackTone = 'amber';
                 mistakeHintGlow = false;
                 feedback = tr(
-                  'إعادة مقبولة للآية السابقة لتثبيت التلاوة — أكمل الآية $targetNum بهدوء.',
-                  'Previous Ayah repetition accepted — continue Ayah $targetNum.',
+'إعادة مقبولة للآية السابقة لتثبيت التلاوة — أكمل الآية $targetNum بهدوء.',
+'Previous Ayah repetition accepted — continue Ayah $targetNum.',
                 );
                 return;
               }
@@ -2781,13 +2842,13 @@ class _SurahReaderScreenState extends State<SurahReaderScreen> {
             }
             if (mixedRef != null) {
               feedback = tr(
-                'تنبيه متشابهات: ما قرأته قريب من ($mixedRef). اضغط زر (+ كلمة) المتوهج بالأحمر لمعرفة الكلمة القادمة.',
-                'Similar-verse alert: matches ($mixedRef). Tap the glowing (+ Word) button for a hint.',
+'تنبيه متشابهات: ما قرأته قريب من ($mixedRef). اضغط زر (+ كلمة) المتوهج بالأحمر لمعرفة الكلمة القادمة.',
+'Similar-verse alert: matches ($mixedRef). Tap the glowing (+ Word) button for a hint.',
               );
             } else {
               feedback = tr(
-                'توقفت أو أخطأت عند الكلمة التالية — اضغط زر (+ كلمة) المتوهج بالأحمر أو (🎧 همسة القارئ).',
-                'Paused or missed the next word — tap glowing (+ Word) or Audio Whisper.',
+'توقفت أو أخطأت عند الكلمة التالية — اضغط زر (+ كلمة) المتوهج بالأحمر أو ( همسة القارئ).',
+'Paused or missed the next word — tap glowing (+ Word) or Audio Whisper.',
               );
             }
           }
@@ -2803,7 +2864,7 @@ class _SurahReaderScreenState extends State<SurahReaderScreen> {
                   Row(
                     mainAxisAlignment: MainAxisAlignment.spaceBetween,
                     children: [
-                      Text(tr('التسميع الذكي بالإخفاء', 'Smart Recitation'),
+                      Text(tr('تلاوة', 'Tilawa'),
                           style: const TextStyle(
                               fontSize: 16.5, fontWeight: FontWeight.bold)),
                       DropdownButton<int>(
@@ -2904,7 +2965,7 @@ class _SurahReaderScreenState extends State<SurahReaderScreen> {
                         ),
                         child: Text(
                           tr('هل تود معرفة الكلمة القادمة؟',
-                              'Want to see the next word?'),
+'Want to see the next word?'),
                           style: const TextStyle(
                               color: Colors.white,
                               fontSize: 11,
@@ -3000,8 +3061,8 @@ class _SurahReaderScreenState extends State<SurahReaderScreen> {
                         onPressed: () async {
                           if (!initialized) {
                             setT(() => feedback = tr(
-                                'يرجى السماح بصلاحية الميكروفون للتسميع.',
-                                'Please grant microphone permission.'));
+'يرجى السماح بصلاحية الميكروفون للتسميع.',
+'Please grant microphone permission.'));
                             return;
                           }
                           if (listening) {
@@ -3062,6 +3123,128 @@ class _SurahReaderScreenState extends State<SurahReaderScreen> {
     super.dispose();
   }
 
+  /// قائمة أوضاع التشغيل: استمع / تلاوة / ردد — تظهر بالضغط المطوّل.
+  Future<void> _openListenModesMenu() async {
+    final action = await showGeneralDialog<String>(
+      context: context,
+      barrierDismissible: true,
+      barrierLabel: 'listen-modes',
+      barrierColor: Colors.black.withOpacity(0.88),
+      transitionDuration: const Duration(milliseconds: 200),
+      pageBuilder: (ctx, _, __) => SafeArea(
+        child: Center(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              _modeCapsule(
+                ctx,
+                icon: Icons.headphones_rounded,
+                title: tr('استمع', 'Listen', 'Dinle'),
+                subtitle: tr('تلاوة القارئ — متاح مجاناً',
+'Reciter audio — free', 'Kari sesi — ücretsiz'),
+                value: 'listen',
+                highlight: true,
+              ),
+              const SizedBox(height: 10),
+              _modeCapsule(
+                ctx,
+                icon: Icons.record_voice_over_rounded,
+                title: tr('تلاوة', 'Tilawa', 'Tilavet'),
+                subtitle: tr('سمِّع لنا ونحن نصحح لك إذا يوجد أخطاء',
+'Recite to us and we correct your mistakes',
+'Bize okuyun, hataları düzeltelim'),
+                value: 'tilawa',
+              ),
+              const SizedBox(height: 10),
+              _modeCapsule(
+                ctx,
+                icon: Icons.repeat_on_rounded,
+                title: tr('ردد', 'Repeat', 'Tekrar'),
+                subtitle: tr('ردد وراء القارئ بنفس مدة القراءة',
+'Repeat after the reciter with the same duration',
+'Kari ile aynı sürede tekrar edin'),
+                value: 'hifz',
+              ),
+              const SizedBox(height: 16),
+              IconButton(
+                tooltip: tr('إغلاق', 'Close', 'Kapat'),
+                onPressed: () => Navigator.pop(ctx),
+                icon: const Icon(Icons.close_rounded,
+                    color: Colors.white70, size: 26),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+    if (!mounted || action == null) return;
+    switch (action) {
+      case 'listen':
+        if (!_player.playing) await _toggleAudio();
+        break;
+      case 'tilawa':
+        await _openSmartTasmeeSheet();
+        break;
+      case 'hifz':
+        await _openHifzSheet();
+        break;
+    }
+  }
+
+  Widget _modeCapsule(
+    BuildContext ctx, {
+    required IconData icon,
+    required String title,
+    required String subtitle,
+    required String value,
+    bool highlight = false,
+  }) {
+    return Material(
+      color: highlight ? const Color(0xFF0288D1) : const Color(0xFF0A192F),
+      borderRadius: BorderRadius.circular(999),
+      child: InkWell(
+        borderRadius: BorderRadius.circular(999),
+        onTap: () => Navigator.pop(ctx, value),
+        child: Container(
+          width: MediaQuery.of(ctx).size.width * 0.74,
+          padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 14),
+          decoration: BoxDecoration(
+            borderRadius: BorderRadius.circular(999),
+            border: Border.all(
+              color: highlight
+                  ? Colors.transparent
+                  : const Color(0xFF38BDF8).withOpacity(0.45),
+            ),
+          ),
+          child: Row(
+            children: [
+              Icon(icon, color: Colors.white, size: 22),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(title,
+                        style: const TextStyle(
+                            color: Colors.white,
+                            fontSize: 15,
+                            fontWeight: FontWeight.bold)),
+                    const SizedBox(height: 2),
+                    Text(subtitle,
+                        maxLines: 2,
+                        overflow: TextOverflow.ellipsis,
+                        style: const TextStyle(
+                            color: Colors.white70, fontSize: 11)),
+                  ],
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final surahName = (_currentSurah['name'] ?? '').toString();
@@ -3070,6 +3253,43 @@ class _SurahReaderScreenState extends State<SurahReaderScreen> {
 
     return Scaffold(
       backgroundColor: _focusDimMode ? const Color(0xFF000000) : null,
+      floatingActionButtonLocation: FloatingActionButtonLocation.centerTop,
+      floatingActionButton: _isHifzSessionActive
+          ? Padding(
+              padding: const EdgeInsets.only(top: 6),
+              child: Material(
+                color: const Color(0xFF0A192F),
+                elevation: 6,
+                shape: StadiumBorder(
+                  side: BorderSide(color: const Color(0xFF38BDF8).withOpacity(0.6)),
+                ),
+                child: Padding(
+                  padding: const EdgeInsetsDirectional.only(start: 14, end: 4),
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      const Icon(Icons.record_voice_over_rounded,
+                          size: 18, color: Color(0xFF38BDF8)),
+                      const SizedBox(width: 8),
+                      Text(
+                        tr('جلسة «ردد واحفظ» جارية', 'Repeat & Memorize session', 'Tekrar oturumu'),
+                        style: const TextStyle(
+                            color: Color(0xFFE6F1FF),
+                            fontSize: 12.5,
+                            fontWeight: FontWeight.bold),
+                      ),
+                      IconButton(
+                        tooltip: tr('إيقاف الجلسة', 'Stop session', 'Oturumu durdur'),
+                        onPressed: _stopHifzSession,
+                        icon: const Icon(Icons.close_rounded,
+                            size: 18, color: Color(0xFFFDE047)),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            )
+          : null,
       appBar: AppBar(
         title: Column(
           mainAxisSize: MainAxisSize.min,
@@ -3084,7 +3304,7 @@ class _SurahReaderScreenState extends State<SurahReaderScreen> {
         ),
         actions: [
           IconButton(
-            tooltip: tr('أدوات أذكاري PRO (التسميع والحفظ)', 'Azkari PRO Tools', 'Azkari PRO Araçları'),
+            tooltip: tr('أدوات أذكاري PRO (تلاوة وردد واحفظ)', 'Azkari PRO Tools', 'Azkari PRO Araçları'),
             onPressed: _openProToolsMenu,
             icon: const Icon(Icons.workspace_premium_rounded, color: Color(0xFFF59E0B)),
           ),
@@ -3116,6 +3336,21 @@ class _SurahReaderScreenState extends State<SurahReaderScreen> {
             icon: const Icon(Icons.bookmark_rounded, color: Colors.amber),
           ),
           IconButton(
+            tooltip: tr('قفل الخشوع', 'Khushu lock', 'Huşu kilidi'),
+            onPressed: () async {
+              await KhushuService.toggle();
+              if (mounted) setState(() {});
+            },
+            icon: Icon(
+              KhushuService.active.value
+                  ? Icons.dark_mode_rounded
+                  : Icons.dark_mode_outlined,
+              color: KhushuService.active.value
+                  ? const Color(0xFF38BDF8)
+                  : null,
+            ),
+          ),
+          IconButton(
             key: _surahSettingsKey,
             tooltip: tr('إعدادات الصفحة', 'Page Settings'),
             onPressed: _openDisplaySettings,
@@ -3136,7 +3371,7 @@ class _SurahReaderScreenState extends State<SurahReaderScreen> {
                   return Padding(
                     padding: const EdgeInsets.only(bottom: 14, top: 4),
                     child: Text(
-                      'بِسْمِ اللَّهِ الرَّحْمَٰنِ الرَّحِيمِ',
+'بِسْمِ اللَّهِ الرَّحْمَٰنِ الرَّحِيمِ',
                       textAlign: TextAlign.center,
                       textDirection: TextDirection.rtl,
                       style: TextStyle(
@@ -3269,18 +3504,10 @@ class _SurahReaderScreenState extends State<SurahReaderScreen> {
               children: [
                 Row(
                   children: [
-                    CircleAvatar(
-                      radius: 19,
-                      backgroundColor: const Color(0xFF38BDF8),
-                      child: IconButton(
-                        padding: EdgeInsets.zero,
-                        onPressed: _toggleAudio,
-                        icon: Icon(
-                          _isPlaying ? Icons.pause_rounded : Icons.play_arrow_rounded,
-                          color: Colors.black,
-                          size: 22,
-                        ),
-                      ),
+                    _PlayHoldButton(
+                      isPlaying: _isPlaying,
+                      onTap: _toggleAudio,
+                      onLongPress: _openListenModesMenu,
                     ),
                     const SizedBox(width: 10),
                     Expanded(
@@ -3314,7 +3541,7 @@ class _SurahReaderScreenState extends State<SurahReaderScreen> {
                       Padding(
                         padding: const EdgeInsets.symmetric(horizontal: 6),
                         child: Text(
-                          '${(_sleepSecondsRemaining ~/ 60)}:${(_sleepSecondsRemaining % 60).toString().padLeft(2, '0')}',
+'${(_sleepSecondsRemaining ~/ 60)}:${(_sleepSecondsRemaining % 60).toString().padLeft(2, '0')}',
                           style: const TextStyle(
                               fontSize: 11, color: Color(0xFF38BDF8), fontWeight: FontWeight.bold),
                         ),
@@ -3495,22 +3722,93 @@ class _SurahReaderScreenState extends State<SurahReaderScreen> {
 }
 
 const Map<String, String> _kQuranEnToTr = {
-  'Noble Quran (Offline)': 'Kur’an-ı Kerim (Çevrimdışı)',
-  'Surahs (114)': 'Sureler (114)',
-  'Juz (30)': 'Cüzler (30)',
-  'Go to Bookmark': 'Yer İmine Git',
-  'No bookmark saved yet': 'Henüz yer imi kaydedilmedi',
-  'Download Audio Offline': 'Sesleri Çevrimdışı İndir',
-  'Page Settings': 'Sayfa Ayarları',
-  'Tajweed & Tashkeel Guide': 'Tecvid ve Hareke Rehberi',
-  'Jump to Bookmark': 'Yer İmine Git',
-  'No bookmark saved': 'Kayıtlı yer imi yok',
-  'Repeat Surah': 'Sureyi Tekrarla',
-  'Auto Next': 'Sonraki Sure Otomatik',
-  'Sleep Timer': 'Uyku Zamanlayıcısı',
-  'Download Offline': 'Çevrimdışı İndir',
-  'Restart Surah': 'Baştan Başlat',
-  'Change Reciter': 'Kari Değiştir',
-  'Cancel': 'İptal',
-  'Switch': 'Değiştir',
+'Noble Quran (Offline)': 'Kur’an-ı Kerim (Çevrimdışı)',
+'Surahs (114)': 'Sureler (114)',
+'Juz (30)': 'Cüzler (30)',
+'Go to Bookmark': 'Yer İmine Git',
+'No bookmark saved yet': 'Henüz yer imi kaydedilmedi',
+'Download Audio Offline': 'Sesleri Çevrimdışı İndir',
+'Page Settings': 'Sayfa Ayarları',
+'Tajweed & Tashkeel Guide': 'Tecvid ve Hareke Rehberi',
+'Jump to Bookmark': 'Yer İmine Git',
+'No bookmark saved': 'Kayıtlı yer imi yok',
+'Repeat Surah': 'Sureyi Tekrarla',
+'Auto Next': 'Sonraki Sure Otomatik',
+'Sleep Timer': 'Uyku Zamanlayıcısı',
+'Download Offline': 'Çevrimdışı İndir',
+'Restart Surah': 'Baştan Başlat',
+'Change Reciter': 'Kari Değiştir',
+'Cancel': 'İptal',
+'Switch': 'Değiştir',
 };
+
+/// زر التشغيل الدائري:
+/// - ضغطة عادية: تشغيل/إيقاف التلاوة.
+/// - ضغط مطوّل لثانية: قائمة الأوضاع (استمع / تلاوة / ردد).
+class _PlayHoldButton extends StatefulWidget {
+  const _PlayHoldButton({
+    required this.isPlaying,
+    required this.onTap,
+    required this.onLongPress,
+  });
+
+  final bool isPlaying;
+  final VoidCallback onTap;
+  final Future<void> Function() onLongPress;
+
+  @override
+  State<_PlayHoldButton> createState() => _PlayHoldButtonState();
+}
+
+class _PlayHoldButtonState extends State<_PlayHoldButton> {
+  Timer? _holdTimer;
+  bool _handledLongPress = false;
+  bool _pressed = false;
+
+  void _startHold() {
+    _handledLongPress = false;
+    setState(() => _pressed = true);
+    _holdTimer?.cancel();
+    _holdTimer = Timer(const Duration(milliseconds: 1000), () {
+      _handledLongPress = true;
+      if (mounted) setState(() => _pressed = false);
+      widget.onLongPress();
+    });
+  }
+
+  void _endHold({required bool fireTap}) {
+    _holdTimer?.cancel();
+    _holdTimer = null;
+    if (mounted) setState(() => _pressed = false);
+    if (fireTap && !_handledLongPress) widget.onTap();
+    _handledLongPress = false;
+  }
+
+  @override
+  void dispose() {
+    _holdTimer?.cancel();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Listener(
+      onPointerDown: (_) => _startHold(),
+      onPointerUp: (_) => _endHold(fireTap: true),
+      onPointerCancel: (_) => _endHold(fireTap: false),
+      child: CircleAvatar(
+        radius: 19,
+        backgroundColor: const Color(0xFF38BDF8),
+        child: AnimatedScale(
+          scale: _pressed ? 0.88 : 1.0,
+          duration: const Duration(milliseconds: 90),
+          child: Icon(
+            widget.isPlaying ? Icons.pause_rounded : Icons.play_arrow_rounded,
+            color: Colors.black,
+            size: 22,
+          ),
+        ),
+      ),
+    );
+  }
+}

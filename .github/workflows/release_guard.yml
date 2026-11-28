@@ -1,0 +1,24 @@
+name: Release guard
+
+# حرس التجميد: يمنع أي مسار يصل منه تحديث للمستخدمين على الفرع الرئيسي
+# بدون موافقة صريحة مكتوبة في docs/release_approval.md.
+on:
+  push:
+    branches: [ "main", "master" ]
+  pull_request:
+    branches: [ "main", "master" ]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  freeze-guard:
+    name: Freeze guard (no user-facing updates)
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Verify update freeze and absence of any publishing pipeline
+        run: python3 tool/release_guard.py
