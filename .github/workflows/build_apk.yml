@@ -375,21 +375,9 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        # نبدأ بالإصدارات الأكثر خطرًا؛ تُوسَّع المصفوفة بعد أن تثبت الاستقرار.
-        api: [24, 28, 31, 34]
-        include:
-          - api: 24
-            arch: x86
-            target: default
-          - api: 28
-            arch: x86
-            target: default
-          - api: 31
-            arch: x86_64
-            target: default
-          - api: 34
-            arch: x86_64
-            target: default
+        # نتحقق أولًا على أقدم وأحدث هدفين، ثم تُوسَّع المصفوفة.
+        # x86_64 + google_apis: الصور المتاحة لكل الإصدارات المطلوبة (24..36).
+        api: [24, 34]
     steps:
       - uses: actions/checkout@v4
 
@@ -443,10 +431,13 @@ jobs:
         uses: reactivecircus/android-emulator-runner@v2
         with:
           api-level: ${{ matrix.api }}
-          target: ${{ matrix.target }}
-          arch: ${{ matrix.arch }}
+          target: google_apis
+          arch: x86_64
+          emulator-boot-timeout: 900
           disable-animations: true
-          emulator-options: -no-window -gpu swiftshader_indirect -noaudio -no-boot-anim -camera-back none
+          emulator-options: >-
+            -no-window -no-snapshot -noaudio -no-boot-anim
+            -gpu swiftshader_indirect -camera-back none -camera-front none -memory 2048
           # ملاحظة: هذا السكربت يُنفَّذ بـ sh وليس bash، فلا pipefail ولا arrays.
           script: |
             set -u
