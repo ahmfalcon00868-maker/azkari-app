@@ -637,6 +637,9 @@ jobs:
           if [ -n "$FATAL" ]; then echo "::error::api=$API fatal: $FATAL"; fi
           FLUT=$(grep -haE 'E/flutter|Unhandled Exception|MissingPluginException|PlatformException|ClassNotFoundException|NoClassDefFoundError|FacebookException' "$OUT"/logcat-*.txt 2>/dev/null | head -6 | sed 's/::/-/g' | tr '\n' ' ' | cut -c1-600)
           if [ -n "$FLUT" ]; then echo "::warning::api=$API flutter: $FLUT"; fi
+          # `if` بشرط فارغ يُعيد 1، وكان آخر أمر في السكربت فيُسقط الخطوة بلا سبب حقيقي.
+          echo "boot-step-complete api=$API"
+          exit 0
 
       - name: Upload diagnosis bundle
         if: always()
