@@ -133,6 +133,20 @@ jobs:
           widgets = "\n        <receiver android:name=\"com.flc.azkari.TasbihWidgetProvider\" android:exported=\"true\"><intent-filter><action android:name=\"android.appwidget.action.APPWIDGET_UPDATE\"/><action android:name=\"com.flc.azkari.TASBIH_WIDGET_INC\"/><action android:name=\"com.flc.azkari.TASBIH_WIDGET_NEXT\"/></intent-filter><meta-data android:name=\"android.appwidget.provider\" android:resource=\"@xml/widget_tasbih_info\"/></receiver>\n        <receiver android:name=\"com.flc.azkari.AyahWidgetProvider\" android:exported=\"true\"><intent-filter><action android:name=\"android.appwidget.action.APPWIDGET_UPDATE\"/></intent-filter><meta-data android:name=\"android.appwidget.provider\" android:resource=\"@xml/widget_ayah_info\"/></receiver>\n"
           if "TasbihWidgetProvider" not in m:
               m = m.replace("</application>", widgets + "</application>", 1)
+          # الانهيار المثبت على API 24/30/33: InitializationProvider يهيّئ WorkManager
+          # تلقائيًا ويفشل إنشاء WorkDatabase قبل تشغيل Flutter ⇒ FATAL قبل أي واجهة.
+          # التطبيق لا يستخدم WorkManager إطلاقًا (لا workmanager في pubspec ولا
+          # استدعاء native)، فمنع التهيئة التلقائية يزيل مسار الانهيار.
+          if "WorkManagerInitializer" not in m:
+              startup_provider = (
+                  "\n        <provider"
+                  " android:name=\"androidx.startup.InitializationProvider\""
+                  " android:authorities=\"${applicationId}.androidx-startup\""
+                  " android:exported=\"false\" tools:node=\"merge\">"
+                  "\n            <meta-data android:name=\"androidx.work.WorkManagerInitializer\" tools:node=\"remove\" />"
+                  "\n        </provider>\n"
+              )
+              m = m.replace("</application>", startup_provider + "</application>", 1)
           open(mp, "w", encoding="utf-8").write(m)
           kts = "android/app/build.gradle.kts"
           grv = "android/app/build.gradle"
@@ -143,7 +157,7 @@ jobs:
               g = re.sub(r"minSdk\s*=\s*flutter\.minSdkVersion", "minSdk = 23", g)
               # منع R8 من حذف موارد الإشعارات (ic_notification / splash_ayah)
               if "isShrinkResources" not in g and "buildTypes {" in g:
-                  g = g.replace("buildTypes {", "buildTypes {\n        release {\n            isShrinkResources = false\n        }\n", 1)
+                  g = g.replace("buildTypes {", "buildTypes {\n        release {\n            isShrinkResources = false\n            proguardFiles(getDefaultProguardFile(\"proguard-android-optimize.txt\"), \"proguard-rules.pro\")\n        }\n", 1)
               if "desugar_jdk_libs" not in g:
                   g += "\ndependencies {\n    coreLibraryDesugaring(\"com.android.tools:desugar_jdk_libs:2.0.4\")\n}\n"
               open(kts, "w", encoding="utf-8").write(g)
@@ -275,6 +289,34 @@ jobs:
               open(grv, "w", encoding="utf-8").write(txt)
           '
 
+      - name: Write R8 keep rules (Room / WorkManager / Startup)
+        run: |
+          python3 -c '
+          rules = """
+          # أصناف تُبحث عن أسمائها بالانعكاس وقت التشغيل (Room *_Impl، WorkManager، AndroidX Startup).
+          -keep class androidx.work.** { *; }
+          -keep class androidx.room.** { *; }
+          -keep class * extends androidx.room.RoomDatabase { *; }
+          -keepclassmembers class * extends androidx.room.RoomDatabase { <init>(); }
+          -keep class * implements androidx.startup.Initializer { *; }
+          -keepclassmembers class * implements androidx.startup.Initializer { <init>(); }
+          -dontwarn androidx.work.**
+          """
+          path = "android/app/proguard-rules.pro"
+          old = open(path, encoding="utf-8").read() if __import__("os").path.exists(path) else ""
+          if "androidx.work.**" not in old:
+              open(path, "a", encoding="utf-8").write(rules)
+              print("keep rules added")
+          else:
+              print("keep rules already present")
+          '
+
+      - name: Report who pulls androidx.work
+        run: |
+          set -uo pipefail
+          ( cd android && ./gradlew -q :app:dependencyInsight --dependency androidx.work --configuration releaseRuntimeClasspath 2>/dev/null | head -25 ) \
+            | sed 's/^/dep: /' | while IFS= read -r l; do echo "::notice::$l"; done
+
       - name: Generate Launcher Icon
         run: |
           if [ -f "assets/images/app_icon.png" ]; then
@@ -381,7 +423,7 @@ jobs:
       matrix:
         # هدف واحد أولًا للتحقق من البنية التحتية نفسها؛ ثم تُوسَّع المصفوفة.
         # المصفوفة التي جرّب عليها المستخدم فعلًا (7/8/9 … 13) + هدف وسطي.
-        api: [24]
+        api: [24, 30, 33]
     steps:
       - uses: actions/checkout@v4
 
