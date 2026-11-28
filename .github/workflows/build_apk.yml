@@ -522,15 +522,15 @@ jobs:
           # حزمة emulator غير مثبّتة افتراضيًا على هذه الرانرات — نثبّتها أولًا.
           "$SDKM" --install "$IMG" "platforms;android-${API}" emulator platform-tools > "$OUT/sdkmanager.txt" 2>&1
           RC=$?
-          echo "::notice::sdkmanager rc=$RC tail=$(tail -c 300 "$OUT/sdkmanager.txt" | tr '\n' ' ')"
+          echo "sdkmanager rc=$RC"
           EMU=$(ls "$SDK"/emulator/emulator 2>/dev/null | head -1)
-          echo "::notice::emulator binary=${EMU:-none} accel=$([ -n "$EMU" ] && "$EMU" -accel-check 2>&1 | tr '\n' ' ' | cut -c1-200)"
+          echo "emulator=${EMU:-none} accel=$([ -n "$EMU" ] && "$EMU" -accel-check 2>&1 | head -1)"
           if [ -z "$EMU" ]; then echo "::error::emulator binary still missing"; exit 1; fi
           echo "EMU=$EMU" >> "$GITHUB_ENV"
           # adb غير موجود في PATH على هذه الرانرات (كان سبب فشل كل المحاولات).
           export PATH="$SDK/platform-tools:$SDK/emulator:$PATH"
           ADB="$SDK/platform-tools/adb"
-          echo "::notice::adb=$("$ADB" version 2>&1 | head -1)"
+          echo "adb=$("$ADB" version 2>&1 | head -1)"
 
           # مسار AVD صريح لكلا الأداتين، وإلا يُنشئ avdmanager المجلد في مكان
           # لا يبحث فيه المحاكي (شوهد: Unknown AVD name).
@@ -538,13 +538,13 @@ jobs:
           mkdir -p "$ANDROID_AVD_HOME"
           echo "no" | "$AVDM" create avd -n "azkari$API" -k "$IMG" --device pixel --force > "$OUT/avdmanager.txt" 2>&1
           RC=$?
-          echo "::notice::avdmanager rc=$RC avds=$(ls "$ANDROID_AVD_HOME" 2>&1 | tr '\n' ' ' | cut -c1-200) tail=$(tail -c 200 "$OUT/avdmanager.txt" | tr '\n' ' ')"
+          echo "avdmanager rc=$RC avds=$(ls "$ANDROID_AVD_HOME" 2>&1 | tr '\n' ' ' | cut -c1-120)"
 
           nohup "$EMU" -avd "azkari$API" -no-window -no-snapshot -noaudio -no-boot-anim \
             -gpu swiftshader_indirect -camera-back none -camera-front none \
             -memory 2048 -port 5554 > "$OUT/emulator.log" 2>&1 &
           EMU_PID=$!
-          echo "::notice::emulator pid=$EMU_PID"
+          echo "emulator pid=$EMU_PID"
 
           adb start-server >/dev/null 2>&1 || true
           # لا نفترض الرقم التسلسلي: نأخذ أول جهاز فعلي يظهر في adb.
@@ -554,7 +554,7 @@ jobs:
             [ -n "$SERIAL" ] && break
             sleep 3
           done
-          echo "::notice::api=$API serial=${SERIAL:-none} devices=$(adb devices 2>&1 | tr '\n' ' ' | cut -c1-300)"
+          echo "serial=${SERIAL:-none}"
           if [ -z "$SERIAL" ]; then
             echo "::error::api=$API no adb device: $(tail -c 800 "$OUT/emulator.log" | tr '\n' ' ' | cut -c1-700)"
             exit 1
@@ -567,9 +567,9 @@ jobs:
               break
             fi
             BOOT=$(adb -s "$SERIAL" shell getprop sys.boot_completed 2>/dev/null | tr -d '\r')
-            if [ "$BOOT" = "1" ]; then booted=1; echo "::notice::api=$API booted after $((i*5))s"; break; fi
-            if [ $((i % 12)) -eq 0 ]; then
-              echo "::notice::api=$API still booting at $((i*5))s (boot_completed=${BOOT:-empty} bootanim=$(adb -s "$SERIAL" shell getprop init.svc.bootanim 2>/dev/null | tr -d '\r'))"
+            if [ "$BOOT" = "1" ]; then booted=1; echo "booted after $((i*5))s"; break; fi
+            if [ $((i % 24)) -eq 0 ]; then
+              echo "still booting at $((i*5))s (boot_completed=${BOOT:-empty})"
             fi
             sleep 5
           done
@@ -617,13 +617,6 @@ jobs:
           adb -s "$SERIAL" shell pidof com.flc.azkari > "$OUT/pid-offline.txt" 2>&1 || true
           adb -s "$SERIAL" logcat -d -v threadtime > "$OUT/logcat-offline.txt" || true
           adb -s "$SERIAL" exec-out screencap > "$OUT/screen-offline.raw" 2>/dev/null || true
-
-          echo "== summary =="
-          echo "::notice::api=$API pids first=$(cat "$OUT/pid-after-launch.txt" 2>/dev/null) second=$(cat "$OUT/pid-second-launch.txt" 2>/dev/null) offline=$(cat "$OUT/pid-offline.txt" 2>/dev/null) focus=$(cat "$OUT/focus.txt" 2>/dev/null | tr '\n' ' ' | cut -c1-160)"
-          CRASH=$(grep -haE 'FATAL EXCEPTION|beginning of crash|AndroidRuntime' "$OUT"/logcat-*.txt 2>/dev/null | head -8 | sed 's/::/-/g' | tr '\n' ' | ' | cut -c1-1200)
-          FLUT=$(grep -haE 'E/flutter|Unhandled Exception|MissingPluginException|PlatformException|LateInitializationError|NoSuchMethodError|ClassNotFoundException|NoClassDefFoundError|FacebookException' "$OUT"/logcat-*.txt 2>/dev/null | head -14 | sed 's/::/-/g' | tr '\n' ' | ' | cut -c1-1500)
-          echo "::notice::api=$API crash=$CRASH"
-          echo "::notice::api=$API flutter=$FLUT"
 
           # قياس موضوعي واحد مُجمَّع (GitHub يحتفظ بعدد محدود من التعليقات لكل خطوة).
           SCREEN_FIRST=$(python3 tool/screen_health.py "$OUT/screen-first-launch.raw" 2>&1 | tail -1)
