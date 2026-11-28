@@ -3,7 +3,6 @@ package com.flc.azkari
 import android.content.Context
 import androidx.test.core.app.ApplicationProvider
 import org.junit.Assert.assertEquals
-import org.junit.Assert.assertNotNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
 import org.junit.runner.RunWith
@@ -36,7 +35,6 @@ class WidgetPrefsStorageTest {
         val log = WidgetPrefs.pressLog(context)
         val result = log.press("سبحان الله")
         assertTrue(result is PressResult.Applied)
-        result as PressResult.Applied
 
         // (1) القيم عبر التخزين الحقيقي.
         assertEquals(1, WidgetPrefs.readInt(context, TasbihKeys.COUNT, 0))
@@ -103,7 +101,7 @@ class WidgetPrefsStorageTest {
         assertTrue(WidgetPressHandlers.increment(WidgetPrefs.stateStore(context), "سبحان الله"))
         val xml = prefsFile().readText()
         assertTrue(xml.contains("widget_revision"))
-        assertNotNull(WidgetPrefs.readString(context, TasbihKeys.TOTALS, null))
+        assertTrue(WidgetPrefs.readString(context, TasbihKeys.TOTALS, "").isNotEmpty())
 
         // وبعد فشل التخزين (مخزن يفشل في التأكيد) لا يُعلن النجاح ولا يتغيّر شيء.
         val failing = object : WidgetStateStore {
