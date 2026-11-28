@@ -4,6 +4,11 @@ on:
   push:
     branches: [ "main", "master" ]
   workflow_dispatch:
+    inputs:
+      diagnose_emulators:
+        description: 'تشخيص بدء التشغيل على محاكيات (تثبيت + فتح + logcat + صورة شاشة)'
+        type: boolean
+        default: false
 
 # صلاحية قراءة فقط: هذا المسار لا يستطيع نشر Release أو تعديل الإصدارات إطلاقاً.
 permissions:
@@ -348,3 +353,124 @@ jobs:
           name: Azkari-1.1.0-2-sha256-${{ steps.apk.outputs.sha }}-cert-${{ steps.apk.outputs.cert }}-tests-${{ steps.tests.outputs.count }}-apk-bytes-${{ steps.apk.outputs.bytes }}
           path: Azkari-1.1.0+2.apk
           if-no-files-found: error
+
+  # ===========================================================================
+  # تشخيص بدء التشغيل على محاكيات حقيقية (اختياري، لا يمسّ الـ APK ولا النشر).
+  # يُشغَّل فقط عند workflow_dispatch مع diagnose_emulators = true.
+  # الهدف: الحصول على أول Exception فعلي وlogcat، لا مجرد «البناء نجح».
+  # ===========================================================================
+  startup-diagnosis:
+    needs: build-android-apk
+    if: github.event_name == 'workflow_dispatch' && inputs.diagnose_emulators
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    strategy:
+      fail-fast: false
+      matrix:
+        # نبدأ بالإصدارات الأكثر خطرًا؛ تُوسَّع المصفوفة بعد أن تثبت الاستقرار.
+        api: [24, 28, 31, 34]
+        include:
+          - api: 24
+            arch: x86
+            target: default
+          - api: 28
+            arch: x86
+            target: default
+          - api: 31
+            arch: x86_64
+            target: default
+          - api: 34
+            arch: x86_64
+            target: default
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Download the shipped APK artifact
+        uses: actions/download-artifact@v4
+        with:
+          pattern: Azkari-*
+          path: dist
+          merge-multiple: true
+
+      - name: Unpack APK
+        run: |
+          set -euo pipefail
+          ls -la dist
+          mkdir -p apk
+          unzip -o dist/*.zip -d apk
+          find apk -name '*.apk' -maxdepth 2
+          cp "$(find apk -name '*.apk' -maxdepth 2 | head -n 1)" startup.apk
+          ls -l startup.apk
+
+      - name: Enable KVM for the emulator
+        run: |
+          echo 'KERNEL=="kvm", GROUP="kvm", MODE="0666", OPTIONS+="static_node=kvm"'             | sudo tee /etc/udev/rules.d/99-kvm4all.rules
+          sudo udevadm control --reload-rules
+          sudo udevadm trigger --name-match=kvm
+
+      - name: Boot emulator, install, launch, capture logcat
+        uses: reactivecircus/android-emulator-runner@v2
+        with:
+          api-level: ${{ matrix.api }}
+          target: ${{ matrix.target }}
+          arch: ${{ matrix.arch }}
+          disable-animations: true
+          emulator-options: -no-window -gpu swiftshader_indirect -noaudio -no-boot-anim -camera-back none
+          script: |
+            set -uo pipefail
+            OUT="diag-api${{ matrix.api }}"
+            mkdir -p "$OUT"
+
+            adb logcat -c || true
+            echo "== install =="
+            adb install -r startup.apk 2>&1 | tee "$OUT/install.txt"
+
+            echo "== first launch =="
+            adb shell monkey -p com.flc.azkari -c android.intent.category.LAUNCHER 1 2>&1 | tee "$OUT/launch.txt" || true
+            sleep 35
+
+            adb shell pidof com.flc.azkari > "$OUT/pid-after-launch.txt" 2>&1 || true
+            adb shell dumpsys window 2>/dev/null | grep -E 'mCurrentFocus|mFocusedApp' > "$OUT/focus.txt" || true
+            adb shell dumpsys activity activities 2>/dev/null | grep -E 'topResumedActivity|ResumedActivity' | head -5 > "$OUT/resumed.txt" || true
+            adb logcat -d -v threadtime > "$OUT/logcat-first-launch.txt" || true
+            adb logcat -d -b crash -v threadtime > "$OUT/logcat-crash.txt" || true
+            adb exec-out screencap -p > "$OUT/screen-first-launch.png" || true
+
+            echo "== second launch (process death + relaunch) =="
+            adb shell am force-stop com.flc.azkari || true
+            sleep 2
+            adb logcat -c || true
+            adb shell monkey -p com.flc.azkari -c android.intent.category.LAUNCHER 1 >/dev/null 2>&1 || true
+            sleep 25
+            adb shell pidof com.flc.azkari > "$OUT/pid-second-launch.txt" 2>&1 || true
+            adb logcat -d -v threadtime > "$OUT/logcat-second-launch.txt" || true
+            adb exec-out screencap -p > "$OUT/screen-second-launch.png" || true
+
+            echo "== offline launch (airplane mode on, wifi/data off) =="
+            adb shell am force-stop com.flc.azkari || true
+            adb shell svc wifi disable || true
+            adb shell svc data disable || true
+            adb shell cmd connectivity airplane-mode enable 2>/dev/null || true
+            adb logcat -c || true
+            adb shell monkey -p com.flc.azkari -c android.intent.category.LAUNCHER 1 >/dev/null 2>&1 || true
+            sleep 25
+            adb shell pidof com.flc.azkari > "$OUT/pid-offline.txt" 2>&1 || true
+            adb logcat -d -v threadtime > "$OUT/logcat-offline.txt" || true
+            adb exec-out screencap -p > "$OUT/screen-offline.png" || true
+
+            echo "== summary =="
+            for f in pid-after-launch pid-second-launch pid-offline; do
+              printf '%s: %s\n' "$f" "$(cat "$OUT/$f.txt" 2>/dev/null || echo missing)"
+            done
+            echo "-- java/kotlin crash lines --"
+            grep -hE 'FATAL EXCEPTION|AndroidRuntime|beginning of crash' "$OUT"/logcat-*.txt | head -20 || true
+            echo "-- flutter/dart error lines --"
+            grep -hE 'E/flutter|Unhandled Exception|MissingPluginException|PlatformException|LateInitializationError|NoSuchMethodError|ClassNotFoundException|NoClassDefFoundError' "$OUT"/logcat-*.txt | head -40 || true
+
+      - name: Upload diagnosis bundle
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: startup-diagnosis-api${{ matrix.api }}
+          path: diag-api${{ matrix.api }}
+          if-no-files-found: warn
