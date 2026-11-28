@@ -377,7 +377,7 @@ jobs:
       matrix:
         # هدف واحد أولًا للتحقق من البنية التحتية نفسها؛ ثم تُوسَّع المصفوفة.
         # المصفوفة التي جرّب عليها المستخدم فعلًا (7/8/9 … 13) + هدف وسطي.
-        api: [24, 30, 33]
+        api: [24]
     steps:
       - uses: actions/checkout@v4
 
@@ -559,6 +559,10 @@ jobs:
           CHAIN=$(awk '/FATAL EXCEPTION/{f=1} f{print} f&&c++>45{exit}' "$OUT/logcat-crash.txt" 2>/dev/null \
             | sed 's/::/-/g' | tr '\n' ' | ' | cut -c1-4000)
           echo "::error::api=$API fatal-chain: $CHAIN"
+          # السلسلة الكاملة: كل سطور Caused by وأي سطر يشير إلى Room/WorkDatabase_Impl.
+          CAUSES=$(grep -haE 'Caused by|Room|WorkDatabase_Impl|ClassNotFound|NoClassDefFound|IllegalState|SQLite|sqlite' "$OUT"/logcat-*.txt 2>/dev/null \
+            | head -24 | sed 's/::/-/g' | cut -c1-260 | tr '\n' ' | ' | cut -c1-4000)
+          echo "::error::api=$API causes: $CAUSES"
           echo "::notice::api=$API flutter-lines=$(grep -cE 'flutter|Flutter' "$OUT"/logcat-first-launch.txt 2>/dev/null || echo 0) displayed=$(grep -hE 'Displayed com.flc.azkari' "$OUT"/logcat-*.txt 2>/dev/null | tail -2 | tr '\n' ' ' | cut -c1-300)"
           echo "::notice::api=$API activity=$(adb -s "$SERIAL" shell dumpsys activity activities 2>/dev/null | grep -E 'ResumedActivity|topResumedActivity' | head -2 | tr '\n' ' ' | cut -c1-300)"
 
